@@ -24,6 +24,7 @@ import (
 	"github.com/bodgit/sevenzip"
 	"github.com/nwaples/rardecode/v2"
 
+	"github.com/wicanr2/wincv-remake/internal/archive/lzh"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
@@ -44,7 +45,7 @@ var Formats = []Format{
 	{[]string{".bz2", ".tbz", ".tar.bz2"}, "BZIP2", true, "compress/bzip2"},
 	{[]string{".rar"}, "RAR", true, "nwaples/rardecode/v2"},
 	{[]string{".7z"}, "7-Zip", true, "bodgit/sevenzip"},
-	{[]string{".lzh", ".lha"}, "LHA", false, "Go 實作稀少,可能自寫"},
+	{[]string{".lzh", ".lha"}, "LHA", true, "自寫,見 internal/archive/lzh"},
 	{[]string{".arj"}, "ARJ", false, "無成熟 Go 實作,需自寫"},
 	{[]string{".ace"}, "ACE", false, "格式封閉,排在最後"},
 	{[]string{".cab"}, "CAB", false, "待寫 MSZIP"},
@@ -121,6 +122,8 @@ func Open(name string) (*FS, error) {
 		err = a.loadRar(name)
 	case "7-Zip":
 		err = a.loadSevenZip(name)
+	case "LHA":
+		err = a.loadLZH(name)
 	default:
 		err = fmt.Errorf("%s 沒有對應的讀取器", f.Name)
 	}
@@ -145,6 +148,52 @@ func (a *FS) loadZip(name string) error {
 			modTime: f.Modified,
 			isDir:   f.FileInfo().IsDir(),
 			open:    func() (io.ReadCloser, error) { return f.Open() },
+		})
+	}
+	return nil
+}
+
+// loadLZH 讀 LZH / LHA。
+//
+// 解出來的內容留在記憶體裡:LZSS 的視窗就是輸出本身,沒有辦法只解一部分。
+// 那個年代的壓縮檔不會大到裝不下。
+func (a *FS) loadLZH(name string) error {
+	f, err := os.Open(name)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	es, err := lzh.List(f)
+	if len(es) == 0 {
+		// 一筆都沒有:多半根本不是 LZH(或壞掉了)。要報錯,
+		// 不能當成「空的壓縮檔」讓使用者看到一個空目錄。
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%s: 讀不到任何成員,可能不是 LZH 檔", path.Base(name))
+	}
+	for _, e := range es {
+		e := e
+		if e.IsDir {
+			a.entries = append(a.entries, entry{
+				path: strings.TrimSuffix(e.Name, "/"), modTime: e.ModTime, isDir: true,
+			})
+			continue
+		}
+		if _, err := f.Seek(e.Offset, io.SeekStart); err != nil {
+			return err
+		}
+		body, derr := lzh.Decode(io.LimitReader(f, e.Packed), e.Method, e.Original)
+		a.entries = append(a.entries, entry{
+			path:    e.Name,
+			size:    e.Original,
+			modTime: e.ModTime,
+			open: func() (io.ReadCloser, error) {
+				if derr != nil {
+					return nil, fmt.Errorf("%s: %w", e.Name, derr)
+				}
+				return io.NopCloser(bytes.NewReader(body)), nil
+			},
 		})
 	}
 	return nil

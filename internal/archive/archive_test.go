@@ -210,14 +210,43 @@ func TestDetectFormatLongestWins(t *testing.T) {
 // 還沒實作的格式要給清楚的訊息,不是含糊的失敗。
 func TestUnsupportedFormatMessage(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "x.lzh")
+	p := filepath.Join(dir, "x.ace")
 	os.WriteFile(p, []byte("dummy"), 0o644)
 	_, err := Open(p)
 	if err == nil {
-		t.Fatal("LHA 目前應該回錯誤")
+		t.Fatal("ACE 目前應該回錯誤")
 	}
-	if !strings.Contains(err.Error(), "LHA") || !strings.Contains(err.Error(), "還沒實作") {
+	if !strings.Contains(err.Error(), "ACE") || !strings.Contains(err.Error(), "還沒實作") {
 		t.Errorf("訊息不夠清楚: %v", err)
+	}
+}
+
+// 真的能把 LZH 當目錄瀏覽。
+func TestLZHAsFS(t *testing.T) {
+	a, err := Open(filepath.Join("..", "..", "testdata", "lzh", "dosbox-sample.lha"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := a.ReadDir(a.Name() + "!DOSBox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range es {
+		names = append(names, e.Name)
+	}
+	// C 是目錄項,C.info / dosbox.diff / dosbox.readme 是檔案
+	if len(names) != 4 {
+		t.Fatalf("DOSBox/ 底下有 %d 筆: %v", len(names), names)
+	}
+	rc, err := a.Open(a.Name() + "!DOSBox/dosbox.readme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	b, _ := io.ReadAll(rc)
+	if len(b) != 3097 {
+		t.Errorf("dosbox.readme 讀出 %d 個位元組,期望 3097", len(b))
 	}
 }
 

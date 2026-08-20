@@ -352,13 +352,13 @@ func TestEnterArchiveLikeDirectory(t *testing.T) {
 // 還沒實作的格式要給訊息,不是默默什麼都不做。
 func TestEnterUnsupportedArchive(t *testing.T) {
 	root := fixture(t)
-	os.WriteFile(filepath.Join(root, "x.lzh"), []byte("dummy"), 0o644)
+	os.WriteFile(filepath.Join(root, "x.ace"), []byte("dummy"), 0o644)
 	a := New(vfs.OS{}, root)
 	s := cell.New(78, 20)
 	a.Draw(s)
-	for cursorName(a) != "x.lzh" {
+	for cursorName(a) != "x.ace" {
 		if !a.HandleKey(keys.Named(keys.Down)) {
-			t.Fatal("找不到 x.lzh")
+			t.Fatal("找不到 x.ace")
 		}
 		a.Draw(s)
 	}
@@ -366,7 +366,7 @@ func TestEnterUnsupportedArchive(t *testing.T) {
 	if a.Mode != ModeBrowser {
 		t.Error("不支援的格式不該切換模式")
 	}
-	if !strings.Contains(a.Message, "LHA") {
+	if !strings.Contains(a.Message, "ACE") {
 		t.Errorf("應該說明是什麼格式沒支援,得到 %q", a.Message)
 	}
 }
