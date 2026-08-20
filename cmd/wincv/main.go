@@ -19,8 +19,21 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
 	"github.com/wicanr2/wincv-remake/internal/render"
+	"github.com/wicanr2/wincv-remake/internal/ttf"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
+
+// level 是一個字級:一種半形點陣字型,加上配合它的全形來源。
+//
+// 原版隨附三種尺寸的 `.FON`(8x15 / 10x18 / 12x24),放大縮小字體就是
+// 在這幾種之間換。全形字只有倚天的 15 點那一份,其餘尺寸由它縮放
+// (24 點的漢字在倚天光碟裡是 ETUNPACK 壓縮的,還解不開)。
+type level struct {
+	name string
+	half *fnt.Font
+	cjk  render.CJKSource
+	fb   render.CJKSource
+}
 
 type game struct {
 	app    *app.App
@@ -29,6 +42,51 @@ type game struct {
 	canvas *ebiten.Image
 	dirty  bool
 	scale  int
+
+	levels []level
+	zoom   int
+	cols   int
+	rows   int
+}
+
+// setZoom 換字級,並依現在的視窗大小重算欄列數。
+func (g *game) setZoom(n int) {
+	if n < 0 || n >= len(g.levels) || n == g.zoom {
+		return
+	}
+	g.zoom = n
+	l := g.levels[n]
+	g.rast = render.New(l.half, l.cjk)
+	g.rast.Fallback = l.fb
+	g.rast.MissingMark = true
+	g.app.CellW, g.app.CellH = g.rast.CellW, g.rast.CellH
+	g.canvas = nil
+	g.dirty = true
+}
+
+// resize 依視窗像素大小算出裝得下幾欄幾列。
+//
+// 「視窗放大時內容多一點」就是這件事:格子大小固定,視窗變大就多幾格,
+// 而不是把同樣的內容拉大。要把內容拉大是換字級(Ctrl-+)或整數倍放大。
+func (g *game) resize(w, h int) {
+	cw, ch := g.rast.CellW*g.scale, g.rast.CellH*g.scale
+	if cw <= 0 || ch <= 0 {
+		return
+	}
+	cols, rows := w/cw, h/ch
+	if cols < 20 {
+		cols = 20
+	}
+	if rows < 5 {
+		rows = 5
+	}
+	if cols == g.cols && rows == g.rows {
+		return
+	}
+	g.cols, g.rows = cols, rows
+	g.screen = cell.New(cols, rows)
+	g.canvas = nil
+	g.dirty = true
 }
 
 func (g *game) Update() error {
@@ -46,6 +104,9 @@ func (g *game) Update() error {
 	// 使用者從視窗管理員那邊切全螢幕時也能跟上。
 	if g.app.Fullscreen != ebiten.IsFullscreen() {
 		ebiten.SetFullscreen(g.app.Fullscreen)
+	}
+	if g.app.Zoom != g.zoom {
+		g.setZoom(g.app.Zoom)
 	}
 	return nil
 }
@@ -66,9 +127,13 @@ func (g *game) Draw(dst *ebiten.Image) {
 	dst.DrawImage(g.canvas, op)
 }
 
-func (g *game) Layout(int, int) (int, int) {
-	w, h := g.rast.Size(g.screen.Cols, g.screen.Rows)
-	return w * g.scale, h * g.scale
+// Layout 每幀被呼叫,參數是視窗的實際大小。回傳同樣的數字表示
+// 「邏輯像素 = 視窗像素」,放大交給我們自己做,這樣點陣字才不會被插值糊掉。
+func (g *game) Layout(outW, outH int) (int, int) {
+	if outW > 0 && outH > 0 {
+		g.resize(outW, outH)
+	}
+	return outW, outH
 }
 
 func main() {
@@ -79,6 +144,9 @@ func main() {
 		cols     = flag.Int("cols", 80, "欄數")
 		rows     = flag.Int("rows", 30, "列數")
 		scale    = flag.Int("scale", 2, "整數倍放大")
+		zoom     = flag.Int("zoom", 0, "字級:0=8x15 1=10x18 2=12x24")
+		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
+		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
 	)
 	flag.Parse()
 
@@ -91,34 +159,27 @@ func main() {
 		die(err)
 	}
 
-	fd, err := os.ReadFile(*halfPath)
-	if err != nil {
-		die(fmt.Errorf("讀不到半形字型 %s: %w", *halfPath, err))
-	}
-	half, err := fnt.Parse(fd)
-	if err != nil {
-		die(err)
-	}
-	var cjk render.CJKSource
-	if f, err := eten.Load(*stdPath, *spcPath, half.PixWidth*2, half.PixHeight); err == nil {
-		cjk = f
-	} else {
-		fmt.Fprintf(os.Stderr, "警告:載不到倚天字庫,全形字會留白 (%v)\n", err)
-	}
-
 	a := app.New(vfs.OS{}, abs)
-	a.CellW, a.CellH = half.PixWidth, half.PixHeight
 	// 語法上色設定跟半形字型放在一起(原版是同一個安裝目錄)。
-	a.LoadSyntax(filepath.Dir(*halfPath))
-	a.DictDir = filepath.Dir(*halfPath)
-	g := &game{
-		app:    a,
-		screen: cell.New(*cols, *rows),
-		rast:   render.New(half, cjk),
-		dirty:  true,
-		scale:  *scale,
+	cfgDir := filepath.Dir(*halfPath)
+	a.LoadSyntax(cfgDir)
+	a.DictDir = cfgDir
+
+	levels := loadLevels(cfgDir, *stdPath, *spcPath, *fbFont, *noFB)
+	if len(levels) == 0 {
+		die(fmt.Errorf("一個半形字型都載不到(找過 %s)", cfgDir))
 	}
-	w, h := g.rast.Size(*cols, *rows)
+	a.MaxZoom = len(levels) - 1
+	if *zoom > a.MaxZoom {
+		*zoom = a.MaxZoom
+	}
+	a.Zoom = *zoom
+
+	g := &game{app: a, levels: levels, scale: *scale, zoom: -1, dirty: true}
+	g.setZoom(*zoom)
+	g.resize(*cols*g.rast.CellW*g.scale, *rows*g.rast.CellH*g.scale)
+
+	w, h := g.rast.Size(g.cols, g.rows)
 	ebiten.SetWindowSize(w*g.scale, h*g.scale)
 	ebiten.SetWindowTitle("WinCV")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
@@ -133,4 +194,60 @@ func main() {
 func die(err error) {
 	fmt.Fprintln(os.Stderr, "錯誤:", err)
 	os.Exit(1)
+}
+
+// fonNames 是原版隨附的三種半形點陣字型,由小到大。
+var fonNames = []string{"cvga.fon", "CVGA1018.FON", "cvga1224.FON"}
+
+// loadLevels 把能載到的字級都準備好。載不到的就跳過,但要說出來 ——
+// 少一個字級的症狀是「Ctrl-+ 沒反應」,那看起來像壞掉而不像缺檔案。
+func loadLevels(dir, stdPath, spcPath, fbPath string, noFB bool) []level {
+	var out []level
+	for _, name := range fonNames {
+		p := filepath.Join(dir, name)
+		d, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		half, err := fnt.Parse(d)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告:%s 解不開 (%v)\n", name, err)
+			continue
+		}
+		cw, ch := half.PixWidth, half.PixHeight+render.LineGap
+		l := level{name: name, half: half}
+
+		// 全形字:倚天只有 15 點那一份,其餘字級由它縮放。
+		if f, err := eten.Load(stdPath, spcPath, half.PixWidth*2, half.PixHeight); err == nil {
+			l.cjk = render.ScaleCJK(f, f.W, f.H, cw*2, ch)
+		} else if len(out) == 0 {
+			fmt.Fprintf(os.Stderr, "警告:載不到倚天字庫,全形字要靠後備字型 (%v)\n", err)
+		}
+		if !noFB {
+			l.fb = loadFallback(fbPath, cw, ch)
+		}
+		out = append(out, l)
+	}
+	return out
+}
+
+// loadFallback 掛上後備字型,補倚天(Big5 索引)沒有的字:
+// 简体字、韓文、希臘文、多數符號。找不到就沒有,缺字會畫成空框。
+func loadFallback(path string, cw, ch int) render.CJKSource {
+	if path != "" {
+		f, err := ttf.Load(path, cw, cw*2, ch)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告:載不到後備字型 %s (%v)\n", path, err)
+			return nil
+		}
+		return f
+	}
+	chain, _, errs := ttf.LoadChain(cw, cw*2, ch)
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "警告:字型載不起來 %v\n", e)
+	}
+	if len(chain) == 0 {
+		return nil
+	}
+	return chain
 }

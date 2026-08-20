@@ -90,6 +90,15 @@ type Rasterizer struct {
 	CJK     CJKSource // 全形字型來源,可為 nil
 	Palette [cell.NumColors]color.RGBA
 
+	// Fallback 補點陣字庫沒有的字。倚天是用 Big5 索引的,Big5 以外的
+	// (简体字、韓文、希臘文、多數符號)沒有字模;UTF-8 檔案很容易碰到。
+	// 可為 nil,那樣缺字就畫成缺字記號。
+	Fallback CJKSource
+
+	// MissingMark 決定缺字要不要畫一個記號。畫出來比留白好 ——
+	// 留白會讓人以為檔案裡本來就是空的。
+	MissingMark bool
+
 	CellW, CellH int
 	buf          *image.RGBA
 }
@@ -279,18 +288,19 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 	}
 	var g *fnt.Glyph
 	if c.Wide {
-		if r.CJK == nil {
-			return
+		if r.CJK != nil {
+			g = r.CJK.Glyph(c.Ch)
 		}
-		g = r.CJK.Glyph(c.Ch)
-	} else {
-		b, ok := toCP950Byte(c.Ch)
-		if !ok {
-			return
-		}
+	} else if b, ok := toCP950Byte(c.Ch); ok {
 		g = r.Half.Glyph(b)
 	}
+	if g == nil && r.Fallback != nil {
+		g = r.Fallback.Glyph(c.Ch)
+	}
 	if g == nil {
+		if r.MissingMark && c.Ch != ' ' && c.Ch != 0 {
+			r.drawMissing(s, cx, cy, c)
+		}
 		return
 	}
 
@@ -319,6 +329,40 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 // 半形字型是 0x00-0xFF 的單位元組字型,0x00-0x7F 就是 ASCII;
 // 0x80-0xFF 在 Big5 環境下是雙位元組字的前導位元組,不會單獨出現在
 // 一個半形格裡,所以只有 U+0000-U+00FF 之間直接對應的才給。
+// drawMissing 畫缺字記號:一個空心框,佔該字應有的寬度。
+//
+// 缺字要看得見。留白的話,使用者看到的是「這個檔案這裡沒東西」,
+// 而事實是「這裡有字但畫不出來」—— 那是兩件完全不同的事。
+func (r *Rasterizer) drawMissing(s *cell.Screen, cx, cy int, c *cell.Cell) {
+	w := r.CellW
+	if c.Wide {
+		w *= 2
+	}
+	px, py := cx*r.CellW, cy*r.CellH
+	fg := r.Palette[clampColor(c.FG)]
+	set := func(x, y int) {
+		if x < 0 || y < 0 {
+			return
+		}
+		o := r.buf.PixOffset(px+x, py+y)
+		if o < 0 || o+3 >= len(r.buf.Pix) {
+			return
+		}
+		r.buf.Pix[o+0], r.buf.Pix[o+1] = fg.R, fg.G
+		r.buf.Pix[o+2], r.buf.Pix[o+3] = fg.B, 0xFF
+	}
+	top, bot := 2, r.CellH-3
+	left, right := 1, w-2
+	for x := left; x <= right; x++ {
+		set(x, top)
+		set(x, bot)
+	}
+	for y := top; y <= bot; y++ {
+		set(left, y)
+		set(right, y)
+	}
+}
+
 func toCP950Byte(r rune) (byte, bool) {
 	if r >= 0 && r <= 0xFF {
 		return byte(r), true

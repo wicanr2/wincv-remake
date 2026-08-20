@@ -61,9 +61,14 @@ func getBits(v uint32, start, length uint) uint32 {
 //
 // 允許看過檔尾最多 31 個位元,補 0 —— 最後一個碼可能跨過實體結尾,
 // 參考實作也是這樣處理。
+// peek 一次最多 31 位。ACE 用到的最寬欄位是 LZ77_DELTA 的 17 位,
+// 上限放在這裡是為了讓「跨字只會跨一次」這個假設有據可循。
 func (b *bitStream) peek(n uint) (uint32, error) {
 	if n == 0 {
 		return 0, nil
+	}
+	if n > 31 {
+		return 0, fmt.Errorf("一次讀 %d 位超過上限", n)
 	}
 	if b.pos+int(n) > b.nbits {
 		if b.pos+int(n) > b.nbits+31 {
@@ -80,12 +85,9 @@ func (b *bitStream) peek(n uint) (uint32, error) {
 		got = 32 - off
 	}
 	res := getBits(b.word(idx), off, got)
-	for n-got >= 32 {
-		res <<= 32
-		res += b.word((b.pos + int(got)) / 32)
-		got += 32
-	}
 	if n-got > 0 {
+		// 跨到下一個 32 位元字。一個碼最多 17 位(見 peek 的上限檢查),
+		// 所以最多只會跨一次,不需要迴圈。
 		res <<= n - got
 		res += getBits(b.word((b.pos+int(got))/32), 0, n-got)
 	}

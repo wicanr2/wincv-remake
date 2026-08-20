@@ -90,6 +90,10 @@ type App struct {
 	ShowPreview bool
 	prev        preview
 
+	// Zoom 是字級索引,MaxZoom 是最大值(由外層設定,因為有幾級取決於
+	// 載到了幾種字型)。app 這一層只管索引,實際換字型是視窗層的事。
+	Zoom, MaxZoom int
+
 	// rows 是最近一次繪製時內容區的列數,按鍵處理要用來算翻頁。
 	rows int
 	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
@@ -98,6 +102,8 @@ type App struct {
 	prompt prompt
 	// menu 是 F1 的指令選單,見 menu.go。
 	menu menu
+	// about 是「關於」畫面,見 about.go。
+	about bool
 	// editFind 是編輯器 F6 的尋找/取代狀態,見 editfind.go。
 	editFind findState
 	// findKindPending / convertPending 是「選單那一步」的暫存狀態:
@@ -168,6 +174,9 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 	if a.menu.active {
 		a.drawMenu(s)
 	}
+	if a.about {
+		a.drawAbout(s)
+	}
 	if a.prompt.active {
 		a.drawPrompt(s)
 	} else if a.Message != "" {
@@ -191,12 +200,26 @@ func (a *App) HandleKey(k keys.Key) bool {
 		}
 		return a.promptKey(k)
 	}
+	if a.about {
+		return a.aboutKey(k)
+	}
 	if a.menu.active {
 		return a.menuKey(k)
 	}
 	a.Message = ""
 	// F1 選單、F8 中英文、F11 全螢幕在每個模式下都通,
 	// 所以在分派到各模式之前先攔下來。
+	// 字級與縮放:Ctrl-+ / Ctrl-- / Ctrl-0。每個模式下都通。
+	if k.Ctrl && k.Code == keys.Rune {
+		switch k.R {
+		case '+', '=':
+			return a.setZoom(a.Zoom + 1)
+		case '-', '_':
+			return a.setZoom(a.Zoom - 1)
+		case '0':
+			return a.setZoom(0)
+		}
+	}
 	switch k.Code {
 	case keys.F1:
 		return a.openMenu()
@@ -223,6 +246,21 @@ func (a *App) HandleKey(k keys.Key) bool {
 	default:
 		return a.browserKey(k)
 	}
+}
+
+// setZoom 換字級。回傳是否真的變了。
+func (a *App) setZoom(n int) bool {
+	if n < 0 {
+		n = 0
+	}
+	if n > a.MaxZoom {
+		n = a.MaxZoom
+	}
+	if n == a.Zoom {
+		return false
+	}
+	a.Zoom = n
+	return true
 }
 
 // --- 檔案瀏覽器 -----------------------------------------------------------

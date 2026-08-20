@@ -80,6 +80,11 @@ func (a *App) menuItems() []menuItem {
 		{label: "縮圖列表", key: k('5')},
 		{label: "切換 中英文顯示", key: keys.Named(keys.F8)},
 		{label: "全螢幕", key: keys.Named(keys.F11)},
+		{label: "預視窗格", key: alt('P')},
+		{label: "放大字體", key: keys.CtrlCh('+')},
+		{label: "縮小字體", key: keys.CtrlCh('-')},
+		{sep: true},
+		{label: "關於", run: a.openAbout},
 	}
 	return items
 }
@@ -108,10 +113,12 @@ func (a *App) menuKey(k keys.Key) bool {
 	case keys.Down:
 		return move(1)
 	case keys.Home:
-		m.cursor = 0
+		// 先退到範圍外再往前走一格,才會停在**第一個**可選項目上;
+		// 直接設 0 再 move(1) 會跳過第一項。
+		m.cursor = -1
 		return move(1)
 	case keys.End:
-		m.cursor = len(m.items) - 1
+		m.cursor = len(m.items)
 		return move(-1)
 	case keys.PgUp:
 		return move(-m.visible())

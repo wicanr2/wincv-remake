@@ -8,5 +8,6 @@ mkdir -p "$REPO/.cache/gomod" "$REPO/.cache/gobuild"
 exec docker run --rm --log-opt max-size=10m --log-opt max-file=3 \
     -v "$REPO":/src -w /src \
     -v "$REPO/.cache/gomod":/gomod -v "$REPO/.cache/gobuild":/gobuild \
+    -v /usr/share/fonts:/usr/share/fonts:ro \
     -e GOFLAGS=-buildvcs=false -e GOCACHE=/gobuild -e GOMODCACHE=/gomod \
     "$IMG" go "$@"

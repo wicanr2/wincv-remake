@@ -26,6 +26,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/viewer"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/syntax"
+	"github.com/wicanr2/wincv-remake/internal/ttf"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
@@ -89,6 +90,8 @@ func main() {
 		cfgDir   = flag.String("cfg", "original/app", "語法上色設定所在的目錄")
 		appDir   = flag.String("app", "", "跑完整的 app(含選單、模式切換)並瀏覽這個目錄")
 		keyStr   = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
+		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
+		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
 	)
 	flag.Parse()
 
@@ -130,6 +133,10 @@ func main() {
 	}
 
 	r := render.New(half, cjkOrNil(cjk))
+	r.MissingMark = true
+	if !*noFB {
+		attachFallback(r, *fbFont, half.PixWidth, half.PixHeight)
+	}
 	img := r.DrawWith(s, overlay)
 
 	f, err := os.Create(*out)
@@ -237,4 +244,30 @@ func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int) (*render.Ov
 		a.Draw(s)
 	}
 	return a.Draw(s), nil
+}
+
+// attachFallback 掛上後備字型。找不到就算了 —— 缺字會畫成空心框,
+// 不會安靜地變成空白。
+func attachFallback(r *render.Rasterizer, path string, cw, ch int) {
+	if path != "" {
+		f, err := ttf.Load(path, cw, cw*2, ch)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "警告:載不到後備字型 %s (%v)\n", path, err)
+			return
+		}
+		r.Fallback = f
+		return
+	}
+	chain, used, errs := ttf.LoadChain(cw, cw*2, ch)
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "警告:字型載不起來 %v\n", e)
+	}
+	if len(chain) > 0 {
+		r.Fallback = chain
+		if os.Getenv("WINCV_VERBOSE") != "" {
+			fmt.Fprintf(os.Stderr, "後備字型:%v\n", used)
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, "警告:找不到後備字型,倚天字庫以外的字會畫成空框")
+	}
 }
