@@ -178,19 +178,26 @@ func demo(s *cell.Screen) {
 	s.Print(2, 6, "檔案瀏覽器 壓縮檔管理 文字檢視 編碼轉換", cell.LtCyan, cell.Black)
 	s.Print(2, 7, "全形標點:，。！？「」『』（）《》～", cell.Yellow, cell.Black)
 
-	s.Print(2, 9, "16 色:", cell.White, cell.Black)
-	for i := 0; i < 16; i++ {
-		s.Print(2+i*4, 10, fmt.Sprintf("%2d", i), cell.Color(i), cell.Black)
-		s.Fill(2+i*4+2, 10, 2, 1, ' ', cell.Black, cell.Color(i))
+	// 29 個具名顏色,值取自 WINCV.IMG(見 render.DefaultPalette)。
+	// 名字用該色自己畫,右邊補一個色塊 —— 深色在黑底上看不清楚,
+	// 只印名字驗不到。
+	s.Print(2, 9, "29 色(名稱與 RGB 都取自 image):", cell.White, cell.Black)
+	const perRow = 3
+	for i := 0; i < int(cell.NumColors); i++ {
+		col, row := i%perRow, i/perRow
+		x, y := 2+col*24, 10+row
+		s.Print(x, y, fmt.Sprintf("%2d %-12s", i, cell.Names[i]), cell.Color(i), cell.Black)
+		s.Fill(x+16, y, 4, 1, ' ', cell.Black, cell.Color(i))
 	}
 
-	s.Print(2, 12, "反白游標列示範(整列換屬性,字不動):", cell.White, cell.Black)
-	s.Print(2, 13, "7-zip32  dll     228,864  2004-10-01  10:00", cell.LtGray, cell.Black)
-	s.Print(2, 14, "big52gbk txt      69,865  2002-10-21  10:00", cell.LtGray, cell.Black)
-	s.SetAttr(2, 14, 44, cell.Black, cell.LtGray)
+	y := 10 + (int(cell.NumColors)+perRow-1)/perRow + 1
+	s.Print(2, y, "反白游標列示範(整列換屬性,字不動):", cell.White, cell.Black)
+	s.Print(2, y+1, "7-zip32  dll     228,864  2004-10-01  10:00", cell.LtGray, cell.Black)
+	s.Print(2, y+2, "big52gbk txt      69,865  2002-10-21  10:00", cell.LtGray, cell.Black)
+	s.SetAttr(2, y+2, 44, cell.Black, cell.LtGray)
 
-	s.Print(2, 16, "全形字佔兩格,右半格是佔位:中|文|字", cell.LtGreen, cell.Black)
-	s.Print(2, 17, "混排 mixed 中英 test 對齊 align", cell.LtMagenta, cell.Black)
+	s.Print(2, y+4, "全形字佔兩格,右半格是佔位:中|文|字", cell.LtGreen, cell.Black)
+	s.Print(2, y+5, "混排 mixed 中英 test 對齊 align", cell.LtMagenta, cell.Black)
 }
 
 func min(a, b int) int {

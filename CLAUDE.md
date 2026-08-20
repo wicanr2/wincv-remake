@@ -29,7 +29,7 @@
 | 字型註冊方式 | 程式以 `AddFontResource` 註冊自己的 `.FON`,再用 `CreateFontIndirect` 指名 face。Wine log 實測有 `Chosen: L"cvga Regular" (C:\wincv\wincv.fon)` |
 | CJK 字形來源 | 不在隨附字型內。image 裡指名 **`新細明體`** → 原版全形中文由 Windows GDI 用系統字型繪製,字形隨使用者的 Windows 而異 |
 | 全形格點 | 半形 8×15 → 全形 **16×15**。倚天 `STDFONT.15` 正好是 16×15、`ASCFONT.15` 正好是 8×15;`cvga1224` 12×24 對應倚天 `STD.24x` 24×24。同一個年代的規格 |
-| 配色 | **29 個具名顏色**,不是 16 色。名稱與順序取自 image 0x5692d 的斜線分隔清單(counted string,長度 227):black/dkgray/red/ltred/green/ltgreen/blue/ltblue/yellow/mildyellow/ltyellow/magenta/ltmagenta/cyan/ltcyan/gray/white/ltgray/purple/ltpurple/orange/ltorange/gooseyellow/bluegreen/inkgreen/mildwhite/mildgreen/mildcyan/mildmagenta。`keyword_*.cfg` 就是用這些名字指定語法上色 |
+| 配色 | **29 個具名顏色**,不是 16 色。名稱與順序取自 image 0x5692d 的斜線分隔清單(counted string,長度 227):black/dkgray/red/ltred/green/ltgreen/blue/ltblue/yellow/mildyellow/ltyellow/magenta/ltmagenta/cyan/ltcyan/gray/white/ltgray/purple/ltpurple/orange/ltorange/gooseyellow/bluegreen/inkgreen/mildwhite/mildgreen/mildcyan/mildmagenta。`keyword_*.cfg` 就是用這些名字指定語法上色。**RGB 值也在 image 裡**:每個顏色是一個 Forth word,body 有 0x24 個位元組,第 8-10 個就是 R、G、B(Win32 的 COLORREF 是 `0x00BBGGRR`,小端存放後記憶體順序正好是 R G B);word 的 xt 在標頭裡「名字結尾 +9」的那個 dword。抽取程式 `tools/palette.py`,結果在 `internal/render/raster.go` 的 `DefaultPalette` |
 | Big5 字串表 | image 內的 UI 文字是 Forth counted string。加上「前一個 byte 等於長度」這道檢查後,15761 個候選收斂到 1293 個真字串;長度 ≥8 的有 845 筆,含選單、對話框、快捷鍵說明 |
 | 附帶資料檔 | 英漢字典 `eng.txt` (5.5 MB) + `.dat`/`.idx`、`chi.txt.*`、KK 音標 `kk.txt.*`、`origin-verb.txt.*`、big5↔gbk/sjis/kor 對照表、`keyword_*.cfg` 語法上色、`ce.ful` 符號表、`default.fil` 書籤 |
 | 解壓縮 | 原版外掛 Windows DLL:`unrar.dll` `unlha32.dll` `unarj32j.dll` `unacev2.dll` `tar32.dll` `CAB32.DLL` `7-zip32.dll` `bszip.dll` `aunzip32.dll` `libbz2` |
@@ -379,7 +379,6 @@ tools/oracle-shot.sh original/ref-shots/view.png 18 "Down Down Return"
 | # | 假設 | 怎麼驗 |
 |---|---|---|
 | A1 | `EDI` 是 image base(而非 user area 指標) | 在 IDA 裡取幾個 `[edi+X]`,對照 X 是否落在 image 的資料區間 |
-| A8 | 29 個具名顏色的**實際 RGB** | 名稱與順序已查證,RGB 還沒。兩條路試過都不通:image 裡沒有靜態 COLORREF 表(顏色是執行期用 `NEW-COLOR` 建的);從 Wine 截圖取樣不可靠(Wine 的字型渲染帶 subpixel 色邊,且語法上色預設關閉)。下一步是在 IDA 裡看 `NEW-COLOR` 的呼叫端 |
 | A10 | 符號補充區的碼位↔字模對照表(43 個洞在哪) | 逐一 dump `SPCFSUPP.15` 的 365 個字模,與 Big5-ETen 表比對出缺哪些碼位 |
 | A11 | KK 音標的符號編碼 | `kk.txt.dat` 用 `+ > - V ) Q` 這類 ASCII 字元表示音標符號,對應到哪些字形還沒查。原版可能有一張替換表或專用字型 |
 | A9 | 主畫面的欄數與列數 | 目前只知道原版視窗約 600×545 px。要在 Wine 用真正的 cvga 字型跑出來才算得準 |
