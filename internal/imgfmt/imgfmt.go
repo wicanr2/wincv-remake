@@ -5,7 +5,7 @@
 //
 // Go 這邊:JPEG/PNG/GIF 用 stdlib,BMP/TIFF 用 x/image,
 // PCX/TGA/PNM/ICO 自己寫(格式單純,不值得為它們拉相依)。
-// KOA(Koala,C64 圖檔)與 PCD(Photo CD)還沒做,狀態記在 Formats。
+// PCD(Photo CD)還沒做,狀態記在 Formats。
 package imgfmt
 
 import (
@@ -43,8 +43,10 @@ var Formats = []Format{
 	{[]string{".tga"}, "TGA", true, "自寫"},
 	{[]string{".pbm", ".pgm", ".ppm", ".pnm"}, "PNM", true, "自寫"},
 	{[]string{".ico"}, "ICO", true, "自寫(挑最大的那張)"},
-	{[]string{".koa"}, "Koala", false, "C64 圖檔,尚未實作"},
-	{[]string{".pcd"}, "PhotoCD", false, "Kodak Photo CD,尚未實作"},
+	{[]string{".koa"}, "Koala", true, "自寫,C64 多色點陣"},
+	// Photo CD 是 Huffman 編碼的 YCC,還帶多組解析度,而且找不到可以
+	// 產生測試檔的工具。沒有 oracle 的解碼器不寫。
+	{[]string{".pcd"}, "PhotoCD", false, "Kodak Photo CD,造不出測試資料"},
 }
 
 // DetectFormat 依副檔名判斷。
@@ -86,6 +88,9 @@ func Decode(name string, data []byte) (image.Image, string, error) {
 	case "ICO":
 		img, err := DecodeICO(data)
 		return img, "ICO", err
+	case "Koala":
+		img, err := DecodeKOA(data)
+		return img, "KOA", err
 	}
 	img, kind, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
