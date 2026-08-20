@@ -194,7 +194,7 @@ internal/
 | CAB | `CAB32.DLL` | `internal/archive/cab`(自寫) | 對 gcab / cabextract |
 | .Z | — | `internal/archive/zcompress`(自寫) | 對 ncompress |
 | ARC / PAK | 外掛 | `internal/archive/arc`(自寫) | 對 arc 5.21 |
-| ACE | `unace.dll` / `unacev2.dll` | **不做** | 見下方說明 |
+| ACE | `unace.dll` / `unacev2.dll` | **尚未實作** | 見下方說明 |
 
 **ACE 在 image 裡沒有演算法可逆向。** 原版自己不解 ACE,是把整包丟給
 WinACE 原廠的免費解壓元件,而且支援兩代 API:`unace.dll`(1999,匯出
@@ -208,12 +208,23 @@ WinACE 原廠的免費解壓元件,而且支援兩代 API:`unace.dll`(1999,匯�
 所以 ACE 和其他格式的差別不是「難」,是**沒有東西可以逆向**:演算法在一個
 42 KB 的封閉 DLL 裡,格式也從來沒有公開規格。
 
-技術上還有一條路:Go 在 Windows 用 `syscall.NewLazyDLL` 就能載入
-`unacev2.dll`,不需要 CGO,不破壞跨平台編譯。**沒有走**,理由兩個:
-只有 Windows 版能用(三平台等價就破了);而且這個 DLL 就是 CVE-2018-20250
-(WinRAR 路徑穿越)的主角,原廠約 2005 年後不再維護、沒有修好的版本,
-隨附這個是 2002 年的組建。要載它就得自己在外面補一層路徑正規化,
-擋掉絕對路徑與 `..`。這是個取捨,不是技術限制,決定要做時再做。
+**但 ACE 是可以自己實作的**,材料齊全:
+
+- 規格:Marcel Lemke 1998 年的〈Technical information of the archiver ACE v1.2〉
+- 參考實作:[droe/acefile](https://github.com/droe/acefile),BSD 授權的純 Python,
+  支援 ACE 1.0/2.0(含 EXE / DELTA / PIC / SOUND 模式與加密)
+- 測試資料:[droe/acefile-testdata](https://github.com/droe/acefile-testdata),
+  實測可解出 268 個成員,壓縮法分布是 type 2(LZ77)265 個、type 0(stored)3 個
+- 額外的 oracle:原版隨附的 `unacev2.dll` 可以在 Wine 底下跑
+
+主流路徑(stored + LZ77,不含加密與 SOUND / PIC)的規模,以 acefile 的
+BitStream + Huffman + LZ77 + 標頭合計約 1160 行 Python 估算,約當
+LZH + ARJ + CAB + ARC 四個加起來。**這是工作量的問題,不是可行性的問題。**
+
+另外有一條捷徑但沒走:Go 在 Windows 用 `syscall.NewLazyDLL` 就能載入
+`unacev2.dll`,不需要 CGO,不破壞跨平台編譯。不走的理由是只有 Windows 版能用
+(三平台等價就破了),而且那個 DLL 就是 CVE-2018-20250(WinRAR 路徑穿越)
+的主角,原廠約 2005 年後不再維護、沒有修好的版本,隨附這個是 2002 年的組建。
 
 **沒有 oracle 就不寫解碼器。** 這是 §7「完整性優先於投報」的界線:
 完整性指的是「不因冷門而砍」,不是「沒驗過也塞一個進去」。

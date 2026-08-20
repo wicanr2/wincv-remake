@@ -53,8 +53,10 @@ var Formats = []Format{
 	{[]string{".arj"}, "ARJ", true, "自寫,方法 0-4;見 internal/archive/arj"},
 	// ACE 在 WINCV.IMG 裡沒有演算法可逆向:原版自己不解,是載入 WinACE
 	// 原廠的 unace.dll / unacev2.dll 來做,image 裡只有綁定層。
-	// 格式也沒有公開規格。詳見 CLAUDE.md §4.3。
-	{[]string{".ace"}, "ACE", false, "原版靠封閉的 unacev2.dll,無規格可實作"},
+	// 但格式**有**公開文件(Marcel Lemke 1998)、有 BSD 授權的獨立實作
+	// (droe/acefile)、也有可以當測試資料的檔案(droe/acefile-testdata),
+	// 所以這是工作量問題不是可行性問題。詳見 CLAUDE.md §4.3。
+	{[]string{".ace"}, "ACE", false, "尚未實作;有公開文件與參考實作可循"},
 	{[]string{".cab"}, "CAB", true, "自寫,MSZIP + 不壓縮;LZX / Quantum 未做"},
 	{[]string{".z", ".taz", ".tar.z"}, "compress", true, "自寫,見 internal/archive/zcompress"},
 	{[]string{".arc", ".pak"}, "ARC/PAK", true, "自寫,方法 1/2/3/5/6/8/9;4 與 7 未做"},

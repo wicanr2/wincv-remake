@@ -1,118 +1,146 @@
 # WinCV Remake
 
-把 2011 年的台灣共享軟體 **WinCV 0.52（CView for Windows）** 逆向，
-以 Go + Ebiten 重寫成 Linux / Windows / macOS 都能跑的版本。
+把 1999–2011 年的台灣共享軟體 **WinCV 0.52（CView for Windows）** 逆向，
+用 Go + Ebiten 重寫成 Linux / Windows / macOS 三個平台都能跑的版本，
+介面與原版點陣像素對齊。原作者是 Lcc Wizard（林健總），原站 `cview.com.tw`。
 
-原作者 Lcc Wizard（林健總）。本專案為私人使用，不對外散布。
+WinCV 是一支在同一個畫面裡做完很多事的中文工具：瀏覽目錄、看文字檔、看圖與縮圖、
+把壓縮檔當目錄走進去、編輯文字、看 HEX、在 Big5 / GB / SJIS / KOR / Unicode 之間轉碼、
+查英漢字典與 KK 音標、算 MD5 與 SFV。它的最後一次更新停在 2011 年 11 月 24 日
+（`whatsnew.txt` 的最後一筆），之後沒有 Linux 版，也沒有 macOS 版。
+
+這個 repo 是私人使用，不對外散布，原版素材與由它衍生的資料檔都不進版控。
+
+![檔案瀏覽器](docs/ui/shot-main.png)
+
+*重製版瀏覽原版自己的安裝目錄。欄位、對齊、配色與原版同格點。*
 
 ---
 
-## 這是什麼
+## CView 是什麼
 
-WinCV 是一支「什麼都做一點」的中文工具：檔案與壓縮檔管理、文字瀏覽、
-PE2 式區塊編輯器、HEX 編輯、看圖與縮圖、Big5/GB/SJIS/KOR 轉碼、
-英漢字典與 KK 音標、MD5 與 SFV 檢驗。它用 Win32Forth 寫成，
-畫面是自繪的固定格點介面。
+CView 是 DOS 時代的檔案瀏覽器，用 F-PC Forth 寫成；進到 Windows 之後，
+作者改用 Win32Forth v4 的 subroutine-threaded code 重寫，成為 WinCV。
+兩個版本的手感是同一套：滿版的字元格點畫面，游標在檔案列表上跑，
+按一下就把文字檔攤開，再按一下就進到壓縮檔裡面，不必先解到某個暫存目錄。
 
-remake 保留那個格點介面與點陣字，不做成現代 GUI。
+當年用過的人記得的多半是速度。2004 年 Tsung 在自己的部落格寫，
+CView 是「以前 DOS 時代最喜歡的一套軟體」，看圖「超快」，
+文章結尾那句是：「真希望他能開發 Linux 版~~」
+（[Tsung's Blog, 2004-08](https://blog.longwin.com.tw/2004/08/cview/)）。
 
-## 目前能做什麼
+也有人花了好幾年找替代品。大丙從 2006 年找到 2009 年，
+先後試過 WinCV 0.5、FreeCommander、Universal Viewer 5.1.0 和 Directory Opus 9.5，
+多數敗在中文換行或編碼上；他要的是「一套像 DOS 時代的 CVIEW 一樣，
+能快速看文字檔的軟體」，中間還抱怨了一句「可惜的是 ACDSee 沒法看文字啊」，
+最後的結論是只有 Directory Opus 勉強堪用
+（[大丙的筆記](https://blog.dabinn.net/cview替代軟體/)）。
 
-| 功能 | 狀態 |
-|---|---|
-| 檔案列表：游標、標記、排序、進出目錄 | 可用 |
-| 壓縮檔當目錄瀏覽 | ZIP / TAR / GZ / BZ2 / RAR / 7z |
-| 文字檢視：編碼自動判讀、ANSI 彩色、自動換行、搜尋 | 可用 |
-| 16 進位檢視（字元欄以 Big5 判讀） | 可用 |
-| 看圖 | JPEG / PNG / GIF / BMP / TIFF / WebP / PCX / TGA / PNM / ICO |
-| 縮圖列表 | 可用 |
-| PE2 式區塊編輯器 + 語法上色 | 可用 |
-| 英漢字典 + KK 音標 | 可用 |
-| MD5 / SFV、換行與編碼轉換、去 HTML/ANSI、批次改名 | 函式庫完成，UI 待接 |
-| 檔案操作（拷貝／移動／改名／刪除） | 未做 |
-| LZH / ARJ / ACE / CAB / .Z / ARC | 未做 |
+作者這一側的紀錄也還在。2012 年 1 月，有人在他的部落格留言板留下
+「你的 wincv 真的很棒…每天都在用」，作者回覆時提到自己時間有限、更新很慢
+（[lcc-wizard.blogspot.com](http://lcc-wizard.blogspot.com/2012/01/blog-post.html)）。
+軟體王的 [WinCV 0.52 下載頁](https://www.softking.com.tw/7555/) 到今天還在線上，
+列在繁體中文的檔案管理工具底下，檔案大小 5.56 MB。
 
-## 跑起來
+![文字檢視](docs/ui/shot-viewer.png)
 
-需要兩份外部素材：
+*重製版顯示原版自己的 `whatsnew.txt`：Big5 編碼判讀、語法上色、Big5 全形字。*
 
-1. **原版的半形點陣字型**（`cvga.fon`）與設定檔。
-   從原版安裝檔取得：
+## 為什麼重寫
 
-   ```sh
-   tools/setup-wine-oracle.sh    # 解出 original/app/
-   ```
+原版是 32 位元 Windows 執行檔，解壓縮和看圖都靠一批 Windows DLL：
+`unrar.dll`、`unlha32.dll`、`unarj32j.dll`、`unacev2.dll`、`CAB32.DLL`、`7-zip32.dll`，
+以及 `FreeImage.dll` 和 Intel 的 `ijl15.dll`。這些依賴綁死在一個平台上，
+而且沒有人能保證它們在下一版 Windows 上還能載入。
 
-2. **倚天中文系統的點陣字庫**（全形字）。
-   從倚天 3.53 的光碟映像取得：
+要保住的是行為——排序規則、欄位怎麼對齊、編碼怎麼判讀、按哪個鍵會發生什麼事——
+這些東西只有重新實作一次才會留下來。所以逆向的對象不是 `wincv.exe`
+（那只有 52 KB，是 Forth kernel，沒有應用邏輯），而是 1.52 MB 的 `WINCV.IMG`，
+程式本體在裡面。
 
-   ```sh
-   tools/setup-eten.sh           # 解出 original/eten/
-   ```
+2004 年那句「真希望他能開發 Linux 版」沒有等到原作者的回應。這個 repo 是自己動手的版本。
 
-兩份都是有版權的第三方素材，不隨程式散布。
+## 與原版的差異
 
-```sh
-tools/build-all.sh              # 產出 dist/ 三平台執行檔
-dist/wincv-linux-amd64 ~/       # 開始瀏覽某個目錄
+| 項目 | 原版 WinCV 0.52 | 本重製版 | 說明 |
+|---|---|---|---|
+| 平台 | 32 位元 Windows | Linux / Windows / macOS | 純 Go 不用 CGO，同一份程式碼編三個平台 |
+| 解壓縮 | 外掛 Windows DLL | 純 Go：標準庫、第三方套件，加上五個自寫解碼器 | 12 種格式支援 11 種 |
+| ACE 格式 | `unace.dll` / `unacev2.dll` | 尚未實作 | 原版只是綁定層，演算法在封閉 DLL 裡。有公開文件與獨立實作可循，是工作量問題不是可行性問題（見下） |
+| 圖檔解碼 | `FreeImage.dll` + Intel `ijl15.dll` | 純 Go 解碼 | 12 種格式支援 11 種，缺 Photo CD |
+| 半形字型 | 自帶點陣字型 `cvga.fon`，8×15 | 直接解析原版的 `.FON` 取字模 | 字模真值來自字型檔本身 |
+| 全形中文字形 | 交給 Windows GDI 用系統字型畫（image 內指名「新細明體」） | 倚天（ETEN）點陣字庫 `STDFONT.15`，16×15 | 原版的中文長相隨每個人的 Windows 而異，重製版需要一個確定的來源 |
+| 格子大小 | 8 × 16 | 8 × 16 | 字模 8×15 靠上對齊，下方留一列。原版列高取自它同時要求的 16 px 全形字 |
+| 選單與工具列 | Win32 選單列 + 圖示工具列 | 自繪的 `F1` 選單 | 全畫面都是自己畫的格點，不用原生控制項 |
+| 左側磁碟欄、預視窗格、捲軸 | 有 | 尚未實作 | 版面已量測，記在 `docs/ui/main-screen.md` |
+| 副檔名配色 | 有（`.bat` 整列洋紅） | 尚未實作 | 原版可在設定裡改 |
+| KK 音標 | 自訂編碼，一個位元組一個音素 | 轉成 IPA 顯示（`ˈlɪtl̩`、`ˈbʌtn̩`） | 對照表解在 `internal/dict/kk.go` |
+| 散布方式 | 共享軟體，作者對外發行 | 私人專案，不散布原版素材 | 字型、字典資料與倚天字庫都是第三方版權物，由使用者自備 |
+
+倚天那一列決定了字怎麼排：`STDFONT.15` 的全形格正好是 16×15，
+剛好等於 `cvga` 半形 8×15 的兩倍寬、同高，中文與英數落在同一套格點上，不必縮放或補白。
+
+畫面配色沿用原版：29 個具名顏色的名稱與 RGB 值都是從 `WINCV.IMG` 裡解出來的，
+不是重新配的一套色。
+
+![F1 選單](docs/ui/shot-menu.png)
+
+*`F1` 選單同時是說明書：每一列右邊標著對應的按鍵，在選單裡直接按那顆鍵等同選它。*
+
+## 壓縮格式
+
+五個自寫的解碼器都對照參考實作逐檔驗過 sha256，不是拿自己的輸出當期望值：
+
+| 格式 | 實作 | 驗證對象 |
+|---|---|---|
+| ZIP / TAR / GZ / BZ2 | Go 標準庫 | — |
+| RAR / 7z | `nwaples/rardecode`、`bodgit/sevenzip` | 該套件 |
+| LHA / LZH | 自寫 | p7zip，675 個成員 |
+| `.Z` | 自寫 | ncompress |
+| CAB（MSZIP） | 自寫 | gcab / cabextract |
+| ARJ（方法 0–4） | 自寫 | arj 3.10 |
+| ARC / PAK | 自寫 | arc 5.21 |
+| ACE | 尚未實作 | — |
+
+沒有 oracle 可比對的格式就不寫解碼器。一個沒驗過的解碼器會安靜地解出
+看起來有內容、實際上是錯的檔案，那比明講不支援更麻煩。
+
+ACE 是唯一還缺的格式。它沒有內建在原版裡——原版載入 WinACE 原廠的
+`unace.dll`（1999，v1 API）或 `unacev2.dll`（2002，v2 API），
+`WINCV.IMG` 裡只有綁定層。要自己實作的材料是齊的：Marcel Lemke 1998 年的
+〈Technical information of the archiver ACE v1.2〉、
+BSD 授權的獨立實作 [acefile](https://github.com/droe/acefile)（Python）、
+以及可以當測試資料的 [acefile-testdata](https://github.com/droe/acefile-testdata)。
+主流路徑（stored + LZ77）的規模約當前述五個解碼器的總和。
+
+## 建置與驗收
+
+```bash
+tools/build-all.sh      # 三平台產物到 dist/
+tools/verify-dist.sh    # 靜態驗收:檔案格式、macOS 逐弧簽章、動態庫依賴
+tools/go.sh test ./...  # 測試(全部在 docker 裡跑)
 ```
 
-## 按鍵
+原版當 oracle：
 
-完整的快捷鍵表在 [`docs/ui/keymap.md`](docs/ui/keymap.md)，
-每一條都標了證據等級：取自程式自己的按鍵標籤（附 offset）、
-取自說明檔、或還沒查證的推測。
-
-常用的幾個：
-
-```
-↑↓ PgUp PgDn Home End   移動
-Enter                   進目錄 / 看檔 / 進壓縮檔 / 看圖
-BackSpace               上一層
-Space                   標記
-T / Alt-T / U           標記所有檔案 / 含目錄 / 解除
-E                       編輯
-5                       縮圖列表
-H                       文字 ↔ 16 進位
-Esc                     回上一層（永遠不會直接關掉程式）
+```bash
+tools/setup-wine-oracle.sh                    # 解安裝檔 + 建 Wine prefix
+tools/oracle-measure.sh docs/ui/oracle.png    # 量視窗幾何、截圖、印出選中的字型
 ```
 
-編輯器裡：`Alt-B` 矩形區塊、`Alt-L` 整列、`Alt-Z/M/D/F` 拷貝／移動／刪除／填充、
-`Ctrl-C/X/V` 剪貼、`Ctrl-U` 復原、`Ctrl-S` 存檔、`F7` 字典視窗。
+不開視窗檢查重製版的畫面：
 
-## 專案文件
-
-| 檔案 | 內容 |
-|---|---|
-| [`CLAUDE.md`](CLAUDE.md) | 逆向與重寫的完整規劃、已查證事實、待驗假設 |
-| [`CONTEXT.md`](CONTEXT.md) | 統一語言、已被推翻的斷言、決策紀錄、進度 |
-| [`docs/formats/`](docs/formats/) | 每一種資料檔的格式規格 |
-| [`docs/ui/keymap.md`](docs/ui/keymap.md) | 快捷鍵表（分三級證據） |
-| [`docs/re/`](docs/re/) | 逆向產出：符號表、word 位址、Big5 字串表 |
-
-## 工具
-
-```sh
-tools/setup-wine-oracle.sh   解原版安裝檔 + 建 Wine prefix
-tools/oracle-shot.sh         跑原版並截圖（版面與配色的真值來源）
-tools/setup-eten.sh          從倚天光碟抽字庫
-tools/forth_image.py         解 WINCV.IMG 的 header / 符號表 / word 位址
-tools/img_strings.py         抽 image 內的 Big5 字串
-tools/fnt.py                 解 .FON 點陣字型
-tools/celldump               把任一畫面渲染成 PNG（不需要顯示器）
-tools/remake-shot.sh         把真實 Ebiten 視窗跑在 Xvfb 上截圖
-tools/build-all.sh           三平台打包
-tools/verify-dist.sh         打包產物的靜態驗收
+```bash
+tools/go.sh run ./cmd/celldump -app <目錄> -keys "F1" -o shot.png -cols 93 -rows 30
 ```
 
-## 開發
+`-keys` 的寫法與 `docs/ui/keymap.md` 的按鍵欄一致（`Ctrl-O`、`Alt-Z`、`F6`、`Down`…）。
 
-一律走 docker：
+## 文件
 
-```sh
-docker build -f Dockerfile.build -t wincv-build:1 .
-docker run --rm -v "$PWD":/src -w /src wincv-build:1 go test ./internal/...
-```
-
-測試盡量用**原版自己的檔案**當 golden data，而不是自己造的樣本 ——
-自己造的樣本只驗得到自己的理解。
+- `CLAUDE.md` — 目標軟體的已查證事實、逆向方法、架構、硬規則
+- `CONTEXT.md` — 統一語言、已被推翻的斷言、決策紀錄
+- `docs/ui/main-screen.md` — 原版主畫面的格點量測
+- `docs/ui/keymap.md` — 按鍵表，證據分三級
+- `docs/formats/` — 資料檔格式規格
+- `docs/re/` — 符號表、word 清單
