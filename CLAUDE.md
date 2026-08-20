@@ -25,8 +25,11 @@
 | word 數 | image 內 **3663** 個 code body,其中 **3633** 個帶標準 STC 序言 |
 | 符號表 | **未被 strip**。header space 自 `0x122794` 起,解出 **9497 筆 header / 8957 個唯一名稱**,含 xt 位址;3509 筆 xt 直接命中 code body |
 | 原版可執行性 | Wine 9.0 + Xvfb 可跑,視窗標題 `WinCV 0.52`,可截圖當 oracle(前提見 §7 雷 1) |
-| 點陣字型 | `cvga.fon` / `CVGA1018.FON` / `cvga1224.FON` / `WinCV.fon`,皆 NE FNT 2.0,字元範圍 **只有 0x00–0xFF**,pixel height 15 / 18 / 24 / 15 |
-| CJK 字形來源 | 不在隨附字型內 → 原版全形中文由 Windows GDI 用系統字型繪製 |
+| 點陣字型 | NE FNT 2.0,全部定寬、涵蓋 0x00–0xFF:`cvga` **8×15**、`cvga1018` **10×18**、`cvga1224` **12×24**(`WinCV.fon` 與 `cvga.fon` 同規格)。ascent 11 / 16 / 20 |
+| 字型註冊方式 | 程式以 `AddFontResource` 註冊自己的 `.FON`,再用 `CreateFontIndirect` 指名 face。Wine log 實測有 `Chosen: L"cvga Regular" (C:\wincv\wincv.fon)` |
+| CJK 字形來源 | 不在隨附字型內。image 裡指名 **`新細明體`** → 原版全形中文由 Windows GDI 用系統字型繪製,字形隨使用者的 Windows 而異 |
+| 全形格點 | 半形 8×15 → 全形 **16×15**。倚天 `STDFONT.15` 正好是 16×15、`ASCFONT.15` 正好是 8×15;`cvga1224` 12×24 對應倚天 `STD.24x` 24×24。同一個年代的規格 |
+| Big5 字串表 | image 內的 UI 文字是 Forth counted string。加上「前一個 byte 等於長度」這道檢查後,15761 個候選收斂到 1293 個真字串;長度 ≥8 的有 845 筆,含選單、對話框、快捷鍵說明 |
 | 附帶資料檔 | 英漢字典 `eng.txt` (5.5 MB) + `.dat`/`.idx`、`chi.txt.*`、KK 音標 `kk.txt.*`、`origin-verb.txt.*`、big5↔gbk/sjis/kor 對照表、`keyword_*.cfg` 語法上色、`ce.ful` 符號表、`default.fil` 書籤 |
 | 解壓縮 | 原版外掛 Windows DLL:`unrar.dll` `unlha32.dll` `unarj32j.dll` `unacev2.dll` `tar32.dll` `CAB32.DLL` `7-zip32.dll` `bszip.dll` `aunzip32.dll` `libbz2` |
 | 其他外掛 | `FreeImage.dll`(看圖)、`ijl15.dll`(Intel JPEG)、`cropdll.dll`、`md5.dll` |
@@ -180,14 +183,26 @@ internal/
 
 M3 先做 ZIP/TAR/GZ/BZ2 四種,其餘依 §7 完整性原則逐一補完,不因冷門而砍。
 
-### 4.4 CJK 點陣字形
+### 4.4 CJK 點陣字形:倚天字庫(已定案並實作)
 
-原版半形用自帶 `.FON`,全形靠 Windows 系統字型。remake 要 pixel 對齊就必須自備 CJK 點陣字。
-候選與選型依據見 `~/.claude/knowledge-base/retro-cht/eten-bitmap-font/SKILL.md`
-(該檔的結論是老軟體畫面預設用倚天點陣字,不是 TTF rasterize)。
+原版半形用自帶 `.FON`、全形靠 Windows 系統字型(image 裡指名「新細明體」)。
+也就是說**「原版的中文字形」本來就不是單一固定答案**,它隨使用者的 Windows 而異。
+remake 需要自備一套,選倚天(ETEN 3.53),依據見
+`~/.claude/knowledge-base/retro-cht/eten-bitmap-font/SKILL.md`。
 
-24px 檔位對應倚天 24×24;15/18px 檔位需要 16×16 級 CJK 點陣字。
-**實際比對前不預設答案**:Phase 3 要先在 Wine 裝好中文字型、截原版中文畫面,再決定字形來源。
+尺寸是決定性的:
+
+| WinCV 半形 | 全形格 | 倚天對應 |
+|---|---|---|
+| `cvga` 8×15 | 16×15 | `STDFONT.15`(漢字 13094 字)+ `SPCFONT.15`(全形標點 408 字) |
+| `cvga1224` 12×24 | 24×24 | `STD.24M/K/L/R/B/S`(六種字體,ETUNPACK 壓縮,尚未支援) |
+
+實作在 `internal/eten`,Big5 分區索引公式照 kb(已實測驗證)。
+`internal/render.CJKSource` 是介面,要換字形來源不動上層。
+
+**[雷] 一定要一起載 `SPCFONT.15`。** `STDFONT.15` 從 A440「一」起,不含 A140–A3BF 的
+全形標點;只載 STDFONT 的話 `，。！？「」（）《》` 會整批變缺字。
+`internal/eten` 的 `TestPunctuationFromSpc` 就是擋這個。
 
 ---
 
@@ -202,12 +217,19 @@ tools/setup-wine-oracle.sh          # 解安裝檔 + 建 Wine prefix
 tools/oracle-shot.sh <out.png> <等待秒數> "<xdotool 按鍵序列>"
 ```
 
-輸出 1024×768 PNG。已實測可取得主畫面。
+輸出 1024×768 PNG。已實測可取得主畫面與中文選單。
+
+**[重要] oracle 只能當版面與配色的真值,不能當字模真值。**
+Wine 會把 app 要的字型換掉:實測它用自己的 `cvgasys.fon`(16 px)去畫,
+而不是 `cvga`(15 px),量到的列距 16 就是這麼來的。
+字模真值直接來自 `.FON` 檔本身(`internal/fnt` 已解出並與 `tools/fnt.py` 互為對照)。
 
 ### 5.2 比對方式
 
 整張 pixel diff 難定位,改用**格點比對**:兩張圖依 cell grid 切格,逐格比對。
 先做 `tools/celldiff.py`,輸出「第幾列第幾行不同」而不是「差了幾個像素」。
+remake 這一側不需要開視窗:`cmd/celldump` 用與 Ebiten 相同的 `render.Rasterizer`
+直接輸出 PNG,所以 headless 畫出來的跟視窗裡看到的是同一份像素。
 
 三級驗收:
 
@@ -321,11 +343,12 @@ tools/oracle-shot.sh original/ref-shots/view.png 18 "Down Down Return"
 | # | 假設 | 怎麼驗 |
 |---|---|---|
 | A1 | `EDI` 是 image base(而非 user area 指標) | 在 IDA 裡取幾個 `[edi+X]`,對照 X 是否落在 image 的資料區間 |
+| A8 | 原版預設的 16 色色表 | 逆向 `INIT-COLORS` / `NEW-COLOR` / `COLORS-LINK` 那組 word。截圖裡 0x80 與 0xC0 兩種強度同時出現,表示程式有自己的色表且可由「顏色」選單改 |
+| A9 | 主畫面的欄數與列數 | 目前只知道原版視窗約 600×545 px。要在 Wine 用真正的 cvga 字型跑出來才算得準 |
 | A2 | header record 的 `f2` 欄位是 vocabulary / hash link | 統計 `f2` 值的分布;看同名不同 vocabulary 的 word 是否 `f2` 不同 |
 | A3 | image header 0x04 是 magic / checksum | 改一個 byte 再跑,看 kernel 是否拒載 |
 | A4 | `VF-` / `EF-` / `VP-` 前綴對應 view-file / edit-file / view-picture | 反組譯任一個該前綴的 word,看它碰的資料與畫面 |
 | A5 | 主畫面是固定格點的自繪 cell grid(非 Win32 控制項) | 用 Wine 的 spy 或改視窗大小截圖,看文字是否只落在整格位置 |
-| A6 | 全形中文由系統字型繪、非自帶字型 | prefix 裝上中文字型後截圖,對比未裝字型的亂碼畫面 |
 | A7 | 原版設定存在 `%windir%\wincv.cfg` | `WinCVins.bat` 有 `>> %windir%\wincv.cfg` 的註解行;跑一次原版看檔案是否生成 |
 
 ---
