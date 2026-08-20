@@ -31,7 +31,7 @@ import (
 type Entry struct {
 	Word  string
 	Trans string // 中文解釋
-	KK    string // KK 音標(原始編碼,見 §KK 音標)
+	KK    string // KK 音標(已轉成 IPA,原始編碼見 kk.go)
 	Base  string // 原形(查到的是變化形時才有)
 }
 
@@ -145,7 +145,7 @@ func (d *Dict) lookupExact(w string) (Entry, bool) {
 	if !okT && !okK {
 		return Entry{}, false
 	}
-	return Entry{Word: w, Trans: t, KK: k}, true
+	return Entry{Word: w, Trans: t, KK: KKToIPA(k)}, true
 }
 
 // Prefix 回傳以 p 開頭的前 n 個詞,供輸入時的候選清單。

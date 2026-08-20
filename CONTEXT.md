@@ -49,6 +49,8 @@
 | 2026-08-20 | image 裡沒有靜態的 COLORREF 表,29 色的 RGB 要進 IDA 看 `NEW-COLOR` 的呼叫端才拿得到 | RGB 就在每個顏色 word 的 body 裡:body 有 0x24 個位元組,第 8-10 個就是 R、G、B | 先前只搜「連續 29 個 dword」這種**表**的形狀。改成從 Forth 標頭走 xt(名字結尾 +9 的 dword)進到各自的 body,29 個一次到齊。抽取程式:`tools/palette.py` |
 | 2026-08-20 | 符號補充區(C6A1-C8FE)的 43 個洞在哪要逐一 dump 字模比對才知道,在那之前整區當缺字 | 直接問 Big5 解碼器就有:走一次該區,解得開的碼位才佔一個字模,累加即是索引。算出來剛好 365,與 SPCFSUPP.15 的字模數相符 | 洞是 C8A5-C8CC(40 個)與 C8F2-C8F4(3 個)。數量本身就是驗證 —— 對不上就表示假設錯了,不會安靜地取到別的字 |
 | 2026-08-20 | oracle 截圖只能當版面與配色真值,不能當字模真值(Wine 用自己的 cvgasys.fon 16 px 替換掉 cvga 15 px) | Wine **確實用 app 自己的 cvga**(log:`Chosen: L"cvga Regular" (C:\wincv\wincv.fon)`);`cvgasys.fon` 是另外給選單列用的 System 字型。拿真實 cvga 字模去比對,每個字元都剛好命中一次 | 當初的「零命中」是 `tools/xwd2png.py` 的 24 bpp 通道輪轉造成的。那個 bug 後來修好了,但這條結論沒有回頭重驗 |
+| 2026-08-20 | 主畫面的格子是 8×15(等於半形字身) | 是 **8×16**。多的那一列是程式拿全形字的高度當列高,不是字型要的(`cvga` 的 `dfExternalLeading` 是 0) | 樣板比對量出列起點 40/56/72…,間距 16;Wine 的 font trace 顯示 app 同時要 `pix_h 15 charset 255` 與 `pix_h 16 charset 136` |
+| 2026-08-20 | KK 音標的符號要靠一張替換表或專用字型才畫得出來 | 是一個位元組一個音素的自訂編碼,41 個符號。隨附的三個 `.FON` 都是標準 CP437,沒有音標字形 | 作者在 `kk.txt.dat` 裡留了兩筆把整套符號列一遍的條目(`aaaaa` / `aaaaaaaaaaaa`),音值再拿已知發音的單字反推 |
 | 2026-08-20 | 二進位檔按 Enter 顯示「這是二進位檔」訊息 | 直接開 16 進位檢視 | image 的 `&Hex模式` 標籤 + 0.5 版 changelog「按 enter 看檔時自動將可能為執行檔的檔案以 16 進位方式看檔」 |
 
 ---
