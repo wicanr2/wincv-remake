@@ -369,3 +369,146 @@ func TestEnterUnsupportedArchive(t *testing.T) {
 		t.Errorf("應該說明是什麼格式沒支援,得到 %q", a.Message)
 	}
 }
+
+// R 改名:輸入列 → Enter → 檔案真的改名 → 游標停在新名字上。
+func TestRenameFlow(t *testing.T) {
+	a, s := newApp(t)
+	for cursorName(a) != "a.txt" {
+		a.HandleKey(keys.Named(keys.Down))
+		a.Draw(s)
+	}
+	dir := a.Browser.Dir
+
+	a.HandleKey(keys.Ch('r'))
+	if !a.Prompting() {
+		t.Fatal("R 應該開輸入列")
+	}
+	// 清掉預設值再輸入新名字
+	for i := 0; i < 20; i++ {
+		a.HandleKey(keys.Named(keys.Backspace))
+	}
+	for _, r := range "new.txt" {
+		a.HandleKey(keys.Ch(r))
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	if a.Prompting() {
+		t.Fatal("Enter 之後輸入列應該關掉")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "new.txt")); err != nil {
+		t.Fatalf("檔案沒改名: %v", err)
+	}
+	a.Draw(s)
+	if cursorName(a) != "new.txt" {
+		t.Errorf("游標應停在新名字上,得到 %q", cursorName(a))
+	}
+}
+
+// Esc 取消輸入列,不可以動到檔案。
+func TestPromptCancel(t *testing.T) {
+	a, s := newApp(t)
+	for cursorName(a) != "a.txt" {
+		a.HandleKey(keys.Named(keys.Down))
+		a.Draw(s)
+	}
+	dir := a.Browser.Dir
+	a.HandleKey(keys.Ch('r'))
+	a.HandleKey(keys.Ch('X'))
+	a.HandleKey(keys.Named(keys.Esc))
+	if a.Prompting() {
+		t.Error("Esc 應該關掉輸入列")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "a.txt")); err != nil {
+		t.Error("取消之後原檔應該還在")
+	}
+}
+
+// D 刪除要先問過。答 N 不可以刪掉東西。
+func TestDeleteAsksFirst(t *testing.T) {
+	a, s := newApp(t)
+	for cursorName(a) != "b.txt" {
+		a.HandleKey(keys.Named(keys.Down))
+		a.Draw(s)
+	}
+	dir := a.Browser.Dir
+	a.HandleKey(keys.Ch('d'))
+	if !a.Prompting() {
+		t.Fatal("D 應該先問")
+	}
+	a.HandleKey(keys.Ch('n'))
+	if _, err := os.Stat(filepath.Join(dir, "b.txt")); err != nil {
+		t.Fatal("答 N 之後檔案不該被刪")
+	}
+
+	a.HandleKey(keys.Ch('d'))
+	a.HandleKey(keys.Ch('y'))
+	if _, err := os.Stat(filepath.Join(dir, "b.txt")); err == nil {
+		t.Error("答 Y 之後檔案應該被刪掉")
+	}
+}
+
+// Alt-C 比對:要剛好兩個標記。
+func TestCompareNeedsExactlyTwo(t *testing.T) {
+	a, s := newApp(t)
+	a.HandleKey(keys.AltCh('C'))
+	if !strings.Contains(a.Message, "兩個") {
+		t.Errorf("沒標記時應該提示,得到 %q", a.Message)
+	}
+
+	// 造兩個內容相同的檔
+	dir := a.Browser.Dir
+	os.WriteFile(filepath.Join(dir, "s1.txt"), []byte("same"), 0o644)
+	os.WriteFile(filepath.Join(dir, "s2.txt"), []byte("same"), 0o644)
+	a.Browser.Load(dir)
+	a.Draw(s)
+	n := 0
+	for i := range a.Browser.Entries {
+		if strings.HasPrefix(a.Browser.Entries[i].Name, "s") &&
+			strings.HasSuffix(a.Browser.Entries[i].Name, ".txt") {
+			a.Browser.Entries[i].Marked = true
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatalf("標記了 %d 個", n)
+	}
+	a.HandleKey(keys.AltCh('C'))
+	if !strings.Contains(a.Message, "相同") {
+		t.Errorf("兩個相同的檔案應回報相同,得到 %q", a.Message)
+	}
+}
+
+// 壓縮檔裡不能做檔案操作,要給明確訊息而不是默默失敗。
+func TestFileOpsBlockedInsideArchive(t *testing.T) {
+	root := fixture(t)
+	zipPath := filepath.Join(root, "p.zip")
+	f, _ := os.Create(zipPath)
+	zw := zip.NewWriter(f)
+	w, _ := zw.Create("x.txt")
+	io.WriteString(w, "x")
+	zw.Close()
+	f.Close()
+
+	a := New(vfs.OS{}, root)
+	s := cell.New(78, 20)
+	a.Draw(s)
+	for cursorName(a) != "p.zip" {
+		if !a.HandleKey(keys.Named(keys.Down)) {
+			t.Fatal("找不到 p.zip")
+		}
+		a.Draw(s)
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+
+	for _, k := range []keys.Key{keys.Ch('c'), keys.Ch('m'), keys.Ch('r'), keys.Ch('d')} {
+		a.HandleKey(k)
+		if a.Prompting() {
+			a.HandleKey(keys.Named(keys.Esc))
+			t.Errorf("%v 在壓縮檔裡不該開輸入列", k)
+			continue
+		}
+		if !strings.Contains(a.Message, "壓縮檔") {
+			t.Errorf("%v 應該說明壓縮檔裡不能做,得到 %q", k, a.Message)
+		}
+	}
+}

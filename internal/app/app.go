@@ -15,12 +15,15 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/archive"
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/dict"
 	"github.com/wicanr2/wincv-remake/internal/editor"
+	"github.com/wicanr2/wincv-remake/internal/fileop"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/syntax"
+	"github.com/wicanr2/wincv-remake/internal/thumbs"
 	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
@@ -36,6 +39,7 @@ const (
 	ModeHex
 	ModeImage
 	ModeEdit
+	ModeThumbs
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -50,10 +54,18 @@ type App struct {
 	Hex     *hexview.Model
 	Image   *imgview.Model
 	Editor  *editor.Model
+	Thumbs  *thumbs.Model
 	Mode    Mode
 
 	// Syntax 是語法上色設定,從原版的 keyword.cfg 載入。可為 nil。
 	Syntax *syntax.Set
+
+	// DictDir 是字典資料所在的目錄。ShowDict 打開時才會真的載入 ——
+	// eng.txt.dat 有 5.6 MB,不該在啟動時就吃掉那個時間。
+	DictDir  string
+	ShowDict bool
+	dict     *dict.Dict
+	dictErr  string
 
 	// CellW / CellH 是格子的像素尺寸。看圖模式要用它把格點座標
 	// 換算成像素矩形;外層(cmd/wincv 或 celldump)要在建立後設好。
@@ -67,6 +79,10 @@ type App struct {
 
 	// rows 是最近一次繪製時內容區的列數,按鍵處理要用來算翻頁。
 	rows int
+	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
+	thumbCols int
+	// prompt 是畫面底部的輸入列,見 prompt.go。
+	prompt prompt
 
 	// viewRaw 留著原始解碼文字,切換 ANSI 時要重新解析。
 	viewRaw string
@@ -109,10 +125,19 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 		a.rows = s.Rows - 1
 	case ModeEdit:
 		a.rows = a.Editor.Draw(s)
+		if a.ShowDict {
+			a.drawDict(s)
+		}
+	case ModeThumbs:
+		ov = a.Thumbs.Draw(s, a.CellW, a.CellH)
+		a.rows = s.Rows - 1
+		a.thumbCols = s.Cols
 	default:
 		a.rows = a.Browser.Draw(s)
 	}
-	if a.Message != "" {
+	if a.prompt.active {
+		a.drawPrompt(s)
+	} else if a.Message != "" {
 		y := s.Rows - 1
 		s.Fill(0, y, s.Cols, 1, ' ', cell.White, cell.Red)
 		s.Print(0, y, a.Message, cell.White, cell.Red)
@@ -122,6 +147,9 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 
 // HandleKey 分派一次按鍵。回傳是否有東西改變(需要重畫)。
 func (a *App) HandleKey(k keys.Key) bool {
+	if a.prompt.active {
+		return a.promptKey(k)
+	}
 	a.Message = ""
 	switch a.Mode {
 	case ModeViewer:
@@ -132,6 +160,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.imageKey(k)
 	case ModeEdit:
 		return a.editKey(k)
+	case ModeThumbs:
+		return a.thumbsKey(k)
 	default:
 		return a.browserKey(k)
 	}
@@ -169,11 +199,19 @@ func (a *App) browserKey(k keys.Key) bool {
 		return a.enter()
 	case keys.Backspace:
 		return a.goParent()
+	case keys.Delete:
+		// 徹底刪除:先填 0 再刪(0.5 版新增的選項)。
+		return a.startDelete(true)
 	}
 
 	if k.Code == keys.Rune && k.R == ' ' && !k.Alt && !k.Ctrl {
 		b.ToggleMark(rows)
 		return true
+	}
+	// 原版的 5 是「改變檔案列表的方式」(0.5 版 changelog),縮圖列表
+	// 正是一種列表方式。實際有幾種模式還沒實測(keymap.md 待驗第 4 項)。
+	if k.Code == keys.Rune && k.R == '5' && !k.Alt && !k.Ctrl {
+		return a.openThumbs()
 	}
 
 	switch k.Letter() {
@@ -189,6 +227,23 @@ func (a *App) browserKey(k keys.Key) bool {
 	case 'E':
 		if !k.Alt && !k.Ctrl {
 			return a.openEditor()
+		}
+	case 'C':
+		if k.Alt {
+			return a.compareMarked()
+		}
+		return a.startTransfer(false)
+	case 'M':
+		if !k.Alt && !k.Ctrl {
+			return a.startTransfer(true)
+		}
+	case 'R':
+		if !k.Alt && !k.Ctrl {
+			return a.startRename()
+		}
+	case 'D':
+		if !k.Alt && !k.Ctrl {
+			return a.startDelete(false)
 		}
 	case 'S':
 		if !k.Alt && !k.Ctrl {
@@ -472,6 +527,353 @@ func (a *App) openHex(name string, data []byte) {
 	a.Mode = ModeHex
 }
 
+// --- 檔案操作 -------------------------------------------------------------
+
+// targets 回傳這次操作要處理哪些檔案:有標記就用標記的,
+// 沒有就用游標所在的那一個。這是檔案管理程式的通則。
+func (a *App) targets() []string {
+	var out []string
+	for _, e := range a.Browser.Entries {
+		if e.Marked && !e.Up {
+			out = append(out, e.Name)
+		}
+	}
+	if len(out) == 0 {
+		if e := a.Browser.Current(); e != nil && !e.Up {
+			out = append(out, e.Name)
+		}
+	}
+	return out
+}
+
+// readOnlyHere 回傳「現在在壓縮檔裡,不能改」。
+func (a *App) readOnlyHere() bool {
+	_, ok := a.Browser.FS.(*archive.FS)
+	return ok
+}
+
+// startTransfer 開始拷貝(move=false)或移動(move=true)。
+func (a *App) startTransfer(move bool) bool {
+	if a.readOnlyHere() {
+		a.Message = "壓縮檔裡的檔案還不能拷貝或移動"
+		return true
+	}
+	names := a.targets()
+	if len(names) == 0 {
+		return false
+	}
+	verb := "拷貝"
+	if move {
+		verb = "移動"
+	}
+	title := fmt.Sprintf("%s %d 個檔案到:", verb, len(names))
+	a.ask(title, a.Browser.Dir, func(dst string) {
+		a.runTransfer(move, names, dst)
+	})
+	return true
+}
+
+func (a *App) runTransfer(move bool, names []string, dst string) {
+	if dst == "" {
+		return
+	}
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		a.Message = "目的目錄建不起來: " + err.Error()
+		return
+	}
+	// 覆蓋詢問走同一個輸入列。因為輸入列是非同步的(要等使用者按鍵),
+	// 這裡先用「不覆蓋」跑一遍,把撞名的挑出來再一次問。
+	opt := fileop.Options{Overwrite: fileop.Skip}
+	var res *fileop.Result
+	if move {
+		res = fileop.Move(a.Browser.Dir, dst, names, opt)
+	} else {
+		res = fileop.Copy(a.Browser.Dir, dst, names, opt)
+	}
+	verb := "已拷貝"
+	if move {
+		verb = "已移動"
+	}
+	if len(res.Skipped) > 0 {
+		skipped := res.Skipped
+		done := res.Summary(verb)
+		a.confirm(fmt.Sprintf("%d 個檔案已存在,要覆蓋嗎?", len(skipped)), false,
+			func(yes, _ bool) {
+				if !yes {
+					a.Message = done
+					a.Browser.Load(a.Browser.Dir)
+					return
+				}
+				o := fileop.Options{Overwrite: fileop.All}
+				var r2 *fileop.Result
+				if move {
+					r2 = fileop.Move(a.Browser.Dir, dst, skipped, o)
+				} else {
+					r2 = fileop.Copy(a.Browser.Dir, dst, skipped, o)
+				}
+				a.Message = done + ";覆蓋 " + r2.Summary(verb)
+				a.Browser.Load(a.Browser.Dir)
+			})
+		return
+	}
+	a.Message = res.Summary(verb)
+	a.Browser.Load(a.Browser.Dir)
+}
+
+func (a *App) startRename() bool {
+	if a.readOnlyHere() {
+		a.Message = "壓縮檔裡的檔案還不能改名"
+		return true
+	}
+	e := a.Browser.Current()
+	if e == nil || e.Up {
+		return false
+	}
+	old := e.Name
+	a.ask("改名為:", old, func(to string) {
+		if to == "" || to == old {
+			return
+		}
+		if err := fileop.Rename(a.Browser.Dir, old, to); err != nil {
+			a.Message = "改名失敗: " + err.Error()
+			return
+		}
+		a.Browser.Load(a.Browser.Dir)
+		a.focusOn(to)
+		a.Message = old + " → " + to
+	})
+	return true
+}
+
+// startDelete 刪除。zero 為 true 時先把內容填 0 再刪。
+func (a *App) startDelete(zero bool) bool {
+	if a.readOnlyHere() {
+		a.Message = "壓縮檔裡的檔案還不能刪除"
+		return true
+	}
+	names := a.targets()
+	if len(names) == 0 {
+		return false
+	}
+	what := fmt.Sprintf("刪除 %d 個檔案?", len(names))
+	if zero {
+		what = fmt.Sprintf("徹底刪除 %d 個檔案(先填 0)?", len(names))
+	}
+	if len(names) == 1 {
+		what = "刪除 " + names[0] + "?"
+		if zero {
+			what = "徹底刪除 " + names[0] + "(先填 0)?"
+		}
+	}
+	a.confirm(what, false, func(yes, _ bool) {
+		if !yes {
+			return
+		}
+		res := fileop.Delete(a.Browser.Dir, names, fileop.Options{ZeroFill: zero})
+		a.Message = res.Summary("已刪除")
+		a.Browser.Load(a.Browser.Dir)
+	})
+	return true
+}
+
+// compareMarked 比對標記的兩個檔案(原版 Alt-C)。
+func (a *App) compareMarked() bool {
+	var names []string
+	for _, e := range a.Browser.Entries {
+		if e.Marked && !e.IsDir {
+			names = append(names, e.Name)
+		}
+	}
+	if len(names) != 2 {
+		a.Message = "請先標記剛好兩個檔案"
+		return true
+	}
+	same, at, err := fileop.Compare(
+		filepath.Join(a.Browser.Dir, names[0]),
+		filepath.Join(a.Browser.Dir, names[1]))
+	switch {
+	case err != nil:
+		a.Message = "比對失敗: " + err.Error()
+	case same:
+		a.Message = names[0] + " 與 " + names[1] + " 內容相同"
+	default:
+		a.Message = fmt.Sprintf("內容不同,第一個相異位移 0x%X", at)
+	}
+	return true
+}
+
+// --- 縮圖列表 -------------------------------------------------------------
+
+// openThumbs 把目前目錄的圖檔排成縮圖列表。
+func (a *App) openThumbs() bool {
+	var names []string
+	for _, e := range a.Browser.Entries {
+		if !e.IsDir && imgfmt.IsImage(e.Name) {
+			names = append(names, e.Name)
+		}
+	}
+	if len(names) == 0 {
+		a.Message = "這個目錄沒有圖檔"
+		return true
+	}
+	a.Thumbs = thumbs.New(names, a.readCurrent)
+	a.Mode = ModeThumbs
+	return true
+}
+
+// DecodeThumbs 解目前看得到的縮圖。呼叫端應該在背景做 ——
+// 一個目錄幾十張 JPEG 解起來要好幾秒,卡著等會像當掉。
+func (a *App) DecodeThumbs(cols, rows int) {
+	if a.Thumbs != nil {
+		a.Thumbs.DecodeVisible(cols, rows)
+	}
+}
+
+func (a *App) thumbsKey(k keys.Key) bool {
+	t := a.Thumbs
+	cols, rows := a.thumbCols, a.rows
+	if cols <= 0 {
+		cols = 80
+	}
+	if rows <= 0 {
+		rows = 24
+	}
+	switch k.Code {
+	case keys.Left:
+		t.MoveBy(-1, 0, cols, rows)
+		return true
+	case keys.Right:
+		t.MoveBy(1, 0, cols, rows)
+		return true
+	case keys.Up:
+		t.MoveBy(0, -1, cols, rows)
+		return true
+	case keys.Down:
+		t.MoveBy(0, 1, cols, rows)
+		return true
+	case keys.Enter:
+		if it := t.Current(); it != nil {
+			// 游標也跟著移到那個檔案上,離開看圖時才接得回來。
+			a.focusOn(it.Name)
+			return a.openImage(it.Name)
+		}
+		return false
+	case keys.Esc:
+		a.Mode = ModeBrowser
+		return true
+	}
+	return false
+}
+
+// --- 字典視窗 -------------------------------------------------------------
+
+// DictPanelRows 是字典視窗佔幾列。
+const DictPanelRows = 4
+
+// wordUnderCursor 取游標所在的英文單字。
+func (a *App) wordUnderCursor() string {
+	e := a.Editor
+	if e == nil || e.Cur.Line >= len(e.Lines) {
+		return ""
+	}
+	l := e.Lines[e.Cur.Line]
+	i := e.Cur.Col
+	if i >= len(l) {
+		i = len(l) - 1
+	}
+	if i < 0 || !isWordRune(l[i]) {
+		return ""
+	}
+	from := i
+	for from > 0 && isWordRune(l[from-1]) {
+		from--
+	}
+	to := i
+	for to < len(l) && isWordRune(l[to]) {
+		to++
+	}
+	return string(l[from:to])
+}
+
+func isWordRune(r rune) bool {
+	return r == '\'' || r == '-' ||
+		(r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+// drawDict 在畫面底部畫字典視窗。
+func (a *App) drawDict(s *cell.Screen) {
+	if a.dict == nil && a.dictErr == "" {
+		d, err := dict.Load(a.DictDir)
+		if err != nil {
+			a.dictErr = "載不到字典: " + err.Error()
+		} else {
+			a.dict = d
+		}
+	}
+	top := s.Rows - 1 - DictPanelRows
+	if top < 0 {
+		return
+	}
+	s.Fill(0, top, s.Cols, DictPanelRows, ' ', cell.LtCyan, cell.Blue)
+	if a.dictErr != "" {
+		s.Print(1, top, a.dictErr, cell.LtYellow, cell.Blue)
+		return
+	}
+	w := a.wordUnderCursor()
+	if w == "" {
+		s.Print(1, top, "字典:把游標移到英文單字上", cell.LtGray, cell.Blue)
+		return
+	}
+	e, ok := a.dict.Lookup(w)
+	if !ok {
+		s.Print(1, top, w+" — 查無此字", cell.LtGray, cell.Blue)
+		return
+	}
+	head := e.Word
+	if e.KK != "" {
+		head += "  [" + e.KK + "]"
+	}
+	if e.Base != "" && e.Base != e.Word {
+		head += "  (原形 " + e.Base + ")"
+	}
+	s.Print(1, top, head, cell.LtYellow, cell.Blue)
+	// 解釋可能很長,換行塞進剩下的幾列。
+	y := top + 1
+	for _, line := range wrapCells(e.Trans, s.Cols-2) {
+		if y >= s.Rows-1 {
+			break
+		}
+		s.Print(1, y, line, cell.LtCyan, cell.Blue)
+		y++
+	}
+}
+
+// wrapCells 依顯示格數折行,不把全形字切一半。
+func wrapCells(s string, width int) []string {
+	if width <= 0 {
+		return nil
+	}
+	var out []string
+	var cur []rune
+	n := 0
+	for _, r := range s {
+		w := 1
+		if cell.IsWide(r) {
+			w = 2
+		}
+		if n+w > width {
+			out = append(out, string(cur))
+			cur, n = nil, 0
+		}
+		cur = append(cur, r)
+		n += w
+	}
+	if len(cur) > 0 {
+		out = append(out, string(cur))
+	}
+	return out
+}
+
 // --- 文字編輯器 -----------------------------------------------------------
 
 // openEditor 用編輯器開游標所在的檔案(原版主畫面的 E)。
@@ -562,6 +964,11 @@ func (a *App) editKey(k keys.Key) bool {
 		return true
 	case keys.F6:
 		a.Message = "F6 尋找/取代:對話框還沒做"
+		return true
+	case keys.F7:
+		// 字典視窗。原版是設定項(「顯示字典視窗?」),沒找到對應的
+		// 快捷鍵,先給 F7(證據等級 C,見 docs/ui/keymap.md)。
+		a.ShowDict = !a.ShowDict
 		return true
 	}
 

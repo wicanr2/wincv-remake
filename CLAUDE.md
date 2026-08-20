@@ -265,11 +265,14 @@ remake 這一側不需要開視窗:`cmd/celldump` 用與 Ebiten 相同的 `rende
 | **P2** 格式 | `.FON`、`eng.txt.dat/.idx`、`keyword_*.cfg`、`ce.ful`、`default.fil`、設定檔 | `docs/formats/*.md` 各附一支可 round-trip 的解析器 |
 | **P3** 版面 | 量測主畫面格點:cols×rows、欄位邊界、色盤 | `docs/ui/main-screen.md` + 標註圖 |
 | **P4** keymap | 逐鍵實測原版行為 | `docs/ui/keymap.md` |
-| **M1** | 檔案瀏覽器主畫面:目錄列表、游標、標記、排序、進出目錄 | 對 P3 截圖格點比對通過 |
-| **M2** | 文字瀏覽器:編碼判讀、ANSI 色碼、搜尋 | 同上 + 大檔捲動不卡 |
-| **M3** | 壓縮檔當目錄瀏覽 | ZIP/TAR/GZ/BZ2 起步,逐格式補完 |
-| **M4** | 編輯器 / HEX / 看圖 / 縮圖 / 轉碼 / 字典 / MD5-SFV | 逐項對原版比對 |
-| **M5** | 三平台打包 | 見 `rulebook/82`,每個平台驗**打包產物**在**它自己的環境** |
+| **M1** ✅ | 檔案瀏覽器主畫面:目錄列表、游標、標記、排序、進出目錄 | `internal/browser`,測試涵蓋排序/標記/捲動邊界 |
+| **M2** ✅ | 文字瀏覽器:編碼判讀、ANSI 色碼、換行、搜尋 | `internal/viewer` + `internal/textenc` |
+| **M3** 🔶 | 壓縮檔當目錄瀏覽 | ZIP/TAR/GZ/BZ2/RAR/7z 完成;LZH/ARJ/ACE/CAB/.Z/ARC 待補 |
+| **M4** 🔶 | 編輯器 / HEX / 看圖 / 縮圖 / 轉碼 / 字典 / MD5-SFV | 全部有實作;檔案操作(C M R D)與各種對話框待補 |
+| **M5** ✅ | 三平台打包 | `tools/build-all.sh` + `tools/verify-dist.sh` |
+
+各格式的支援進度是**程式碼裡的表**,不是文件:
+`archive.Formats` 與 `imgfmt.Formats`,各有一個測試盯著它別悄悄過期。
 
 ---
 
