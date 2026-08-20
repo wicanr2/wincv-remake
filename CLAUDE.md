@@ -141,23 +141,35 @@ exit code 不可信)。
 ### 4.1 分層
 
 ```
-cmd/wincv/                 進入點、命令列參數(原版有 /e 進編輯器)
+cmd/
+  wincv/      Ebiten 進入點
+  celldump/   同一份 app,不開視窗直接出 PNG(-app + -keys 可送按鍵)
 internal/
-  cell/     Screen:cols×rows 的 Cell{Rune, FG, BG, Attr};全形佔兩格
-  font/     NE .FON (FNT 2.0) 解析 → 半形 glyph atlas;CJK 點陣字來源
-  render/   Ebiten 實作:把 cell buffer blit 上畫面(整數倍縮放,不做濾波)
-  input/    鍵盤事件 → WinCV keymap
-  vfs/      檔案系統抽象:真實目錄 / 壓縮檔內部 走同一介面
-  browser/  M1 檔案列表:游標、標記、排序、欄位、狀態列
-  viewer/   M2 文字瀏覽:編碼判讀、ANSI 色碼、搜尋
-  archive/  M3 壓縮檔讀取
-  encoding/ Big5 / GBK / SJIS / KOR / UTF 互轉
-  editor/   M4 PE2 式區塊編輯器
-  imgview/  M4 看圖與縮圖
-  hexed/    M4 HEX 編輯器
-  dict/     M4 英漢字典 + KK 音標(.dat/.idx)
-  hash/     M4 MD5 / SFV
+  cell/       Screen:cols×rows 的 Cell{Ch, FG, BG, Wide, Cont};全形佔兩格
+  fnt/        NE .FON(FNT 2.0)解析 → 半形字模
+  eten/       倚天字庫(STDFONT/SPCFONT)→ 全形字模
+  render/     純 CPU 光柵器:cell buffer → image.RGBA(不依賴 Ebiten)
+  keys/       與後端無關的按鍵表示 + 文字寫法的解析
+  vfs/        檔案系統抽象:真實目錄與壓縮檔內部走同一介面
+  browser/    檔案列表:游標、標記、排序、欄位、狀態列、註解
+  viewer/     文字檢視:編碼判讀、ANSI 色碼、換行、搜尋
+  hexview/    16 進位檢視
+  editor/     PE2 式區塊編輯器(矩形/整列區塊、虛擬空白、undo)
+  syntax/     keyword_*.cfg 語法上色
+  imgview/    看圖   thumbs/ 縮圖列表   imgfmt/ 圖檔解碼
+  dict/       英漢字典 + KK 音標(.dat/.idx)
+  textenc/    編碼判讀   convert/ 換行與編碼轉換、去 HTML/ANSI
+  fileop/     拷貝 / 移動 / 改名 / 刪除 / 比對
+  search/     尋找 檔名 / 字串 / 註解      note/ dir.doc 註解讀寫
+  checksum/   MD5 / SFV      launch/ 跨平台開啟與執行
+  archive/    壓縮檔讀取(見 §4.3)
+    lzh/ arj/ cab/ arc/ zcompress/   自寫的解碼器
+  app/        把上面全部接起來:模式切換、按鍵分派、選單、輸入列
 ```
+
+`app` 這一層不依賴 Ebiten,所以整個互動流程可以 headless 測,
+`cmd/celldump -app -keys` 也走同一條路徑。
+
 
 ### 4.2 兩個必須做深的模組(`rulebook/70-deep-modules.md`)
 
@@ -171,18 +183,28 @@ internal/
 
 原版靠 Windows DLL,remake 要純 Go(避免 CGO 破壞跨平台)。可行性分級:
 
-| 格式 | 原版 | Go 方案 | 風險 |
+| 格式 | 原版 | remake | 驗證方式 |
 |---|---|---|---|
-| ZIP | `aunzip32.dll` / `bszip.dll` | `archive/zip` | 低 |
-| GZ / TAR / BZ2 | `tar32.dll` / `libbz2` | stdlib `compress/*` `archive/tar` | 低 |
-| RAR | `unrar.dll` | `github.com/nwaples/rardecode` | 中(RAR5 支援度需實測) |
-| 7Z | `7-zip32.dll` | `github.com/bodgit/sevenzip` | 中 |
-| LZH | `unlha32.dll` | Go 實作稀少,可能自寫 | 高 |
-| ARJ | `unarj32j.dll` | 無成熟 Go 實作,需自寫 | 高 |
-| ACE | `unacev2.dll` | 無 Go 實作;格式封閉 | 高,可能落在最後 |
-| CAB | `CAB32.DLL` | `github.com/…/cab` 或自寫 MSZIP | 中 |
+| ZIP | `aunzip32.dll` / `bszip.dll` | `archive/zip` | stdlib |
+| GZ / TAR / BZ2 | `tar32.dll` / `libbz2` | stdlib `compress/*` `archive/tar` | stdlib |
+| RAR | `unrar.dll` | `nwaples/rardecode/v2` | 該套件 |
+| 7Z | `7-zip32.dll` | `bodgit/sevenzip` | 該套件 |
+| LZH | `unlha32.dll` | `internal/archive/lzh`(自寫) | 對 p7zip 比 sha256,675 個成員 |
+| ARJ | `unarj32j.dll` | `internal/archive/arj`(自寫) | 對 arj 3.10 產生的檔案 |
+| CAB | `CAB32.DLL` | `internal/archive/cab`(自寫) | 對 gcab / cabextract |
+| .Z | — | `internal/archive/zcompress`(自寫) | 對 ncompress |
+| ARC / PAK | 外掛 | `internal/archive/arc`(自寫) | 對 arc 5.21 |
+| ACE | `unacev2.dll` | **不做** | 沒有公開規格,也造不出測試資料 |
 
-M3 先做 ZIP/TAR/GZ/BZ2 四種,其餘依 §7 完整性原則逐一補完,不因冷門而砍。
+**沒有 oracle 就不寫解碼器。** 這是 §7「完整性優先於投報」的界線:
+完整性指的是「不因冷門而砍」,不是「沒驗過也塞一個進去」。
+一個沒對照過參考實作的解碼器,會安靜地解出**看起來有內容但其實是錯的**檔案,
+那比明講不支援更糟。同樣的判準適用於 CAB 的 LZX / Quantum、
+ARC 的方法 4 與 7、LHA 的 `-lh1-`、以及圖檔的 PCD。
+
+自寫的四個解碼器都是先取得參考實作的原始碼或規格再寫,不是憑印象 ——
+憑印象寫出來的會是「自洽但錯」的碼,而且**小檔案的測試會剛好通過**
+(LHA 的 `nc` 少算一格、CAB 的 MSZIP 跨區塊字典,兩個都只在大檔上現形)。
 
 ### 4.4 CJK 點陣字形:倚天字庫(已定案並實作)
 
@@ -267,8 +289,8 @@ remake 這一側不需要開視窗:`cmd/celldump` 用與 Ebiten 相同的 `rende
 | **P4** keymap | 逐鍵實測原版行為 | `docs/ui/keymap.md` |
 | **M1** ✅ | 檔案瀏覽器主畫面:目錄列表、游標、標記、排序、進出目錄 | `internal/browser`,測試涵蓋排序/標記/捲動邊界 |
 | **M2** ✅ | 文字瀏覽器:編碼判讀、ANSI 色碼、換行、搜尋 | `internal/viewer` + `internal/textenc` |
-| **M3** 🔶 | 壓縮檔當目錄瀏覽 | ZIP/TAR/GZ/BZ2/RAR/7z 完成;LZH/ARJ/ACE/CAB/.Z/ARC 待補 |
-| **M4** 🔶 | 編輯器 / HEX / 看圖 / 縮圖 / 轉碼 / 字典 / MD5-SFV | 全部有實作;檔案操作(C M R D)與各種對話框待補 |
+| **M3** ✅ | 壓縮檔當目錄瀏覽 | 12 種格式支援 11 種(ACE 不做,理由見 §4.3) |
+| **M4** ✅ | 編輯器 / HEX / 看圖 / 縮圖 / 轉碼 / 字典 / MD5-SFV / 檔案操作 | 主畫面與編輯器的按鍵表都接完(見 `docs/ui/keymap.md`) |
 | **M5** ✅ | 三平台打包 | `tools/build-all.sh` + `tools/verify-dist.sh` |
 
 各格式的支援進度是**程式碼裡的表**,不是文件:
