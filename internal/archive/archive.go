@@ -24,6 +24,7 @@ import (
 	"github.com/bodgit/sevenzip"
 	"github.com/nwaples/rardecode/v2"
 
+	"github.com/wicanr2/wincv-remake/internal/archive/cab"
 	"github.com/wicanr2/wincv-remake/internal/archive/lzh"
 	"github.com/wicanr2/wincv-remake/internal/archive/zcompress"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
@@ -49,7 +50,7 @@ var Formats = []Format{
 	{[]string{".lzh", ".lha"}, "LHA", true, "自寫,見 internal/archive/lzh"},
 	{[]string{".arj"}, "ARJ", false, "無成熟 Go 實作,需自寫"},
 	{[]string{".ace"}, "ACE", false, "格式封閉,排在最後"},
-	{[]string{".cab"}, "CAB", false, "待寫 MSZIP"},
+	{[]string{".cab"}, "CAB", true, "自寫,MSZIP + 不壓縮;LZX / Quantum 未做"},
 	{[]string{".z", ".taz", ".tar.z"}, "compress", true, "自寫,見 internal/archive/zcompress"},
 	{[]string{".arc", ".pak"}, "ARC/PAK", false, "原版也是外掛,排在最後"},
 }
@@ -125,6 +126,8 @@ func Open(name string) (*FS, error) {
 		err = a.loadSevenZip(name)
 	case "LHA":
 		err = a.loadLZH(name)
+	case "CAB":
+		err = a.loadCab(name)
 	case "compress":
 		err = a.loadCompressed(name, func(r io.Reader) (io.Reader, error) {
 			b, err := zcompress.DecodeReader(r)
@@ -202,6 +205,31 @@ func (a *FS) loadLZH(name string) error {
 					return nil, fmt.Errorf("%s: %w", e.Name, derr)
 				}
 				return io.NopCloser(bytes.NewReader(body)), nil
+			},
+		})
+	}
+	return nil
+}
+
+// loadCab 讀 CAB。
+func (a *FS) loadCab(name string) error {
+	raw, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+	fs, err := cab.Read(raw)
+	if err != nil {
+		return err
+	}
+	for _, f := range fs {
+		f := f
+		a.entries = append(a.entries, entry{
+			path:    f.Name,
+			size:    f.Size,
+			modTime: f.ModTime,
+			isDir:   f.IsDir,
+			open: func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(f.Data)), nil
 			},
 		})
 	}
