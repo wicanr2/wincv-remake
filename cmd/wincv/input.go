@@ -40,9 +40,15 @@ var named = map[ebiten.Key]keys.Code{
 
 // translate 把這一幀剛按下的鍵翻成 keys.Key。
 //
-// 不用 AppendInputChars 取字元:那條路在按著 Ctrl 或 Alt 時不會產生字元,
-// 而原版大量使用 Alt-x / Ctrl-x 指令。改成直接看實體鍵 + 修飾鍵狀態。
-func translate() []keys.Key {
+// 兩條路並用:
+//   - 指令鍵(含 Alt-x / Ctrl-x)看**實體鍵** + 修飾鍵狀態。按著 Ctrl 或 Alt
+//     時作業系統不會產生字元,只看字元事件就收不到那些指令。
+//   - 打字看**字元事件**(AppendInputChars)。實體鍵給不出 shift 後的符號,
+//     也給不出輸入法組出來的中文。
+//
+// textMode 為 true 時(編輯器)才收字元事件,否則主畫面的單鍵指令
+// 會被同一個按鍵送出兩次。
+func translate(textMode bool) []keys.Key {
 	var out []keys.Key
 	alt := ebiten.IsKeyPressed(ebiten.KeyAlt) ||
 		ebiten.IsKeyPressed(ebiten.KeyAltLeft) ||
@@ -59,8 +65,18 @@ func translate() []keys.Key {
 			out = append(out, keys.Key{Code: c, Alt: alt, Ctrl: ctrl, Shift: shift})
 			continue
 		}
+		if textMode && !alt && !ctrl {
+			continue // 這一顆交給下面的字元事件處理
+		}
 		if r, ok := runeOf(ek); ok {
 			out = append(out, keys.Key{Code: keys.Rune, R: r, Alt: alt, Ctrl: ctrl, Shift: shift})
+		}
+	}
+	if textMode && !alt && !ctrl {
+		for _, r := range ebiten.AppendInputChars(nil) {
+			if r >= 0x20 && r != 0x7F {
+				out = append(out, keys.Key{Code: keys.Rune, R: r, Shift: shift})
+			}
 		}
 	}
 	return out

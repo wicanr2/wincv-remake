@@ -16,12 +16,14 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
+	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/viewer"
 	"github.com/wicanr2/wincv-remake/internal/render"
+	"github.com/wicanr2/wincv-remake/internal/syntax"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
@@ -50,6 +52,19 @@ func drawFile(s *cell.Screen, name string, cw, ch int) (*render.Overlay, error) 
 	return nil, nil
 }
 
+func drawEdit(s *cell.Screen, name, cfgDir string) error {
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+	var cfg *syntax.Config
+	if set, err := syntax.LoadSet(cfgDir); err == nil {
+		cfg = set.For(name)
+	}
+	editor.Load(filepath.Base(name), data, textenc.Unknown, cfg).Draw(s)
+	return nil
+}
+
 func browserModel(dir string) (*browser.Model, error) {
 	m := browser.New(vfs.OS{}, dir)
 	if err := m.Load(dir); err != nil {
@@ -68,6 +83,8 @@ func main() {
 		rows     = flag.Int("rows", 25, "列數")
 		dir      = flag.String("dir", "", "要瀏覽的目錄。留空則畫字型與配色的示範畫面")
 		file     = flag.String("file", "", "要檢視的檔案(文字或 16 進位,依內容自動判斷)")
+		edit     = flag.String("edit", "", "用編輯器開這個檔案(含語法上色)")
+		cfgDir   = flag.String("cfg", "original/app", "語法上色設定所在的目錄")
 	)
 	flag.Parse()
 
@@ -82,7 +99,11 @@ func main() {
 
 	s := cell.New(*cols, *rows)
 	var overlay *render.Overlay
-	if *file != "" {
+	if *edit != "" {
+		if err := drawEdit(s, *edit, *cfgDir); err != nil {
+			die(err)
+		}
+	} else if *file != "" {
 		ov, err := drawFile(s, *file, half.PixWidth, half.PixHeight)
 		if err != nil {
 			die(err)

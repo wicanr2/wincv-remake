@@ -7,6 +7,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -14,10 +15,12 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/archive"
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/render"
+	"github.com/wicanr2/wincv-remake/internal/syntax"
 	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
@@ -32,6 +35,7 @@ const (
 	ModeViewer
 	ModeHex
 	ModeImage
+	ModeEdit
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -45,7 +49,11 @@ type App struct {
 	Viewer  *viewer.Model
 	Hex     *hexview.Model
 	Image   *imgview.Model
+	Editor  *editor.Model
 	Mode    Mode
+
+	// Syntax 是語法上色設定,從原版的 keyword.cfg 載入。可為 nil。
+	Syntax *syntax.Set
 
 	// CellW / CellH 是格子的像素尺寸。看圖模式要用它把格點座標
 	// 換算成像素矩形;外層(cmd/wincv 或 celldump)要在建立後設好。
@@ -80,6 +88,13 @@ func New(fsys vfs.FS, dir string) *App {
 	return &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15}
 }
 
+// LoadSyntax 載入語法上色設定。找不到就不上色,不算錯。
+func (a *App) LoadSyntax(dir string) {
+	if s, err := syntax.LoadSet(dir); err == nil {
+		a.Syntax = s
+	}
+}
+
 // Draw 依目前模式畫出畫面。回傳的 overlay 不為 nil 時,
 // 呼叫端要把它交給 render.Rasterizer.DrawWith。
 func (a *App) Draw(s *cell.Screen) *render.Overlay {
@@ -92,6 +107,8 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 	case ModeImage:
 		ov = a.Image.Draw(s, a.CellW, a.CellH)
 		a.rows = s.Rows - 1
+	case ModeEdit:
+		a.rows = a.Editor.Draw(s)
 	default:
 		a.rows = a.Browser.Draw(s)
 	}
@@ -113,6 +130,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.hexKey(k)
 	case ModeImage:
 		return a.imageKey(k)
+	case ModeEdit:
+		return a.editKey(k)
 	default:
 		return a.browserKey(k)
 	}
@@ -166,6 +185,10 @@ func (a *App) browserKey(k keys.Key) bool {
 		if !k.Alt && !k.Ctrl {
 			b.UnmarkAll()
 			return true
+		}
+	case 'E':
+		if !k.Alt && !k.Ctrl {
+			return a.openEditor()
 		}
 	case 'S':
 		if !k.Alt && !k.Ctrl {
@@ -447,6 +470,159 @@ func (a *App) openHex(name string, data []byte) {
 	a.Hex = hexview.Load(name, data)
 	a.viewData = data
 	a.Mode = ModeHex
+}
+
+// --- 文字編輯器 -----------------------------------------------------------
+
+// openEditor 用編輯器開游標所在的檔案(原版主畫面的 E)。
+func (a *App) openEditor() bool {
+	e := a.Browser.Current()
+	if e == nil || e.IsDir {
+		return false
+	}
+	data, err := a.readCurrent(e.Name)
+	if err != nil {
+		a.Message = err.Error()
+		return true
+	}
+	a.Editor = editor.Load(e.Name, data, textenc.Unknown, a.Syntax.For(e.Name))
+	a.Mode = ModeEdit
+	return true
+}
+
+// SaveEditor 把編輯中的內容寫回檔案。壓縮檔內的檔案不能存 ——
+// 那需要重建整個壓縮檔,是另一件事。
+func (a *App) SaveEditor() bool {
+	if a.Editor == nil {
+		return false
+	}
+	if _, ok := a.Browser.FS.(*archive.FS); ok {
+		a.Message = "壓縮檔裡的檔案還不能直接存回去"
+		return true
+	}
+	path := filepath.Join(a.Browser.Dir, a.Editor.Name)
+	if err := os.WriteFile(path, a.Editor.Bytes(), 0o644); err != nil {
+		a.Message = "存檔失敗: " + err.Error()
+		return true
+	}
+	a.Editor.Dirty = false
+	a.Message = "已存檔 " + a.Editor.Name
+	return true
+}
+
+func (a *App) editKey(k keys.Key) bool {
+	e := a.Editor
+	rows := a.rows
+	if rows <= 0 {
+		rows = 1
+	}
+
+	switch k.Code {
+	case keys.Up:
+		e.MoveBy(-1, 0)
+		return true
+	case keys.Down:
+		e.MoveBy(1, 0)
+		return true
+	case keys.Left:
+		e.MoveBy(0, -1)
+		return true
+	case keys.Right:
+		e.MoveBy(0, 1)
+		return true
+	case keys.PgUp:
+		e.MoveBy(-rows, 0)
+		return true
+	case keys.PgDn:
+		e.MoveBy(rows, 0)
+		return true
+	case keys.Home:
+		e.Cur.Col = 0
+		return true
+	case keys.End:
+		e.Cur.Col = len(e.Lines[e.Cur.Line])
+		return true
+	case keys.Enter:
+		e.NewLine()
+		return true
+	case keys.Backspace:
+		e.Backspace()
+		return true
+	case keys.Delete:
+		e.Delete()
+		return true
+	case keys.Insert:
+		e.Insert = !e.Insert
+		return true
+	case keys.Tab:
+		e.InsertRune('\t')
+		return true
+	case keys.Esc:
+		a.Mode = ModeBrowser
+		return true
+	case keys.F6:
+		a.Message = "F6 尋找/取代:對話框還沒做"
+		return true
+	}
+
+	if k.Alt {
+		switch k.Letter() {
+		case 'B':
+			e.MarkBlock(editor.BlockRect)
+			return true
+		case 'L':
+			e.MarkBlock(editor.BlockLine)
+			return true
+		case 'U':
+			e.UnmarkBlock()
+			return true
+		case 'Z':
+			if e.CopyBlock() {
+				e.UnmarkBlock()
+				e.PasteBlock()
+			}
+			return true
+		case 'M':
+			e.MoveBlock()
+			return true
+		case 'D':
+			e.DeleteBlock()
+			return true
+		case 'F':
+			e.FillBlock(' ', true)
+			return true
+		}
+		return false
+	}
+
+	if k.Ctrl {
+		switch k.Letter() {
+		case 'C':
+			e.CopyBlock()
+			return true
+		case 'X':
+			if e.CopyBlock() {
+				e.DeleteBlock()
+			}
+			return true
+		case 'V':
+			e.PasteBlock()
+			return true
+		case 'U':
+			e.Undo()
+			return true
+		case 'S':
+			return a.SaveEditor()
+		}
+		return false
+	}
+
+	// 一般字元輸入。控制鍵在上面已經處理掉了。
+	if k.Code == keys.Rune && k.R >= 0x20 {
+		e.InsertRune(k.R)
+		return true
+	}
+	return false
 }
 
 // --- 16 進位檢視 ----------------------------------------------------------

@@ -35,7 +35,8 @@ func (g *game) Update() error {
 	if g.app.Quit {
 		return ebiten.Termination
 	}
-	for _, k := range translate() {
+	// 編輯器要收字元事件才打得出 shift 後的符號與中文。
+	for _, k := range translate(g.app.Mode == app.ModeEdit) {
 		if g.app.HandleKey(k) {
 			g.dirty = true
 		}
@@ -101,6 +102,8 @@ func main() {
 
 	a := app.New(vfs.OS{}, abs)
 	a.CellW, a.CellH = half.PixWidth, half.PixHeight
+	// 語法上色設定跟半形字型放在一起(原版是同一個安裝目錄)。
+	a.LoadSyntax(filepath.Dir(*halfPath))
 	g := &game{
 		app:    a,
 		screen: cell.New(*cols, *rows),
