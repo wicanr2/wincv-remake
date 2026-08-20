@@ -2,6 +2,7 @@ package app
 
 import (
 	"archive/zip"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -950,4 +951,106 @@ func TestPrintableStripsControlBytes(t *testing.T) {
 	if got := printable("abcdef", 3); got != "abc" {
 		t.Errorf("沒有截到 3 格: %q", got)
 	}
+}
+
+// --- Alt-P 預視窗格 -------------------------------------------------------
+
+func TestPreviewToggle(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("第一行\n第二行\n第三行\n"), 0o644)
+	a := New(vfs.OS{}, dir)
+	s := cell.New(80, 25)
+	a.Draw(s)
+	a.HandleKey(keys.Named(keys.Down))
+
+	if a.ShowPreview {
+		t.Fatal("預設不該開預視")
+	}
+	a.HandleKey(keys.AltCh('P'))
+	if !a.ShowPreview {
+		t.Fatal("Alt-P 沒打開預視")
+	}
+	a.Draw(s)
+
+	// 預視區在最底下 8 列,應該畫得出檔案的頭幾行
+	found := false
+	for y := s.Rows - PreviewRows; y < s.Rows; y++ {
+		if strings.Contains(rowText(s, y), "第一行") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("預視區沒有畫出檔案內容")
+	}
+
+	a.HandleKey(keys.AltCh('P'))
+	if a.ShowPreview {
+		t.Error("再按一次沒關掉")
+	}
+}
+
+// 開了預視之後,列表要變短、狀態列要往上讓 —— 不能被預視蓋住。
+func TestPreviewShrinksList(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 40; i++ {
+		os.WriteFile(filepath.Join(dir, fmt.Sprintf("f%02d.txt", i)), []byte("x"), 0o644)
+	}
+	a := New(vfs.OS{}, dir)
+	s := cell.New(80, 25)
+	a.HandleKey(keys.Named(keys.Down)) // 讓狀態列顯示檔案而不是 ".."
+	a.Draw(s)
+	before := countRows(s, "txt")
+	a.HandleKey(keys.AltCh('P'))
+	a.Draw(s)
+	after := countRows(s, "txt")
+	// 預視區本身也可能出現 "txt"(它畫的是檔案內容),所以只比列表那一段
+	if after >= before {
+		t.Errorf("看得到的檔案列 %d → %d,開了預視應該變少", before, after)
+	}
+	// 狀態列(有檔名的那一列)不該落在預視區裡
+	statusY := s.Rows - 1 - PreviewRows
+	if !strings.Contains(rowText(s, statusY), "f00.txt") {
+		t.Errorf("狀態列沒有移到預視區之上,第 %d 列是 %q", statusY, rowText(s, statusY))
+	}
+}
+
+// 目錄與 `..` 沒有內容可預視,要給說明而不是空白或錯誤。
+func TestPreviewOnDirectory(t *testing.T) {
+	dir := t.TempDir()
+	os.Mkdir(filepath.Join(dir, "sub"), 0o755)
+	a := New(vfs.OS{}, dir)
+	s := cell.New(80, 25)
+	a.Draw(s)
+	a.HandleKey(keys.AltCh('P'))
+	a.HandleKey(keys.Named(keys.Down)) // 停在 sub
+	a.Draw(s)
+	got := rowText(s, s.Rows-PreviewRows)
+	if !strings.Contains(got, "目錄") {
+		t.Errorf("預視區應該說明這是目錄,得到 %q", got)
+	}
+}
+
+// countRows 數畫面上有幾列含有 sub。
+func countRows(s *cell.Screen, sub string) int {
+	n := 0
+	for y := 0; y < s.Rows; y++ {
+		if strings.Contains(rowText(s, y), sub) {
+			n++
+		}
+	}
+	return n
+}
+
+func rowText(s *cell.Screen, y int) string {
+	var b strings.Builder
+	for x := 0; x < s.Cols; x++ {
+		if c := s.At(x, y); c != nil && !c.Cont {
+			if c.Ch == 0 {
+				b.WriteByte(' ')
+			} else {
+				b.WriteRune(c.Ch)
+			}
+		}
+	}
+	return b.String()
 }

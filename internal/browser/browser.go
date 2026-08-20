@@ -81,6 +81,10 @@ type Model struct {
 	// 設成 nil 就全部用 Theme.FileFG。判斷規則需要知道哪些副檔名是
 	// 壓縮檔、哪些是圖檔,那是上層才有的知識,所以做成 hook。
 	ColorOf func(e Entry) cell.Color
+
+	// ReserveBottom 是畫面底部要留給別人用的列數(原版的預視窗格)。
+	// 狀態列會往上移到留白之上,列表也跟著變短。
+	ReserveBottom int
 }
 
 // Entry 是 Model 持有的一筆,比 vfs.Entry 多了標記狀態。
@@ -288,7 +292,7 @@ func (m *Model) Draw(s *cell.Screen) int {
 	s.Clear(t.FileFG, t.BG)
 
 	m.drawPathBar(s)
-	rows := s.Rows - 2 // 扣掉路徑列與狀態列
+	rows := s.Rows - 2 - m.ReserveBottom // 扣掉路徑列、狀態列與底部保留區
 	if rows < 0 {
 		rows = 0
 	}
@@ -381,9 +385,18 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	}
 }
 
+// statusY 是狀態列的位置。有底部保留區時要往上讓。
+func (m *Model) statusY(s *cell.Screen) int {
+	y := s.Rows - 1 - m.ReserveBottom
+	if y < 1 {
+		y = s.Rows - 1
+	}
+	return y
+}
+
 func (m *Model) drawStatus(s *cell.Screen) {
 	t := m.Theme
-	y := s.Rows - 1
+	y := m.statusY(s)
 	s.Fill(0, y, s.Cols, 1, ' ', t.StatusFG, t.StatusBG)
 	if e := m.Current(); e != nil {
 		line := e.Name

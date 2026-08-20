@@ -86,6 +86,10 @@ type App struct {
 	// EnglishOnly 是 F8 的狀態:關掉中文解讀,一個位元組畫一格。
 	EnglishOnly bool
 
+	// ShowPreview 是 Alt-P 的狀態:畫面底部留一塊,顯示游標所在檔案的開頭。
+	ShowPreview bool
+	prev        preview
+
 	// rows 是最近一次繪製時內容區的列數,按鍵處理要用來算翻頁。
 	rows int
 	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
@@ -157,6 +161,9 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 		a.rows = a.drawFind(s)
 	default:
 		a.rows = a.Browser.Draw(s)
+		if a.ShowPreview {
+			a.drawPreview(s)
+		}
 	}
 	if a.menu.active {
 		a.drawMenu(s)
@@ -318,7 +325,10 @@ func (a *App) browserKey(k keys.Key) bool {
 			return a.startOpen()
 		}
 	case 'P':
-		if !k.Alt && !k.Ctrl {
+		if k.Alt {
+			return a.togglePreview()
+		}
+		if !k.Ctrl {
 			return a.startChangeDir()
 		}
 	case 'G':
