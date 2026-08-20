@@ -94,7 +94,20 @@ var Names = [NumColors]string{
 const NumConfigColors = 29
 
 // ByName 把 keyword_*.cfg 裡的顏色名對回索引。認不得回 (0,false)。
+//
+// [雷] `ltgray` 要對到 LtGray2(#C5C5C5)而不是 LtGray(#C0C0C0)。
+// image 裡 LTGRAY 定義了兩次(0x1dc40 = #C0C0C0、0x50210 = #C5C5C5),
+// 而 Forth 的名稱查詢拿到的是**後定義的那一個** —— 舊定義還在,
+// 只是被蓋住,原本編譯進去的參照(檔案清單)照樣指向舊的。
+// 所以同一個名字在同一支程式裡是兩個顏色,取決於「查名字」還是「編譯期綁定」。
+//
+// 實測:在原版開一個 .cs 檔,keyword_csharp.cfg 開頭那份
+// 「顏色名自己就是該顏色的關鍵字」的圖例會把 ltgray 畫成 #C5C5C5
+// (docs/ui/oracle-cs.png)。檔案清單量到的是 #C0C0C0。
 func ByName(n string) (Color, bool) {
+	if n == "ltgray" {
+		return LtGray2, true
+	}
 	for i, v := range Names {
 		if v == n {
 			return Color(i), true

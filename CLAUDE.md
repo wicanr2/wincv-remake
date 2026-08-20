@@ -424,13 +424,10 @@ tools/oracle-shot.sh original/ref-shots/view.png 18 "Down Down Return"
 
 | # | 假設 | 怎麼驗 |
 |---|---|---|
-| A13 | `LTGRAY` 在 image 裡定義了兩次(0x1dc40 = `#C0C0C0`、0x50210 = `#C5C5C5`),語法上色走的是哪一個 | 在原版開啟 `.java` 或 `.cs`(`keyword_java.cfg` / `keyword_csharp.cfg` 有用到 `ltgray`),把語法上色打開,取樣該 token 的顏色。檔案清單量到的是 `#C0C0C0` |
 | A1 | `EDI` 是 image base(而非 user area 指標) | 在 IDA 裡取幾個 `[edi+X]`,對照 X 是否落在 image 的資料區間 |
 | A2 | header record 的 `f2` 欄位是 vocabulary / hash link | 統計 `f2` 值的分布;看同名不同 vocabulary 的 word 是否 `f2` 不同 |
 | A3 | image header 0x04 是 magic / checksum | 改一個 byte 再跑,看 kernel 是否拒載 |
 | A4 | `VF-` / `EF-` / `VP-` 前綴對應 view-file / edit-file / view-picture | 反組譯任一個該前綴的 word,看它碰的資料與畫面 |
-| A5 | 主畫面是固定格點的自繪 cell grid(非 Win32 控制項) | 用 Wine 的 spy 或改視窗大小截圖,看文字是否只落在整格位置 |
-| A7 | 原版設定存在 `%windir%\wincv.cfg` | `WinCVins.bat` 有 `>> %windir%\wincv.cfg` 的註解行;跑一次原版看檔案是否生成 |
 
 ---
 
