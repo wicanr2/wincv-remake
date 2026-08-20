@@ -76,6 +76,11 @@ type Model struct {
 	// NoteLoader 讀某個目錄的註解。設成 nil 就不顯示註解 ——
 	// 壓縮檔裡面沒有真的目錄可讀,呼叫端要自己判斷後回 nil。
 	NoteLoader func(dir string) map[string]string
+
+	// ColorOf 決定一列用什麼顏色(原版依副檔名分類上色)。
+	// 設成 nil 就全部用 Theme.FileFG。判斷規則需要知道哪些副檔名是
+	// 壓縮檔、哪些是圖檔,那是上層才有的知識,所以做成 hook。
+	ColorOf func(e Entry) cell.Color
 }
 
 // Entry 是 Model 持有的一筆,比 vfs.Entry 多了標記狀態。
@@ -324,6 +329,8 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 		nameFG = t.MarkFG
 	case e.IsDir:
 		nameFG = t.DirFG
+	case m.ColorOf != nil:
+		nameFG = m.ColorOf(e)
 	}
 
 	x := 1
@@ -349,7 +356,11 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	} else {
 		size = comma(e.Size)
 	}
-	x += s.Print(x, y, lpad(size, colSize), t.SizeFG, t.BG)
+	sizeFG := nameFG
+	if e.IsDir {
+		sizeFG = t.SizeFG
+	}
+	x += s.Print(x, y, lpad(size, colSize), sizeFG, t.BG)
 	x++
 
 	if !e.ModTime.IsZero() {

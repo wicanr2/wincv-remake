@@ -9,6 +9,9 @@ set -euo pipefail
 
 OUT=${1:-docs/ui/oracle-window.png}
 WAIT=${2:-20}
+# 第三個參數是截圖前要送的按鍵(xdotool 名稱,空白分隔)。
+# 原版會記住上次的游標位置,所以要量固定畫面時通常要先送 Home。
+KEYS=${3:-}
 PREFIX=${WINCV_PREFIX:-$HOME/.wine-wincv}
 APPDIR=$PREFIX/drive_c/wincv
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -21,6 +24,9 @@ cd "$APPDIR"
 wine wincv.exe >"$TMP/wine.log" 2>&1 &
 sleep $WAIT
 WIN=\$(xdotool search --name "WinCV" | head -1)
+xdotool windowactivate "\$WIN" 2>/dev/null || true
+for k in $KEYS; do xdotool key --clearmodifiers "\$k"; sleep 0.5; done
+sleep 2
 if [ -z "\$WIN" ]; then WIN=\$(xdotool search --onlyvisible --class "" 2>/dev/null | head -1); fi
 {
   echo "=== xdotool getwindowname ==="

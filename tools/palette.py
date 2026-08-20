@@ -7,8 +7,17 @@ word 的 xt 在它的 Forth 標頭裡,位置是「名字結尾 + 9」的那個 d
 
     <名字> <長度位元組> <dword seq> <dword f2> <dword xt>
 
-用法:tools/palette.py [original/app/WINCV.IMG]
+image 裡其實有 46 個色彩 word、43 個查得到名字,那張斜線分隔清單上的
+29 個只是**語法設定檔用得到**的子集。檔案清單的副檔名配色用的是
+DIR-* 那幾個,不在清單上。
+
+用法:
+  tools/palette.py [WINCV.IMG]        只印清單上的 29 個
+  tools/palette.py -all [WINCV.IMG]   掃出全部有名字的色彩 word
 輸出可以直接貼進 internal/render/raster.go 的 DefaultPalette。
+
+[雷] LTGRAY 在 image 裡定義了兩次(#C0C0C0 與 #C5C5C5)。這支程式取
+先找到的那一個;哪一個才是語法上色用的還沒實測,見 CLAUDE.md §9 的 A13。
 """
 import struct
 import sys
@@ -44,9 +53,42 @@ def find_color(d, name):
         i += 1
 
 
+def scan_all(d):
+    """掃出所有具有色彩 word 版面的物件,並從標頭反查名字。"""
+    import re
+    bodies = {}
+    for m in re.finditer(re.escape(BODY_PREFIX), d):
+        o = m.start()
+        bodies[o] = (d[o + 8], d[o + 9], d[o + 10])
+    names = {}
+    hdr = 0x122794
+    for m in re.finditer(b"\xff\xff\xff\xff", d[hdr:]):
+        p = hdr + m.start() + 4
+        while p < len(d) and d[p] == 0:
+            p += 1
+        q = p
+        while q < len(d) and 33 <= d[q] <= 126:
+            q += 1
+        if q <= p or q + 13 > len(d) or d[q] != q - p:
+            continue
+        xt = struct.unpack("<I", d[q + 9:q + 13])[0]
+        if xt in bodies:
+            names.setdefault(xt, d[p:q].decode("latin1"))
+    return bodies, names
+
+
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "original/app/WINCV.IMG"
+    args = [a for a in sys.argv[1:] if a != "-all"]
+    show_all = "-all" in sys.argv
+    path = args[0] if args else "original/app/WINCV.IMG"
     d = open(path, "rb").read()
+    if show_all:
+        bodies, names = scan_all(d)
+        print(f"# 色彩 word {len(bodies)} 個,其中 {len(names)} 個查得到名字")
+        for o in sorted(bodies):
+            r, g, b = bodies[o]
+            print(f"  {o:08x}  #{r:02X}{g:02X}{b:02X}  {names.get(o, '(無名)')}")
+        return
     missing = []
     for n in NAMES:
         got = find_color(d, n)

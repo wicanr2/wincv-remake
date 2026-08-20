@@ -29,7 +29,7 @@
 | 字型註冊方式 | 程式以 `AddFontResource` 註冊自己的 `.FON`,再用 `CreateFontIndirect` 指名 face。Wine log 實測有 `Chosen: L"cvga Regular" (C:\wincv\wincv.fon)` |
 | CJK 字形來源 | 不在隨附字型內。image 裡指名 **`新細明體`** → 原版全形中文由 Windows GDI 用系統字型繪製,字形隨使用者的 Windows 而異 |
 | 全形格點 | 半形 8×15 → 全形 **16×15**。倚天 `STDFONT.15` 正好是 16×15、`ASCFONT.15` 正好是 8×15;`cvga1224` 12×24 對應倚天 `STD.24x` 24×24。同一個年代的規格 |
-| 配色 | **29 個具名顏色**,不是 16 色。名稱與順序取自 image 0x5692d 的斜線分隔清單(counted string,長度 227):black/dkgray/red/ltred/green/ltgreen/blue/ltblue/yellow/mildyellow/ltyellow/magenta/ltmagenta/cyan/ltcyan/gray/white/ltgray/purple/ltpurple/orange/ltorange/gooseyellow/bluegreen/inkgreen/mildwhite/mildgreen/mildcyan/mildmagenta。`keyword_*.cfg` 就是用這些名字指定語法上色。**RGB 值也在 image 裡**:每個顏色是一個 Forth word,body 有 0x24 個位元組,第 8-10 個就是 R、G、B(Win32 的 COLORREF 是 `0x00BBGGRR`,小端存放後記憶體順序正好是 R G B);word 的 xt 在標頭裡「名字結尾 +9」的那個 dword。抽取程式 `tools/palette.py`,結果在 `internal/render/raster.go` 的 `DefaultPalette` |
+| 配色 | 語法設定檔用 **29 個具名顏色**,不是 16 色。名稱與順序取自 image 0x5692d 的斜線分隔清單(counted string,長度 227):black/dkgray/red/ltred/green/ltgreen/blue/ltblue/yellow/mildyellow/ltyellow/magenta/ltmagenta/cyan/ltcyan/gray/white/ltgray/purple/ltpurple/orange/ltorange/gooseyellow/bluegreen/inkgreen/mildwhite/mildgreen/mildcyan/mildmagenta。`keyword_*.cfg` 就是用這些名字指定語法上色。image 裡其實有 **46 個色彩 word**,那 29 個只是設定檔用得到的子集;檔案清單的副檔名配色用的是不在清單上的 `DIR-*` 系列。**RGB 值也在 image 裡**:每個顏色是一個 Forth word,body 有 0x24 個位元組,第 8-10 個就是 R、G、B(Win32 的 COLORREF 是 `0x00BBGGRR`,小端存放後記憶體順序正好是 R G B);word 的 xt 在標頭裡「名字結尾 +9」的那個 dword。抽取程式 `tools/palette.py`,結果在 `internal/render/raster.go` 的 `DefaultPalette` |
 | Big5 字串表 | image 內的 UI 文字是 Forth counted string。加上「前一個 byte 等於長度」這道檢查後,15761 個候選收斂到 1293 個真字串;長度 ≥8 的有 845 筆,含選單、對話框、快捷鍵說明 |
 | 附帶資料檔 | 英漢字典 `eng.txt` (5.5 MB) + `.dat`/`.idx`、`chi.txt.*`、KK 音標 `kk.txt.*`、`origin-verb.txt.*`、big5↔gbk/sjis/kor 對照表、`keyword_*.cfg` 語法上色、`ce.ful` 符號表、`default.fil` 書籤 |
 | 解壓縮 | 原版外掛 Windows DLL:`unrar.dll` `unlha32.dll` `unarj32j.dll` `unacev2.dll` `tar32.dll` `CAB32.DLL` `7-zip32.dll` `bszip.dll` `aunzip32.dll` `libbz2` |
@@ -424,6 +424,7 @@ tools/oracle-shot.sh original/ref-shots/view.png 18 "Down Down Return"
 
 | # | 假設 | 怎麼驗 |
 |---|---|---|
+| A13 | `LTGRAY` 在 image 裡定義了兩次(0x1dc40 = `#C0C0C0`、0x50210 = `#C5C5C5`),語法上色走的是哪一個 | 在原版開啟 `.java` 或 `.cs`(`keyword_java.cfg` / `keyword_csharp.cfg` 有用到 `ltgray`),把語法上色打開,取樣該 token 的顏色。檔案清單量到的是 `#C0C0C0` |
 | A1 | `EDI` 是 image base(而非 user area 指標) | 在 IDA 裡取幾個 `[edi+X]`,對照 X 是否落在 image 的資料區間 |
 | A2 | header record 的 `f2` 欄位是 vocabulary / hash link | 統計 `f2` 值的分布;看同名不同 vocabulary 的 word 是否 `f2` 不同 |
 | A3 | image header 0x04 是 magic / checksum | 改一個 byte 再跑,看 kernel 是否拒載 |

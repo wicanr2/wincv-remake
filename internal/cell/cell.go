@@ -9,12 +9,16 @@ package cell
 // 因為 WinCV 的配色可由使用者設定(主選單的「顏色」)。
 type Color uint8
 
-// WinCV 有 **29 個具名顏色**,不是一般的 16 色。名稱與順序取自
-// WINCV.IMG 內 0x5692d 的斜線分隔清單(counted string,長度 227),
-// 隨附的 keyword_*.cfg 就是用這些名字指定語法上色。
+// 前 29 個是**語法上色用的具名顏色**,名稱與順序取自 WINCV.IMG 內
+// 0x5692d 的斜線分隔清單(counted string,長度 227);隨附的
+// keyword_*.cfg 就是用這些名字指定顏色。
+//
+// 後面 14 個是 image 裡另外定義、但不在那張清單上的顏色 ——
+// 檔案清單的副檔名配色就用其中的 DIR-* 系列。掃 image 可以找到
+// 46 個色彩 word、43 個有名字(tools/palette.py -all)。
 //
 // 這裡照抄它的名字與順序 —— 用它自己的詞彙,才不會在
-// 「我的 16 色」與「它的 29 色」之間反覆換算出錯。
+// 「我的 16 色」與「它的 43 色」之間反覆換算出錯。
 const (
 	Black Color = iota
 	DkGray
@@ -45,6 +49,21 @@ const (
 	MildGreen
 	MildCyan
 	MildMagenta
+	// 以下不在 keyword_*.cfg 的顏色名清單上,但 image 裡有定義。
+	DirGreen             // 目錄
+	DirLtGreen           // 圖檔
+	DirCyan              // 壓縮檔
+	DirLtCyan
+	DirYellow
+	LtGray1
+	NewWhite
+	ToolGray
+	HistogramLtGray
+	LtBlueGreen
+	EFCyan
+	OriginGreen
+	RemovableDiskGreen
+	CLccwLtGray
 	NumColors
 )
 
@@ -57,7 +76,16 @@ var Names = [NumColors]string{
 	"white", "ltgray", "purple", "ltpurple", "orange", "ltorange",
 	"gooseyellow", "bluegreen", "inkgreen",
 	"mildwhite", "mildgreen", "mildcyan", "mildmagenta",
+	// 這些名字不會出現在 keyword_*.cfg 裡,但保留 image 用的原名
+	"dir-green", "dir-ltgreen", "dir-cyan", "dir-ltcyan", "dir-yellow",
+	"ltgray1", "newwhite", "toolgray", "histogram-ltgray",
+	"ltbluegreen", "ef-cyan", "origin-green",
+	"removeable-disk-green", "c-lccw-ltgray",
 }
+
+// NumConfigColors 是 keyword_*.cfg 認得的顏色數。
+// 語法設定檔只能用前面這 29 個。
+const NumConfigColors = 29
 
 // ByName 把 keyword_*.cfg 裡的顏色名對回索引。認不得回 (0,false)。
 func ByName(n string) (Color, bool) {
