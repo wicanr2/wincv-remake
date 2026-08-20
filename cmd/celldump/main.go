@@ -17,25 +17,37 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
+	"github.com/wicanr2/wincv-remake/internal/imgfmt"
+	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/viewer"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
-// drawFile 依內容判斷要用文字檢視還是 16 進位檢視,與 app 層的規則一致。
-func drawFile(s *cell.Screen, name string) error {
+// drawFile 依內容判斷要用看圖、文字檢視還是 16 進位檢視,
+// 與 app 層的規則一致。
+func drawFile(s *cell.Screen, name string, cw, ch int) (*render.Overlay, error) {
 	data, err := os.ReadFile(name)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	v := viewer.Load(filepath.Base(name), data, textenc.Unknown)
+	base := filepath.Base(name)
+	if imgfmt.IsImage(base) {
+		m, err := imgview.Load(base, data)
+		if err == nil {
+			return m.Draw(s, cw, ch), nil
+		}
+		hexview.Load(base, data).Draw(s)
+		return nil, nil
+	}
+	v := viewer.Load(base, data, textenc.Unknown)
 	if v.Enc == textenc.Binary {
-		hexview.Load(filepath.Base(name), data).Draw(s)
-		return nil
+		hexview.Load(base, data).Draw(s)
+		return nil, nil
 	}
 	v.Draw(s)
-	return nil
+	return nil, nil
 }
 
 func browserModel(dir string) (*browser.Model, error) {
@@ -69,10 +81,13 @@ func main() {
 	}
 
 	s := cell.New(*cols, *rows)
+	var overlay *render.Overlay
 	if *file != "" {
-		if err := drawFile(s, *file); err != nil {
+		ov, err := drawFile(s, *file, half.PixWidth, half.PixHeight)
+		if err != nil {
 			die(err)
 		}
+		overlay = ov
 	} else if *dir != "" {
 		m, err := browserModel(*dir)
 		if err != nil {
@@ -84,7 +99,7 @@ func main() {
 	}
 
 	r := render.New(half, cjkOrNil(cjk))
-	img := r.Draw(s)
+	img := r.DrawWith(s, overlay)
 
 	f, err := os.Create(*out)
 	if err != nil {

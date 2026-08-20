@@ -15,6 +15,9 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
+	"github.com/wicanr2/wincv-remake/internal/imgfmt"
+	"github.com/wicanr2/wincv-remake/internal/imgview"
+	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
@@ -28,6 +31,7 @@ const (
 	ModeBrowser Mode = iota
 	ModeViewer
 	ModeHex
+	ModeImage
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -40,7 +44,12 @@ type App struct {
 	Browser *browser.Model
 	Viewer  *viewer.Model
 	Hex     *hexview.Model
+	Image   *imgview.Model
 	Mode    Mode
+
+	// CellW / CellH 是格子的像素尺寸。看圖模式要用它把格點座標
+	// 換算成像素矩形;外層(cmd/wincv 或 celldump)要在建立後設好。
+	CellW, CellH int
 
 	// Message 是暫時顯示在狀態列的訊息(錯誤、提示)。
 	Message string
@@ -68,16 +77,21 @@ type layer struct {
 }
 
 func New(fsys vfs.FS, dir string) *App {
-	return &App{FS: fsys, Browser: browser.New(fsys, dir)}
+	return &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15}
 }
 
-// Draw 依目前模式畫出畫面。
-func (a *App) Draw(s *cell.Screen) {
+// Draw 依目前模式畫出畫面。回傳的 overlay 不為 nil 時,
+// 呼叫端要把它交給 render.Rasterizer.DrawWith。
+func (a *App) Draw(s *cell.Screen) *render.Overlay {
+	var ov *render.Overlay
 	switch a.Mode {
 	case ModeViewer:
 		a.rows = a.Viewer.Draw(s)
 	case ModeHex:
 		a.rows = a.Hex.Draw(s)
+	case ModeImage:
+		ov = a.Image.Draw(s, a.CellW, a.CellH)
+		a.rows = s.Rows - 1
 	default:
 		a.rows = a.Browser.Draw(s)
 	}
@@ -86,6 +100,7 @@ func (a *App) Draw(s *cell.Screen) {
 		s.Fill(0, y, s.Cols, 1, ' ', cell.White, cell.Red)
 		s.Print(0, y, a.Message, cell.White, cell.Red)
 	}
+	return ov
 }
 
 // HandleKey 分派一次按鍵。回傳是否有東西改變(需要重畫)。
@@ -96,6 +111,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.viewerKey(k)
 	case ModeHex:
 		return a.hexKey(k)
+	case ModeImage:
+		return a.imageKey(k)
 	default:
 		return a.browserKey(k)
 	}
@@ -194,6 +211,9 @@ func (a *App) enter() bool {
 	}
 	if archive.IsArchive(e.Name) {
 		return a.enterArchive(e.Name)
+	}
+	if imgfmt.IsImage(e.Name) {
+		return a.openImage(e.Name)
 	}
 	return a.openViewer(e.Name)
 }
@@ -294,17 +314,24 @@ func (a *App) focusOn(name string) {
 	}
 }
 
-func (a *App) openViewer(name string) bool {
-	full := a.joinDir(name)
-	rc, err := a.Browser.FS.Open(full)
+// readCurrent 讀目前目錄下的一個檔案(壓縮檔內也適用)。
+func (a *App) readCurrent(name string) ([]byte, error) {
+	rc, err := a.Browser.FS.Open(a.joinDir(name))
 	if err != nil {
-		a.Message = "開不了 " + name + ": " + err.Error()
-		return true
+		return nil, fmt.Errorf("開不了 %s: %w", name, err)
 	}
 	defer rc.Close()
 	data, err := io.ReadAll(io.LimitReader(rc, MaxViewBytes))
 	if err != nil {
-		a.Message = "讀取失敗: " + err.Error()
+		return nil, fmt.Errorf("讀取失敗: %w", err)
+	}
+	return data, nil
+}
+
+func (a *App) openViewer(name string) bool {
+	data, err := a.readCurrent(name)
+	if err != nil {
+		a.Message = err.Error()
 		return true
 	}
 	// 判成二進位就直接開 16 進位檢視 —— 原版 0.5 版起就是這個行為
@@ -319,6 +346,101 @@ func (a *App) openViewer(name string) bool {
 	a.Viewer = m
 	a.Mode = ModeViewer
 	return true
+}
+
+func (a *App) openImage(name string) bool {
+	data, err := a.readCurrent(name)
+	if err != nil {
+		a.Message = err.Error()
+		return true
+	}
+	m, err := imgview.Load(name, data)
+	if err != nil {
+		// 解不開就退回 16 進位 —— 至少看得到內容,而不是什麼都沒有。
+		a.Message = err.Error()
+		a.openHex(name, data)
+		return true
+	}
+	a.Image = m
+	a.Mode = ModeImage
+	return true
+}
+
+// imageNeighbours 回傳目前目錄裡所有圖檔的索引,用於看上一張/下一張。
+func (a *App) imageNeighbours() []int {
+	var out []int
+	for i, e := range a.Browser.Entries {
+		if !e.IsDir && imgfmt.IsImage(e.Name) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// stepImage 換到上一張或下一張圖(原版 Enter / BackSpace)。
+func (a *App) stepImage(d int) bool {
+	idx := a.imageNeighbours()
+	if len(idx) == 0 {
+		return false
+	}
+	cur := -1
+	for i, v := range idx {
+		if v == a.Browser.Cursor {
+			cur = i
+			break
+		}
+	}
+	if cur < 0 {
+		cur = 0
+	}
+	next := (cur + d + len(idx)) % len(idx)
+	a.Browser.MoveTo(idx[next], a.rows)
+	e := a.Browser.Current()
+	if e == nil {
+		return false
+	}
+	return a.openImage(e.Name)
+}
+
+func (a *App) imageKey(k keys.Key) bool {
+	m := a.Image
+	switch k.Code {
+	case keys.Enter:
+		return a.stepImage(1)
+	case keys.Backspace:
+		return a.stepImage(-1)
+	case keys.Esc:
+		a.Mode = ModeBrowser
+		return true
+	case keys.Up:
+		m.PanBy(0, -32)
+		return true
+	case keys.Down:
+		m.PanBy(0, 32)
+		return true
+	case keys.Left:
+		m.PanBy(-32, 0)
+		return true
+	case keys.Right:
+		m.PanBy(32, 0)
+		return true
+	}
+	if k.Code == keys.Rune && k.R == ' ' {
+		// 標記此檔,換看下一張(原版行為)。
+		if e := a.Browser.Current(); e != nil && !e.Up {
+			e.Marked = !e.Marked
+		}
+		return a.stepImage(1)
+	}
+	switch k.Letter() {
+	case 'I':
+		m.Info = !m.Info
+		return true
+	case 'F':
+		m.ToggleFit()
+		return true
+	}
+	return false
 }
 
 func (a *App) openHex(name string, data []byte) {

@@ -45,8 +45,8 @@ func (g *game) Update() error {
 
 func (g *game) Draw(dst *ebiten.Image) {
 	if g.dirty || g.canvas == nil {
-		g.app.Draw(g.screen)
-		img := g.rast.Draw(g.screen)
+		ov := g.app.Draw(g.screen)
+		img := g.rast.DrawWith(g.screen, ov)
 		if g.canvas == nil ||
 			g.canvas.Bounds() != (image.Rectangle{Max: img.Rect.Max}) {
 			g.canvas = ebiten.NewImage(img.Rect.Dx(), img.Rect.Dy())
@@ -99,8 +99,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "警告:載不到倚天字庫,全形字會留白 (%v)\n", err)
 	}
 
+	a := app.New(vfs.OS{}, abs)
+	a.CellW, a.CellH = half.PixWidth, half.PixHeight
 	g := &game{
-		app:    app.New(vfs.OS{}, abs),
+		app:    a,
 		screen: cell.New(*cols, *rows),
 		rast:   render.New(half, cjk),
 		dirty:  true,

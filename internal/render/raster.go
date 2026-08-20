@@ -71,8 +71,27 @@ func (r *Rasterizer) Size(cols, rows int) (int, int) {
 	return cols * r.CellW, rows * r.CellH
 }
 
+// Overlay 是畫在格點之上的像素層。
+//
+// 看圖模式需要它:圖片不是字元,硬塞進格點會失去解析度。
+// 格點仍然負責周邊的狀態列與訊息,只有圖片本身跳出格點。
+type Overlay struct {
+	Img image.Image
+	// 目標矩形(像素座標)。Fit 為 true 時,圖片等比例縮放後置中放進來;
+	// 為 false 時以 1:1 貼上,超出的部分裁掉。
+	Rect image.Rectangle
+	Fit  bool
+	// Pan 是 1:1 模式下的平移量(來源座標)。
+	Pan image.Point
+}
+
 // Draw 把 s 畫成一張 RGBA。回傳的緩衝區會被下一次呼叫重用。
 func (r *Rasterizer) Draw(s *cell.Screen) *image.RGBA {
+	return r.DrawWith(s, nil)
+}
+
+// DrawWith 畫格點,再把 overlay 疊上去。
+func (r *Rasterizer) DrawWith(s *cell.Screen, ov *Overlay) *image.RGBA {
 	w, h := r.Size(s.Cols, s.Rows)
 	if r.buf == nil || r.buf.Rect.Dx() != w || r.buf.Rect.Dy() != h {
 		r.buf = image.NewRGBA(image.Rect(0, 0, w, h))
@@ -91,7 +110,92 @@ func (r *Rasterizer) Draw(s *cell.Screen) *image.RGBA {
 			r.drawGlyph(s, x, y)
 		}
 	}
+	if ov != nil && ov.Img != nil {
+		r.blit(ov)
+	}
 	return r.buf
+}
+
+// blit 把 overlay 的圖片畫進緩衝區。
+func (r *Rasterizer) blit(ov *Overlay) {
+	dst := ov.Rect.Intersect(r.buf.Rect)
+	if dst.Empty() {
+		return
+	}
+	src := ov.Img.Bounds()
+	if ov.Fit {
+		// 等比例縮放後置中。用最近鄰取樣 —— 這是點陣風格的介面,
+		// 平滑縮放會跟旁邊的點陣字打架。
+		sw, sh := src.Dx(), src.Dy()
+		if sw == 0 || sh == 0 {
+			return
+		}
+		scaleNum, scaleDen := ov.Rect.Dx(), sw
+		if ov.Rect.Dy()*sw < ov.Rect.Dx()*sh {
+			scaleNum, scaleDen = ov.Rect.Dy(), sh
+		}
+		outW := sw * scaleNum / scaleDen
+		outH := sh * scaleNum / scaleDen
+		offX := ov.Rect.Min.X + (ov.Rect.Dx()-outW)/2
+		offY := ov.Rect.Min.Y + (ov.Rect.Dy()-outH)/2
+		for y := 0; y < outH; y++ {
+			dy := offY + y
+			if dy < dst.Min.Y || dy >= dst.Max.Y {
+				continue
+			}
+			sy := src.Min.Y + y*sh/outH
+			for x := 0; x < outW; x++ {
+				dx := offX + x
+				if dx < dst.Min.X || dx >= dst.Max.X {
+					continue
+				}
+				sx := src.Min.X + x*sw/outW
+				r.setPix(dx, dy, ov.Img.At(sx, sy))
+			}
+		}
+		return
+	}
+	for dy := dst.Min.Y; dy < dst.Max.Y; dy++ {
+		sy := src.Min.Y + (dy - ov.Rect.Min.Y) + ov.Pan.Y
+		if sy < src.Min.Y || sy >= src.Max.Y {
+			continue
+		}
+		for dx := dst.Min.X; dx < dst.Max.X; dx++ {
+			sx := src.Min.X + (dx - ov.Rect.Min.X) + ov.Pan.X
+			if sx < src.Min.X || sx >= src.Max.X {
+				continue
+			}
+			r.setPix(dx, dy, ov.Img.At(sx, sy))
+		}
+	}
+}
+
+// setPix 把一個像素疊上去,尊重 alpha。
+//
+// 透明度不能忽略:.ICO 的 AND 遮罩、PNG 與 GIF 的透明色都會產生
+// alpha = 0 的像素,直接寫 RGB 會把「應該看不見」的顏色畫出來
+// (圖示的透明區會變成一片雜色)。
+func (r *Rasterizer) setPix(x, y int, c color.Color) {
+	o := r.buf.PixOffset(x, y)
+	if o < 0 || o+3 >= len(r.buf.Pix) {
+		return
+	}
+	cr, cg, cb, ca := c.RGBA()
+	switch {
+	case ca == 0:
+		return // 全透明,保留底下的格點畫面
+	case ca == 0xFFFF:
+		r.buf.Pix[o+0] = uint8(cr >> 8)
+		r.buf.Pix[o+1] = uint8(cg >> 8)
+		r.buf.Pix[o+2] = uint8(cb >> 8)
+	default:
+		// c.RGBA() 回的是 premultiplied,直接加上背景的 (1-alpha) 部分。
+		inv := 0xFFFF - ca
+		r.buf.Pix[o+0] = uint8((cr + uint32(r.buf.Pix[o+0])*257*inv/0xFFFF) >> 8)
+		r.buf.Pix[o+1] = uint8((cg + uint32(r.buf.Pix[o+1])*257*inv/0xFFFF) >> 8)
+		r.buf.Pix[o+2] = uint8((cb + uint32(r.buf.Pix[o+2])*257*inv/0xFFFF) >> 8)
+	}
+	r.buf.Pix[o+3] = 0xFF
 }
 
 func (r *Rasterizer) fillBG(s *cell.Screen, cx, cy int) {
