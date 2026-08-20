@@ -1,0 +1,16 @@
+# 原版解出的素材:可由 wincv052a.exe 用 tools/setup-wine-oracle.sh 重建,不進版控
+/original/app/
+
+# Wine prefix 一律放 $HOME,不該出現在 repo 內
+/wineprefix/
+/.wine*/
+
+# Go
+/bin/
+/dist/
+*.exe
+!wincv052a.exe
+
+# 暫存
+*.xwd
+*.tmp
