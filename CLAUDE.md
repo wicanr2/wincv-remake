@@ -194,7 +194,26 @@ internal/
 | CAB | `CAB32.DLL` | `internal/archive/cab`(自寫) | 對 gcab / cabextract |
 | .Z | — | `internal/archive/zcompress`(自寫) | 對 ncompress |
 | ARC / PAK | 外掛 | `internal/archive/arc`(自寫) | 對 arc 5.21 |
-| ACE | `unacev2.dll` | **不做** | 沒有公開規格,也造不出測試資料 |
+| ACE | `unace.dll` / `unacev2.dll` | **不做** | 見下方說明 |
+
+**ACE 在 image 裡沒有演算法可逆向。** 原版自己不解 ACE,是把整包丟給
+WinACE 原廠的免費解壓元件,而且支援兩代 API:`unace.dll`(1999,匯出
+`ACEOpenArchive` / `ACEReadHeader` / `ACEProcessFile` / `ACECloseArchive` /
+`ACESetPassword`)與 `unacev2.dll`(2002,匯出 `ACEInitDll` / `ACEList` /
+`ACEExtract` / `ACETest` / `ACEReadArchiveData`)。image 裡對應的是**綁定層**
+而不是解碼器 —— Forth 原始檔名 `unace10.f` / `unace20.f`,word 群 `UNACE10`
+與 `ACE2-DLL`,連 API 的結構都照建成 word(`ACEOPENARCHIVEDATA`、`ARCNAME`、
+`OPENMODE`、`OPENRESULT`、`FLAGS`、`ACE_COMMENT_OK` / `_SMALLBUF` / `_NONE`)。
+
+所以 ACE 和其他格式的差別不是「難」,是**沒有東西可以逆向**:演算法在一個
+42 KB 的封閉 DLL 裡,格式也從來沒有公開規格。
+
+技術上還有一條路:Go 在 Windows 用 `syscall.NewLazyDLL` 就能載入
+`unacev2.dll`,不需要 CGO,不破壞跨平台編譯。**沒有走**,理由兩個:
+只有 Windows 版能用(三平台等價就破了);而且這個 DLL 就是 CVE-2018-20250
+(WinRAR 路徑穿越)的主角,原廠約 2005 年後不再維護、沒有修好的版本,
+隨附這個是 2002 年的組建。要載它就得自己在外面補一層路徑正規化,
+擋掉絕對路徑與 `..`。這是個取捨,不是技術限制,決定要做時再做。
 
 **沒有 oracle 就不寫解碼器。** 這是 §7「完整性優先於投報」的界線:
 完整性指的是「不因冷門而砍」,不是「沒驗過也塞一個進去」。
