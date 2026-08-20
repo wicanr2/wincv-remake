@@ -681,3 +681,146 @@ func TestTwoStepPromptsCancel(t *testing.T) {
 		t.Error("Esc 之後方向鍵應該又能用")
 	}
 }
+
+// --- F1 選單 / F8 / F11 / Alt-E 註解 / P 改路徑 ---------------------------
+
+func TestMenuOpensAndRuns(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0o644)
+	a := New(vfs.OS{}, dir)
+	a.HandleKey(keys.Named(keys.F1))
+	if !a.Menuing() {
+		t.Fatal("F1 應該打開選單")
+	}
+	// 選單開著時,一般的瀏覽器按鍵不該漏過去
+	a.HandleKey(keys.Ch('D'))
+	if a.Prompting() {
+		t.Error("選單開著時 D 不該觸發刪除")
+	}
+	a.HandleKey(keys.Named(keys.Esc))
+	if a.Menuing() {
+		t.Error("Esc 應該關掉選單")
+	}
+}
+
+// 選單裡直接按該功能的鍵,等同選它 —— 選單同時是說明書。
+func TestMenuHotkeyPassesThrough(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0o644)
+	a := New(vfs.OS{}, dir)
+	a.Draw(cell.New(80, 25))
+	a.HandleKey(keys.Named(keys.Down)) // 離開 ".."
+	a.HandleKey(keys.Named(keys.F1))
+	a.HandleKey(keys.Ch('R')) // 更名
+	if a.Menuing() {
+		t.Error("按了功能鍵之後選單應該關掉")
+	}
+	if !a.Prompting() {
+		t.Error("R 應該開更名輸入列")
+	}
+}
+
+func TestFullscreenToggle(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	if a.Fullscreen {
+		t.Fatal("預設不該是全螢幕")
+	}
+	a.HandleKey(keys.Named(keys.F11))
+	if !a.Fullscreen {
+		t.Error("F11 沒切成全螢幕")
+	}
+	a.HandleKey(keys.Named(keys.F11))
+	if a.Fullscreen {
+		t.Error("F11 沒切回來")
+	}
+}
+
+// F8 關掉中文解讀之後,一個位元組畫一格:Big5 的「中」會變成兩格。
+func TestEnglishOnlySplitsDoubleBytes(t *testing.T) {
+	dir := t.TempDir()
+	big5 := []byte{0xA4, 0xA4, 0xA4, 0xE5, '\n'} // "中文"
+	os.WriteFile(filepath.Join(dir, "a.txt"), big5, 0o644)
+	a := New(vfs.OS{}, dir)
+	a.Draw(cell.New(80, 25))
+	a.HandleKey(keys.Named(keys.Down))
+	a.HandleKey(keys.Named(keys.Enter))
+	if a.Mode != ModeViewer {
+		t.Fatalf("沒進檢視器,mode=%v", a.Mode)
+	}
+	if got := a.Viewer.Lines[0].Text(); got != "中文" {
+		t.Fatalf("中文顯示 = %q", got)
+	}
+	a.HandleKey(keys.Named(keys.F8))
+	got := []rune(a.Viewer.Lines[0].Text())
+	if len(got) != 4 {
+		t.Fatalf("英文顯示應該是 4 格,拿到 %d 格 %q", len(got), string(got))
+	}
+	if got[0] != 0xA4 || got[3] != 0xE5 {
+		t.Errorf("位元組沒有原樣對到字碼: %v", got)
+	}
+}
+
+func TestNoteEditFlow(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0o644)
+	a := New(vfs.OS{}, dir)
+	a.Draw(cell.New(80, 25))
+	a.HandleKey(keys.Named(keys.Down))
+
+	a.HandleKey(keys.AltCh('E'))
+	if !a.Prompting() {
+		t.Fatal("Alt-E 應該開註解輸入列")
+	}
+	for _, r := range "說明" {
+		a.HandleKey(keys.Ch(r))
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+
+	b, err := os.ReadFile(filepath.Join(dir, "dir.doc"))
+	if err != nil {
+		t.Fatalf("沒寫出 dir.doc: %v", err)
+	}
+	if !strings.Contains(string(b), "a.txt") {
+		t.Errorf("dir.doc 內容不對: %q", b)
+	}
+	// 註解要立刻反映在瀏覽器上,不用重開
+	if a.Browser.Notes["a.txt"] != "說明" {
+		t.Errorf("Notes 沒更新: %v", a.Browser.Notes)
+	}
+
+	// 再按一次 Alt-E,輸入列要帶出現有的註解
+	a.HandleKey(keys.AltCh('E'))
+	a.HandleKey(keys.Named(keys.Enter))
+	if a.Browser.Notes["a.txt"] != "說明" {
+		t.Errorf("原樣按 Enter 不該改掉註解: %v", a.Browser.Notes)
+	}
+}
+
+func TestChangeDirToFileFocusesIt(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	os.Mkdir(sub, 0o755)
+	os.WriteFile(filepath.Join(sub, "target.txt"), []byte("x"), 0o644)
+	a := New(vfs.OS{}, dir)
+	a.Draw(cell.New(80, 25))
+
+	a.HandleKey(keys.Ch('P'))
+	if !a.Prompting() {
+		t.Fatal("P 應該開改路徑輸入列")
+	}
+	// 輸入列預設帶目前路徑,先清掉
+	for i := 0; i < 200; i++ {
+		a.HandleKey(keys.Named(keys.Backspace))
+	}
+	for _, r := range filepath.Join(sub, "target.txt") {
+		a.HandleKey(keys.Ch(r))
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+
+	if a.Browser.Dir != sub {
+		t.Fatalf("沒切到 %s,現在在 %s", sub, a.Browser.Dir)
+	}
+	if e := a.Browser.Current(); e == nil || e.Name != "target.txt" {
+		t.Errorf("游標沒停在 target.txt 上: %+v", e)
+	}
+}

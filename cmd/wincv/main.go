@@ -42,6 +42,11 @@ func (g *game) Update() error {
 			g.dirty = true
 		}
 	}
+	// app 那一層只翻旗標,真的去動視窗是這裡的事。每幀比對一次,
+	// 使用者從視窗管理員那邊切全螢幕時也能跟上。
+	if g.app.Fullscreen != ebiten.IsFullscreen() {
+		ebiten.SetFullscreen(g.app.Fullscreen)
+	}
 	return nil
 }
 

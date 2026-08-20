@@ -69,6 +69,13 @@ type Model struct {
 	TotalBytes int64
 	// FreeBytes / DiskBytes 顯示在狀態列。0 表示不知道。
 	FreeBytes, DiskBytes int64
+
+	// Notes 是這個目錄的檔案註解(原版的 dir.doc),沒有就是 nil。
+	// 由 NoteLoader 在每次 Load 之後填。
+	Notes map[string]string
+	// NoteLoader 讀某個目錄的註解。設成 nil 就不顯示註解 ——
+	// 壓縮檔裡面沒有真的目錄可讀,呼叫端要自己判斷後回 nil。
+	NoteLoader func(dir string) map[string]string
 }
 
 // Entry 是 Model 持有的一筆,比 vfs.Entry 多了標記狀態。
@@ -106,6 +113,10 @@ func (m *Model) Load(dir string) error {
 	}
 	m.Dir, m.Entries, m.TotalBytes = dir, out, total
 	m.Cursor, m.Top = 0, 0
+	m.Notes = nil
+	if m.NoteLoader != nil {
+		m.Notes = m.NoteLoader(dir)
+	}
 	return nil
 }
 
@@ -370,6 +381,9 @@ func (m *Model) drawStatus(s *cell.Screen) {
 		}
 		if !e.ModTime.IsZero() {
 			line += "  " + e.ModTime.Format("2006-01-02 15:04")
+		}
+		if n := m.Notes[e.Name]; n != "" {
+			line += "  ; " + n
 		}
 		s.Print(0, y, line, t.StatusFG, t.StatusBG)
 	}

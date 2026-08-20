@@ -79,12 +79,21 @@ type App struct {
 	// Quit 被設成 true 時,外層應該結束程式。
 	Quit bool
 
+	// Fullscreen 是 F11 的狀態。app 這一層不會自己去改視窗,
+	// 外層(cmd/wincv)每一幀比對這個旗標再呼叫 Ebiten。
+	Fullscreen bool
+
+	// EnglishOnly 是 F8 的狀態:關掉中文解讀,一個位元組畫一格。
+	EnglishOnly bool
+
 	// rows 是最近一次繪製時內容區的列數,按鍵處理要用來算翻頁。
 	rows int
 	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
 	thumbCols int
 	// prompt 是畫面底部的輸入列,見 prompt.go。
 	prompt prompt
+	// menu 是 F1 的指令選單,見 menu.go。
+	menu menu
 	// findKindPending / convertPending 是「選單那一步」的暫存狀態:
 	// 這兩個功能都要先問「做哪一種」再問細節,而輸入列一次只能問一件事。
 	findKindPending bool
@@ -107,7 +116,10 @@ type layer struct {
 }
 
 func New(fsys vfs.FS, dir string) *App {
-	return &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15}
+	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15}
+	a.Browser.NoteLoader = a.loadNotes
+	a.Browser.Reload() // New 時 hook 還沒接上,重讀一次才會有註解
+	return a
 }
 
 // LoadSyntax 載入語法上色設定。找不到就不上色,不算錯。
@@ -143,6 +155,9 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 	default:
 		a.rows = a.Browser.Draw(s)
 	}
+	if a.menu.active {
+		a.drawMenu(s)
+	}
 	if a.prompt.active {
 		a.drawPrompt(s)
 	} else if a.Message != "" {
@@ -166,7 +181,22 @@ func (a *App) HandleKey(k keys.Key) bool {
 		}
 		return a.promptKey(k)
 	}
+	if a.menu.active {
+		return a.menuKey(k)
+	}
 	a.Message = ""
+	// F1 選單、F8 中英文、F11 全螢幕在每個模式下都通,
+	// 所以在分派到各模式之前先攔下來。
+	switch k.Code {
+	case keys.F1:
+		return a.openMenu()
+	case keys.F8:
+		if !k.Ctrl {
+			return a.toggleCJK()
+		}
+	case keys.F11:
+		return a.toggleFullscreen()
+	}
 	switch a.Mode {
 	case ModeViewer:
 		return a.viewerKey(k)
@@ -243,7 +273,10 @@ func (a *App) browserKey(k keys.Key) bool {
 			return true
 		}
 	case 'E':
-		if !k.Alt && !k.Ctrl {
+		if k.Alt {
+			return a.startNote()
+		}
+		if !k.Ctrl {
 			return a.openEditor()
 		}
 	case 'C':
@@ -277,6 +310,17 @@ func (a *App) browserKey(k keys.Key) bool {
 	case 'O':
 		if k.Ctrl {
 			return a.startConvert()
+		}
+		if !k.Alt {
+			return a.startOpen()
+		}
+	case 'P':
+		if !k.Alt && !k.Ctrl {
+			return a.startChangeDir()
+		}
+	case 'G':
+		if !k.Alt && !k.Ctrl {
+			return a.startRun()
 		}
 	case 'S':
 		if !k.Alt && !k.Ctrl {
