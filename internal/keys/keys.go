@@ -4,7 +4,10 @@
 // 不需要開視窗、不需要合成 X11 事件。
 package keys
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Code 是具名按鍵。一般字元用 Rune 帶。
 type Code int
@@ -105,4 +108,72 @@ func (k Key) Letter() rune {
 		return r
 	}
 	return 0
+}
+
+// Parse 把 "F1"、"C-o"、"A-e"、"Down"、"a" 這種寫法變成 Key。
+//
+// 給 cmd/celldump 用:要在沒有視窗的情況下把畫面推到某個狀態再截圖,
+// 就得有辦法用文字描述按鍵。順帶讓 keymap 文件裡的寫法可以直接餵進來。
+func Parse(s string) (Key, bool) {
+	k := Key{}
+	// 兩種寫法都吃:短的("C-o")打起來快,長的("Ctrl-O")是 String()
+	// 的輸出,也是 docs/ui/keymap.md 裡的寫法,要能直接貼回來。
+	for {
+		switch {
+		case strings.HasPrefix(s, "Ctrl-"):
+			k.Ctrl, s = true, s[5:]
+		case strings.HasPrefix(s, "Alt-"):
+			k.Alt, s = true, s[4:]
+		case strings.HasPrefix(s, "Shift-"):
+			k.Shift, s = true, s[6:]
+		case strings.HasPrefix(s, "C-"):
+			k.Ctrl, s = true, s[2:]
+		case strings.HasPrefix(s, "A-"):
+			k.Alt, s = true, s[2:]
+		case strings.HasPrefix(s, "S-"):
+			k.Shift, s = true, s[2:]
+		default:
+			goto done
+		}
+	}
+done:
+	if s == "" {
+		return k, false
+	}
+	if s == "Space" {
+		k.Code, k.R = Rune, ' '
+		return k, true
+	}
+	for c, n := range codeNames {
+		if n == s {
+			k.Code = c
+			return k, true
+		}
+	}
+	r := []rune(s)
+	if len(r) != 1 {
+		return k, false
+	}
+	k.Code, k.R = Rune, r[0]
+	return k, true
+}
+
+// ParseAll 解析以逗號分隔的一串按鍵。
+func ParseAll(s string) ([]Key, error) {
+	var out []Key
+	if s == "" {
+		return nil, nil
+	}
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		k, ok := Parse(part)
+		if !ok {
+			return nil, fmt.Errorf("看不懂的按鍵: %q", part)
+		}
+		out = append(out, k)
+	}
+	return out, nil
 }

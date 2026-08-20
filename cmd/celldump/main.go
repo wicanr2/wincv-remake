@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wicanr2/wincv-remake/internal/app"
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/eten"
@@ -20,6 +21,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
+	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/viewer"
 	"github.com/wicanr2/wincv-remake/internal/render"
@@ -85,6 +87,8 @@ func main() {
 		file     = flag.String("file", "", "要檢視的檔案(文字或 16 進位,依內容自動判斷)")
 		edit     = flag.String("edit", "", "用編輯器開這個檔案(含語法上色)")
 		cfgDir   = flag.String("cfg", "original/app", "語法上色設定所在的目錄")
+		appDir   = flag.String("app", "", "跑完整的 app(含選單、模式切換)並瀏覽這個目錄")
+		keyStr   = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
 	)
 	flag.Parse()
 
@@ -105,6 +109,12 @@ func main() {
 		}
 	} else if *file != "" {
 		ov, err := drawFile(s, *file, half.PixWidth, half.PixHeight)
+		if err != nil {
+			die(err)
+		}
+		overlay = ov
+	} else if *appDir != "" {
+		ov, err := drawApp(s, *appDir, *cfgDir, *keyStr, half.PixWidth, half.PixHeight)
 		if err != nil {
 			die(err)
 		}
@@ -193,4 +203,31 @@ func min(a, b int) int {
 func die(err error) {
 	fmt.Fprintln(os.Stderr, "錯誤:", err)
 	os.Exit(1)
+}
+
+// drawApp 跑完整的 app,送一串按鍵之後畫出當下的畫面。
+//
+// 這條路徑和 cmd/wincv 走的是同一份 app 程式碼,只是沒有 Ebiten ——
+// 所以選單、對話框、模式切換都可以在沒有顯示器的地方檢查。
+func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int) (*render.Overlay, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+	a := app.New(vfs.OS{}, abs)
+	a.CellW, a.CellH = cw, ch
+	a.LoadSyntax(cfgDir)
+	a.DictDir = cfgDir
+
+	ks, err := keys.ParseAll(keyStr)
+	if err != nil {
+		return nil, err
+	}
+	// 先畫一次,讓 app 知道畫面有幾列(翻頁與選單定位要用)
+	a.Draw(s)
+	for _, k := range ks {
+		a.HandleKey(k)
+		a.Draw(s)
+	}
+	return a.Draw(s), nil
 }

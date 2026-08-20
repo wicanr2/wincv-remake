@@ -270,7 +270,7 @@ func (a *App) drawFind(s *cell.Screen) int {
 		}
 		x := s.Print(1, y, loc, cell.LtGreen, cell.Black)
 		if h.Text != "" {
-			s.Print(x+2, y, h.Text, cell.LtGray, cell.Black)
+			s.Print(x+2, y, printable(h.Text, s.Cols-x-2), cell.LtGray, cell.Black)
 		} else {
 			s.Print(x+2, y, relDir(a.Browser.Dir, h.Dir), cell.DkGray, cell.Black)
 		}
@@ -285,6 +285,34 @@ func (a *App) drawFind(s *cell.Screen) int {
 		s.Print(0, y, f.Hits[f.Cursor].Path(), cell.Black, cell.LtGray)
 	}
 	return rows
+}
+
+// printable 把一行內容整理成可以直接畫的樣子。
+//
+// 編碼判讀不是二分法:像 store.cab 這種「大部分是純文字、夾著標頭」的
+// 檔案不會被判成二進位,於是控制碼會原樣畫到畫面上。列表這一層自己
+// 擋掉比去調判讀門檻安全 —— 門檻調嚴會讓真的文字檔搜不到。
+func printable(s string, max int) string {
+	if max < 1 {
+		return ""
+	}
+	out := make([]rune, 0, max)
+	for _, r := range s {
+		if len(out) >= max {
+			break
+		}
+		switch {
+		case r == '\t':
+			out = append(out, ' ')
+		case r < 0x20 || r == 0x7F:
+			out = append(out, '.')
+		case r == 0xFFFD:
+			out = append(out, '.')
+		default:
+			out = append(out, r)
+		}
+	}
+	return string(out)
 }
 
 func relDir(base, dir string) string {
@@ -304,9 +332,17 @@ func (a *App) startConvert() bool {
 		a.Message = "壓縮檔裡的檔案還不能轉換"
 		return true
 	}
-	names := a.targets()
+	// 目錄轉不了(讀進來就是失敗),先濾掉再問要轉什麼,
+	// 不然選單開了才發現一個都做不了。
+	var names []string
+	for _, n := range a.targets() {
+		if fi, err := os.Stat(filepath.Join(a.Browser.Dir, n)); err == nil && !fi.IsDir() {
+			names = append(names, n)
+		}
+	}
 	if len(names) == 0 {
-		return false
+		a.Message = "沒有可以轉換的檔案(目錄不算)"
+		return true
 	}
 	a.convertPending = names
 	a.prompt = prompt{

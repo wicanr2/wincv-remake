@@ -128,6 +128,22 @@ remake 的實作狀態(打勾表示已接上,空白表示鍵有定義但功能�
 看圖模式的 `;` / `Alt-E` 是**檔案註解**(寫進 `dir.doc`),不是程式碼註解;
 這兩者的出處是不同段落的字串,不要混。
 
+## 用 celldump 檢查畫面
+
+`cmd/celldump` 的 `-app` 模式跑的是和 `cmd/wincv` 同一份 app 程式碼,只是
+不開視窗,所以選單、輸入列、搜尋結果這些自繪的東西可以在沒有顯示器的
+地方檢查:
+
+```
+tools/go.sh run ./cmd/celldump -app /src/testdata -keys "F1" -o shot.png
+tools/go.sh run ./cmd/celldump -app /src/testdata -keys "W,S,t,x,t,Enter" -o find.png
+```
+
+`-keys` 的寫法和本文件的按鍵欄一致(`Ctrl-O`、`Alt-Z`、`F6`、`Down`…),
+短寫 `C-o` / `A-z` 也吃。
+
+![選單](shot-menu.png)
+
 ## 尚待實測的項目
 
 1. `↑↓` `Home` `End` 的實際行為(等級 C)。

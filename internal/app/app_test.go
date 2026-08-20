@@ -923,3 +923,31 @@ func TestEditorCtrlEComments(t *testing.T) {
 		t.Errorf("再按一次沒拿掉: %q", got)
 	}
 }
+
+// 游標停在目錄上時,Ctrl-O 不該開選單 —— 目錄讀不進來,
+// 選單開了才發現一個都做不了。
+func TestConvertSkipsDirectories(t *testing.T) {
+	dir := t.TempDir()
+	os.Mkdir(filepath.Join(dir, "sub"), 0o755)
+	a := New(vfs.OS{}, dir)
+	a.Draw(cell.New(80, 25))
+	a.HandleKey(keys.Named(keys.Down)) // 停在 sub 上
+
+	a.HandleKey(keys.CtrlCh('O'))
+	if a.Prompting() {
+		t.Error("對著目錄不該開轉換選單")
+	}
+	if !strings.Contains(a.Message, "目錄") {
+		t.Errorf("應該說明原因,拿到 %q", a.Message)
+	}
+}
+
+func TestPrintableStripsControlBytes(t *testing.T) {
+	got := printable("a\x00b\x1fc\td\x7fe", 100)
+	if got != "a.b.c d.e" {
+		t.Errorf("= %q,期望 \"a.b.c d.e\"", got)
+	}
+	if got := printable("abcdef", 3); got != "abc" {
+		t.Errorf("沒有截到 3 格: %q", got)
+	}
+}

@@ -29,6 +29,8 @@ type menu struct {
 	active bool
 	items  []menuItem
 	cursor int
+	top    int // 項目比畫面高時,第一列顯示的是第幾項
+	rows   int // 最近一次繪製時裝得下幾項
 }
 
 // Menuing 回傳現在是不是開著選單。
@@ -36,6 +38,7 @@ func (a *App) Menuing() bool { return a.menu.active }
 
 func (a *App) openMenu() bool {
 	a.menu = menu{active: true, items: a.menuItems()}
+	a.menu.rows = a.rows
 	// 游標不要停在分隔線上
 	for a.menu.cursor < len(a.menu.items) && a.menu.items[a.menu.cursor].sep {
 		a.menu.cursor++
@@ -96,6 +99,7 @@ func (a *App) menuKey(k keys.Key) bool {
 				break
 			}
 		}
+		m.scrollToCursor()
 		return true
 	}
 	switch k.Code {
@@ -109,6 +113,10 @@ func (a *App) menuKey(k keys.Key) bool {
 	case keys.End:
 		m.cursor = len(m.items) - 1
 		return move(-1)
+	case keys.PgUp:
+		return move(-m.visible())
+	case keys.PgDn:
+		return move(m.visible())
 	case keys.Esc, keys.F1:
 		a.menu = menu{}
 		return true
@@ -140,39 +148,88 @@ func (a *App) menuKey(k keys.Key) bool {
 	return true // 選單開著,其他鍵一律吃掉
 }
 
+// visible 回傳畫面裝得下幾項。還沒畫過時給一個保守值。
+func (m *menu) visible() int {
+	if m.rows > 0 {
+		return m.rows
+	}
+	return 10
+}
+
+// scrollToCursor 讓游標所在的項目留在可見範圍內。
+func (m *menu) scrollToCursor() {
+	n := m.visible()
+	if m.cursor < m.top {
+		m.top = m.cursor
+	}
+	if m.cursor >= m.top+n {
+		m.top = m.cursor - n + 1
+	}
+	if m.top < 0 {
+		m.top = 0
+	}
+}
+
 func (a *App) drawMenu(s *cell.Screen) {
 	m := &a.menu
+
+	// 寬度用**顯示格數**算,不是位元組數 —— 一個中文字是 3 個位元組
+	// 但只佔 2 格,用 len() 會把選單撐成一倍半寬。
 	w := 0
 	for _, it := range m.items {
-		if l := len(it.label) + 12; l > w {
+		l := cellWidth(it.label) + 4
+		if it.run == nil {
+			l += len(it.key.String()) + 4
+		}
+		if l > w {
 			w = l
 		}
 	}
 	if w > s.Cols-2 {
 		w = s.Cols - 2
 	}
-	h := len(m.items) + 2
-	if h > s.Rows {
-		h = s.Rows
+
+	// 上下各留一列給路徑列與狀態列,選單再高就自己捲。
+	maxH := s.Rows - 2
+	if maxH < 3 {
+		maxH = s.Rows
 	}
-	x0, y0 := (s.Cols-w)/2, (s.Rows-h)/2
+	h := len(m.items) + 2
+	if h > maxH {
+		h = maxH
+	}
+	m.rows = h - 2
+	m.scrollToCursor()
+
+	// 上下各留一列:路徑列與狀態列要看得見,不然不知道自己在哪個目錄。
+	x0, y0 := (s.Cols-w)/2, 1+(maxH-h)/2
 	if x0 < 0 {
 		x0 = 0
 	}
-	if y0 < 0 {
-		y0 = 0
+	if y0 < 1 {
+		y0 = 1
 	}
 
 	s.Fill(x0, y0, w, h, ' ', cell.Black, cell.LtGray)
-	s.Print(x0+1, y0, " 選單 (F1/Esc 關閉) ", cell.White, cell.Blue)
+	title := " 選單 (F1/Esc 關閉) "
+	if m.rows < len(m.items) {
+		title = fmt.Sprintf(" 選單 %d/%d (F1/Esc 關閉) ", m.cursor+1, len(m.items))
+	}
+	s.Fill(x0, y0, w, 1, ' ', cell.White, cell.Blue)
+	s.Print(x0+1, y0, title, cell.White, cell.Blue)
 
-	for i, it := range m.items {
-		y := y0 + 1 + i
-		if y >= y0+h-1 {
+	for row := 0; row < m.rows; row++ {
+		i := m.top + row
+		if i >= len(m.items) {
 			break
 		}
+		it := m.items[i]
+		y := y0 + 1 + row
 		if it.sep {
-			s.Fill(x0+1, y, w-2, 1, '─', cell.Gray, cell.LtGray)
+			// 分隔線用 '-':cvga 是 Big5 的半形字型,0x80 以上是
+			// 雙位元組字的前導位元組,沒有製表符號的字模,
+			// 拿 U+2500 來畫會是一片空白。
+			s.Fill(x0+2, y, w-4, 1, '-', cell.Gray, cell.LtGray)
 			continue
 		}
 		fg, bg := cell.Black, cell.LtGray
@@ -188,6 +245,27 @@ func (a *App) drawMenu(s *cell.Screen) {
 			}
 		}
 	}
+
+	// 還有沒顯示到的項目時給個提示,不然看起來像選單就這麼多
+	if m.top > 0 {
+		s.Print(x0+w-2, y0+1, "^", cell.Blue, cell.LtGray)
+	}
+	if m.top+m.rows < len(m.items) {
+		s.Print(x0+w-2, y0+h-1, "v", cell.Blue, cell.LtGray)
+	}
+}
+
+// cellWidth 算一串字佔幾格。全形字兩格。
+func cellWidth(s string) int {
+	n := 0
+	for _, r := range s {
+		if cell.IsWide(r) {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
 }
 
 // --- MD5 / SFV ------------------------------------------------------------
