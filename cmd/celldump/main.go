@@ -11,11 +11,21 @@ import (
 	"image/png"
 	"os"
 
+	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
 	"github.com/wicanr2/wincv-remake/internal/render"
+	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
+
+func browserModel(dir string) (*browser.Model, error) {
+	m := browser.New(vfs.OS{}, dir)
+	if err := m.Load(dir); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
 
 func main() {
 	var (
@@ -25,6 +35,7 @@ func main() {
 		out      = flag.String("o", "screen.png", "輸出 PNG")
 		cols     = flag.Int("cols", 80, "欄數")
 		rows     = flag.Int("rows", 25, "列數")
+		dir      = flag.String("dir", "", "要瀏覽的目錄。留空則畫字型與配色的示範畫面")
 	)
 	flag.Parse()
 
@@ -38,7 +49,15 @@ func main() {
 	}
 
 	s := cell.New(*cols, *rows)
-	demo(s)
+	if *dir != "" {
+		m, err := browserModel(*dir)
+		if err != nil {
+			die(err)
+		}
+		m.Draw(s)
+	} else {
+		demo(s)
+	}
 
 	r := render.New(half, cjkOrNil(cjk))
 	img := r.Draw(s)
