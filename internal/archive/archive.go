@@ -24,6 +24,7 @@ import (
 	"github.com/bodgit/sevenzip"
 	"github.com/nwaples/rardecode/v2"
 
+	"github.com/wicanr2/wincv-remake/internal/archive/arc"
 	"github.com/wicanr2/wincv-remake/internal/archive/arj"
 	"github.com/wicanr2/wincv-remake/internal/archive/cab"
 	"github.com/wicanr2/wincv-remake/internal/archive/lzh"
@@ -50,10 +51,13 @@ var Formats = []Format{
 	{[]string{".7z"}, "7-Zip", true, "bodgit/sevenzip"},
 	{[]string{".lzh", ".lha"}, "LHA", true, "自寫,見 internal/archive/lzh"},
 	{[]string{".arj"}, "ARJ", true, "自寫,方法 0-4;見 internal/archive/arj"},
-	{[]string{".ace"}, "ACE", false, "格式封閉,排在最後"},
+	// ACE 沒有公開規格,也找不到可以產生測試檔的工具(WinACE 是封閉的
+	// Windows 商業軟體)。沒有 oracle 就寫不出可以相信的解碼器,
+	// 所以這一格維持「不支援」而不是塞一個沒驗過的實作進去。
+	{[]string{".ace"}, "ACE", false, "格式封閉、造不出測試資料"},
 	{[]string{".cab"}, "CAB", true, "自寫,MSZIP + 不壓縮;LZX / Quantum 未做"},
 	{[]string{".z", ".taz", ".tar.z"}, "compress", true, "自寫,見 internal/archive/zcompress"},
-	{[]string{".arc", ".pak"}, "ARC/PAK", false, "原版也是外掛,排在最後"},
+	{[]string{".arc", ".pak"}, "ARC/PAK", true, "自寫,方法 1/2/3/5/6/8/9;4 與 7 未做"},
 }
 
 // DetectFormat 依副檔名判斷格式。回傳的第二個值表示認不認得。
@@ -131,6 +135,8 @@ func Open(name string) (*FS, error) {
 		err = a.loadCab(name)
 	case "ARJ":
 		err = a.loadArj(name)
+	case "ARC/PAK":
+		err = a.loadArc(name)
 	case "compress":
 		err = a.loadCompressed(name, func(r io.Reader) (io.Reader, error) {
 			b, err := zcompress.DecodeReader(r)
@@ -208,6 +214,30 @@ func (a *FS) loadLZH(name string) error {
 					return nil, fmt.Errorf("%s: %w", e.Name, derr)
 				}
 				return io.NopCloser(bytes.NewReader(body)), nil
+			},
+		})
+	}
+	return nil
+}
+
+// loadArc 讀 ARC / PAK。
+func (a *FS) loadArc(name string) error {
+	raw, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+	fs, err := arc.Read(raw)
+	if err != nil {
+		return err
+	}
+	for _, f := range fs {
+		f := f
+		a.entries = append(a.entries, entry{
+			path:    f.Name,
+			size:    f.Size,
+			modTime: f.ModTime,
+			open: func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(f.Data)), nil
 			},
 		})
 	}
