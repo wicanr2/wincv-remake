@@ -38,7 +38,9 @@ type Theme struct {
 	MarkFG             cell.Color
 	MarkColBG          cell.Color // 最左邊那一欄(游標與標記的指示欄)的底色
 	CursorFG, CursorBG cell.Color
-	StatusFG, StatusBG cell.Color
+	StatusFG, StatusBG cell.Color // 第一列狀態列:游標檔案的各欄位
+	StatusDiskFG       cell.Color // 第一列右邊的「剩餘」
+	StatusNameFG       cell.Color // 第二列狀態列:完整檔名
 	BG                 cell.Color
 }
 
@@ -55,6 +57,8 @@ type Theme struct {
 //   - 游標列是白字配 #800000,不是反白。
 //   - 路徑列不是單一顏色:路徑本身 #FFFF00、尾巴的 "*.*" #00FF00、
 //     右邊的筆數 #C5C5C5、標記數 #FFFF00、目錄總位元組 #FFFFFF。
+//   - 狀態列是**兩列**:第一列把游標檔案照清單的欄位排一次(#FFFF00)
+//     加右邊的剩餘空間(#C5C5C5),第二列是完整檔名(#FFFFFF)。
 func DefaultTheme() Theme {
 	return Theme{
 		PathFG: cell.LtYellow, PathBG: cell.Blue,
@@ -66,7 +70,8 @@ func DefaultTheme() Theme {
 		MarkFG: cell.Yellow,
 		MarkColBG: cell.Blue,
 		CursorFG: cell.White, CursorBG: cell.Red,
-		StatusFG: cell.LtGray2, StatusBG: cell.Blue,
+		StatusFG: cell.LtYellow, StatusBG: cell.Blue,
+		StatusDiskFG: cell.LtGray2, StatusNameFG: cell.White,
 		BG: cell.Black,
 	}
 }
@@ -102,6 +107,11 @@ type Model struct {
 	// 設成 nil 就全部用 Theme.FileFG。判斷規則需要知道哪些副檔名是
 	// 壓縮檔、哪些是圖檔,那是上層才有的知識,所以做成 hook。
 	ColorOf func(e Entry) cell.Color
+
+	// DiskStat 回報這個目錄所在磁碟的可用與總容量,狀態列右邊要用。
+	// 做成 hook 而不是直接呼叫 vfs.DiskUsage —— 壓縮檔內部也走同一個
+	// Model,那裡問「磁碟剩多少」沒有意義,由呼叫端決定要不要接。
+	DiskStat func(dir string) (free, total int64)
 
 	// ReserveBottom 是畫面底部要留給別人用的列數(原版的預視窗格)。
 	// 狀態列會往上移到留白之上,列表也跟著變短。
@@ -146,6 +156,10 @@ func (m *Model) Load(dir string) error {
 	m.Notes = nil
 	if m.NoteLoader != nil {
 		m.Notes = m.NoteLoader(dir)
+	}
+	m.FreeBytes, m.DiskBytes = 0, 0
+	if m.DiskStat != nil {
+		m.FreeBytes, m.DiskBytes = m.DiskStat(dir)
 	}
 	return nil
 }
@@ -313,7 +327,7 @@ func (m *Model) Draw(s *cell.Screen) int {
 	s.Clear(t.FileFG, t.BG)
 
 	m.drawPathBar(s)
-	rows := s.Rows - 2 - m.ReserveBottom // 扣掉路徑列、狀態列與底部保留區
+	rows := s.Rows - 3 - m.ReserveBottom // 扣掉路徑列、兩列狀態列與底部保留區
 	if rows < 0 {
 		rows = 0
 	}
@@ -433,38 +447,65 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	}
 }
 
-// statusY 是狀態列的位置。有底部保留區時要往上讓。
+// statusY 是狀態列**第一列**的位置,第二列在它下面。
+// 有底部保留區時兩列一起往上讓。
 func (m *Model) statusY(s *cell.Screen) int {
-	y := s.Rows - 1 - m.ReserveBottom
+	y := s.Rows - 2 - m.ReserveBottom
 	if y < 1 {
-		y = s.Rows - 1
+		y = s.Rows - 2
+	}
+	if y < 1 {
+		y = 1
 	}
 	return y
 }
 
+// drawStatus 畫兩列狀態列。
+//
+// 第一列是游標所在檔案,**照清單的欄位位置**再排一次(不是重新排版):
+// 名稱、副檔名、大小、日期、時間都落在跟上面清單同一欄。
+// 原版就是這樣,量測見 docs/ui/main-screen.md。
+// 第二列是完整檔名 —— 清單那邊放的是截短版,長名要在這裡才看得全。
 func (m *Model) drawStatus(s *cell.Screen) {
 	t := m.Theme
 	y := m.statusY(s)
-	s.Fill(0, y, s.Cols, 1, ' ', t.StatusFG, t.StatusBG)
+	s.Fill(0, y, s.Cols, 2, ' ', t.StatusFG, t.StatusBG)
+
 	if e := m.Current(); e != nil {
-		line := e.Name
-		if !e.IsDir {
-			line = fmt.Sprintf("%s  %s", e.Name, comma(e.Size))
+		x := 1
+		x += s.Print(x, y, pad(truncate(e.Base(), colBase), colBase), t.StatusFG, t.StatusBG)
+		x++
+		x += s.Print(x, y, pad(truncate(e.Ext(), colExt), colExt), t.StatusFG, t.StatusBG)
+		x++
+		size := comma(e.Size)
+		if e.IsDir {
+			size = "<DIR>"
 		}
+		x += s.Print(x, y, lpad(size, colSize), t.StatusFG, t.StatusBG)
+		x++
 		if !e.ModTime.IsZero() {
-			line += "  " + e.ModTime.Format("2006-01-02 15:04")
+			x += s.Print(x, y, e.ModTime.Format("01-02-06"), t.StatusFG, t.StatusBG)
+			x++
+			s.Print(x, y, e.ModTime.Format("15:04"), t.StatusFG, t.StatusBG)
 		}
+
+		full := e.Name
 		if n := m.Notes[e.Name]; n != "" {
-			line += "  ; " + n
+			full += "  ; " + n
 		}
-		s.Print(0, y, line, t.StatusFG, t.StatusBG)
+		s.Print(1, y+1, full, t.StatusNameFG, t.StatusBG)
 	}
+
 	if m.DiskBytes > 0 {
 		right := fmt.Sprintf("剩餘: %sMB / %sMB",
 			comma(m.FreeBytes>>20), comma(m.DiskBytes>>20))
-		x := s.Cols - width(right)
+		// 原版把「剩餘」接在時間欄之後,不是靠右對齊到畫面邊緣。
+		x := 1 + colBase + 1 + colExt + 1 + colSize + 1 + colDate + 1 + colTime + 1
+		if x+width(right) > s.Cols {
+			x = s.Cols - width(right)
+		}
 		if x >= 0 {
-			s.Print(x, y, right, t.StatusFG, t.StatusBG)
+			s.Print(x, y, right, t.StatusDiskFG, t.StatusBG)
 		}
 	}
 }

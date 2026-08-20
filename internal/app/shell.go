@@ -8,6 +8,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/launch"
 	"github.com/wicanr2/wincv-remake/internal/note"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
+	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
 // --- P 改變路徑 -----------------------------------------------------------
@@ -130,6 +131,19 @@ func (a *App) loadNotes(dir string) map[string]string {
 		return nil
 	}
 	return s.Raw()
+}
+
+// diskStat 是給 browser 的磁碟容量 hook。壓縮檔內部沒有對應的磁碟,
+// 回 0 讓狀態列不顯示 —— 顯示宿主磁碟的剩餘空間會誤導。
+func (a *App) diskStat(dir string) (free, total int64) {
+	if a.readOnlyHere() {
+		return 0, 0
+	}
+	f, t, err := vfs.DiskUsage(dir)
+	if err != nil {
+		return 0, 0
+	}
+	return int64(f), int64(t)
 }
 
 func (a *App) startNote() bool {

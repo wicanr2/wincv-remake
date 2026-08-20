@@ -130,6 +130,7 @@ type layer struct {
 func New(fsys vfs.FS, dir string) *App {
 	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15}
 	a.Browser.NoteLoader = a.loadNotes
+	a.Browser.DiskStat = a.diskStat
 	a.Browser.ColorOf = fileColor
 	a.Browser.Reload() // New 時 hook 還沒接上,重讀一次才會有註解
 	return a
