@@ -72,13 +72,22 @@ type Rasterizer struct {
 	buf          *image.RGBA
 }
 
+// LineGap 是格子高度比半形字身多出來的像素列。
+//
+// 原版的格點量測(792x506 的視窗,docs/ui/main-screen.md)顯示列距是 **16**,
+// 而 cvga 的字身是 15、`dfExternalLeading` 是 0。多的那一列不是字型要的,
+// 是程式自己的:Wine 的 font trace 顯示 app 同時要了
+// `pix_h 15 charset 255`(OEM,半形)與 `pix_h 16 charset 136`(Big5,全形),
+// 也就是**用全形字的高度當列高**。字模靠上對齊,多的一列留在下面。
+const LineGap = 1
+
 func New(half *fnt.Font, cjk CJKSource) *Rasterizer {
 	return &Rasterizer{
 		Half:    half,
 		CJK:     cjk,
 		Palette: DefaultPalette,
 		CellW:   half.PixWidth,
-		CellH:   half.PixHeight,
+		CellH:   half.PixHeight + LineGap,
 	}
 }
 

@@ -398,9 +398,7 @@ tools/oracle-shot.sh original/ref-shots/view.png 18 "Down Down Return"
 | # | 假設 | 怎麼驗 |
 |---|---|---|
 | A1 | `EDI` 是 image base(而非 user area 指標) | 在 IDA 裡取幾個 `[edi+X]`,對照 X 是否落在 image 的資料區間 |
-| A10 | 符號補充區的碼位↔字模對照表(43 個洞在哪) | 逐一 dump `SPCFSUPP.15` 的 365 個字模,與 Big5-ETen 表比對出缺哪些碼位 |
 | A11 | KK 音標的符號編碼 | `kk.txt.dat` 用 `+ > - V ) Q` 這類 ASCII 字元表示音標符號,對應到哪些字形還沒查。原版可能有一張替換表或專用字型 |
-| A9 | 主畫面的欄數與列數 | 目前只知道原版視窗約 600×545 px。要在 Wine 用真正的 cvga 字型跑出來才算得準 |
 | A2 | header record 的 `f2` 欄位是 vocabulary / hash link | 統計 `f2` 值的分布;看同名不同 vocabulary 的 word 是否 `f2` 不同 |
 | A3 | image header 0x04 是 magic / checksum | 改一個 byte 再跑,看 kernel 是否拒載 |
 | A4 | `VF-` / `EF-` / `VP-` 前綴對應 view-file / edit-file / view-picture | 反組譯任一個該前綴的 word,看它碰的資料與畫面 |
