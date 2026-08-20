@@ -104,8 +104,10 @@ func TestEnterTextFileOpensViewer(t *testing.T) {
 	}
 }
 
-// 二進位檔不該把檢視器塞滿亂碼,應該回報而不是進去。
-func TestEnterBinaryFileReports(t *testing.T) {
+// 二進位檔按 Enter 直接開 16 進位檢視。
+// 原版 0.5 版起就是這個行為(changelog:「按 enter 看檔時自動將可能為
+// 執行檔的檔案以 16 進位方式看檔」),不是丟一個訊息就算了。
+func TestEnterBinaryFileOpensHex(t *testing.T) {
 	a, s := newApp(t)
 	for cursorName(a) != "z.bin" {
 		if !a.HandleKey(keys.Named(keys.Down)) {
@@ -114,11 +116,45 @@ func TestEnterBinaryFileReports(t *testing.T) {
 		a.Draw(s)
 	}
 	a.HandleKey(keys.Named(keys.Enter))
-	if a.Mode != ModeBrowser {
-		t.Error("二進位檔不該進入文字檢視器")
+	if a.Mode != ModeHex {
+		t.Fatalf("二進位檔應開 16 進位檢視,現在模式 %v", a.Mode)
 	}
-	if !strings.Contains(a.Message, "二進位") {
-		t.Errorf("應該有提示訊息,得到 %q", a.Message)
+	if a.Hex == nil || len(a.Hex.Data) != 512 {
+		t.Errorf("16 進位檢視載入的資料不對")
+	}
+	if a.Hex.Lines() != 32 { // 512 / 16
+		t.Errorf("512 bytes 應為 32 列,得到 %d", a.Hex.Lines())
+	}
+	a.Draw(s)
+	a.HandleKey(keys.Named(keys.Esc))
+	if a.Mode != ModeBrowser {
+		t.Error("Esc 應回到瀏覽器")
+	}
+}
+
+// 文字檔可以用 H 切到 16 進位,再按 H 切回來。
+func TestTextToHexAndBack(t *testing.T) {
+	a, s := newApp(t)
+	for cursorName(a) != "a.txt" {
+		a.HandleKey(keys.Named(keys.Down))
+		a.Draw(s)
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+	if a.Mode != ModeViewer {
+		t.Fatal("應先進文字檢視")
+	}
+	a.HandleKey(keys.Ch('h'))
+	if a.Mode != ModeHex {
+		t.Fatal("H 應切到 16 進位")
+	}
+	if a.Hex.Name != "a.txt" || len(a.Hex.Data) != len("line1\nline2\nline3\n") {
+		t.Errorf("16 進位載入的是 %q, %d bytes", a.Hex.Name, len(a.Hex.Data))
+	}
+	a.Draw(s)
+	a.HandleKey(keys.Ch('h'))
+	if a.Mode != ModeViewer {
+		t.Error("再按 H 應切回文字檢視")
 	}
 }
 
@@ -315,13 +351,13 @@ func TestEnterArchiveLikeDirectory(t *testing.T) {
 // 還沒實作的格式要給訊息,不是默默什麼都不做。
 func TestEnterUnsupportedArchive(t *testing.T) {
 	root := fixture(t)
-	os.WriteFile(filepath.Join(root, "x.rar"), []byte("Rar!\x1a\x07\x00"), 0o644)
+	os.WriteFile(filepath.Join(root, "x.lzh"), []byte("dummy"), 0o644)
 	a := New(vfs.OS{}, root)
 	s := cell.New(78, 20)
 	a.Draw(s)
-	for cursorName(a) != "x.rar" {
+	for cursorName(a) != "x.lzh" {
 		if !a.HandleKey(keys.Named(keys.Down)) {
-			t.Fatal("找不到 x.rar")
+			t.Fatal("找不到 x.lzh")
 		}
 		a.Draw(s)
 	}
@@ -329,7 +365,7 @@ func TestEnterUnsupportedArchive(t *testing.T) {
 	if a.Mode != ModeBrowser {
 		t.Error("不支援的格式不該切換模式")
 	}
-	if !strings.Contains(a.Message, "RAR") {
+	if !strings.Contains(a.Message, "LHA") {
 		t.Errorf("應該說明是什麼格式沒支援,得到 %q", a.Message)
 	}
 }

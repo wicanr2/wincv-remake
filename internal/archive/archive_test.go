@@ -210,14 +210,56 @@ func TestDetectFormatLongestWins(t *testing.T) {
 // 還沒實作的格式要給清楚的訊息,不是含糊的失敗。
 func TestUnsupportedFormatMessage(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "x.rar")
-	os.WriteFile(p, []byte("Rar!"), 0o644)
+	p := filepath.Join(dir, "x.lzh")
+	os.WriteFile(p, []byte("dummy"), 0o644)
 	_, err := Open(p)
 	if err == nil {
-		t.Fatal("RAR 目前應該回錯誤")
+		t.Fatal("LHA 目前應該回錯誤")
 	}
-	if !strings.Contains(err.Error(), "RAR") || !strings.Contains(err.Error(), "還沒實作") {
+	if !strings.Contains(err.Error(), "LHA") || !strings.Contains(err.Error(), "還沒實作") {
 		t.Errorf("訊息不夠清楚: %v", err)
+	}
+}
+
+// 用真實的 .7z(自行產生)。
+func TestSevenZip(t *testing.T) {
+	a, err := Open("testdata/sample.7z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(namesOf(t, a, a.Root()), " ")
+	if got != "docs/ top.txt" {
+		t.Errorf("最上層 = %q, 應為 \"docs/ top.txt\"", got)
+	}
+	rc, err := a.Open(a.Path("docs/deep.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	b, _ := io.ReadAll(rc)
+	if string(b) != "deep\n" {
+		t.Errorf("讀出 %q", b)
+	}
+}
+
+// 用真實世界的 .rar(1999 年的檔,solid 壓縮),來源見 testdata/README.md。
+func TestRar(t *testing.T) {
+	a, err := Open("testdata/sample.rar")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := namesOf(t, a, a.Root())
+	if len(got) != 2 {
+		t.Fatalf("最上層 = %v, 應有 2 筆", got)
+	}
+	rc, err := a.Open(a.Path("EOB3FIX.DOC"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	b, _ := io.ReadAll(rc)
+	if len(b) != 303 {
+		t.Errorf("EOB3FIX.DOC 讀出 %d bytes, 壓縮檔目錄說是 303", len(b))
 	}
 }
 
@@ -234,7 +276,7 @@ func TestFormatCoverage(t *testing.T) {
 		}
 	}
 	t.Logf("壓縮格式支援 %d/%d", done, total)
-	if done < 4 {
-		t.Errorf("已支援 %d 種,ZIP/TAR/GZ/BZ2 這四種應該都要在", done)
+	if done < 6 {
+		t.Errorf("已支援 %d 種,ZIP/TAR/GZ/BZ2/RAR/7z 這六種應該都要在", done)
 	}
 }

@@ -10,14 +10,33 @@ import (
 	"fmt"
 	"image/png"
 	"os"
+	"path/filepath"
 
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
+	"github.com/wicanr2/wincv-remake/internal/hexview"
+	"github.com/wicanr2/wincv-remake/internal/textenc"
+	"github.com/wicanr2/wincv-remake/internal/viewer"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
+
+// drawFile 依內容判斷要用文字檢視還是 16 進位檢視,與 app 層的規則一致。
+func drawFile(s *cell.Screen, name string) error {
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+	v := viewer.Load(filepath.Base(name), data, textenc.Unknown)
+	if v.Enc == textenc.Binary {
+		hexview.Load(filepath.Base(name), data).Draw(s)
+		return nil
+	}
+	v.Draw(s)
+	return nil
+}
 
 func browserModel(dir string) (*browser.Model, error) {
 	m := browser.New(vfs.OS{}, dir)
@@ -36,6 +55,7 @@ func main() {
 		cols     = flag.Int("cols", 80, "欄數")
 		rows     = flag.Int("rows", 25, "列數")
 		dir      = flag.String("dir", "", "要瀏覽的目錄。留空則畫字型與配色的示範畫面")
+		file     = flag.String("file", "", "要檢視的檔案(文字或 16 進位,依內容自動判斷)")
 	)
 	flag.Parse()
 
@@ -49,7 +69,11 @@ func main() {
 	}
 
 	s := cell.New(*cols, *rows)
-	if *dir != "" {
+	if *file != "" {
+		if err := drawFile(s, *file); err != nil {
+			die(err)
+		}
+	} else if *dir != "" {
 		m, err := browserModel(*dir)
 		if err != nil {
 			die(err)

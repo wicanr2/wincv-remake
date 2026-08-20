@@ -72,5 +72,13 @@
 - [ ] P0 IDA 載入 `WINCV.IMG` 並套 `docs/re/symbols.tsv`
 - [ ] P1 word 呼叫圖
 - [ ] P3 主畫面格點量測(要先讓 Wine 用真正的 cvga 才算得準)
-- [ ] P4 keymap 表(`docs/re/big5-strings.tsv` 已有大量快捷鍵說明可當起點)
-- [ ] M1 檔案瀏覽器
+- [x] P4 keymap 規格(`docs/ui/keymap.md`,證據分三級)
+- [x] M1 檔案瀏覽器(列表、游標、標記、排序、進出目錄)
+- [x] M2 文字檢視器(編碼判讀、ANSI 色碼、換行、搜尋)
+- [x] M3 壓縮檔當目錄:ZIP / TAR / GZ / BZ2 / RAR / 7z
+- [x] M4 16 進位檢視、MD5 / SFV、轉換(換行、編碼、去 HTML/ANSI、批次改名)
+- [ ] M3 其餘格式:LZH / ARJ / ACE / CAB / .Z / ARC
+- [ ] M4 看圖與縮圖
+- [ ] M4 PE2 式區塊文字編輯器
+- [ ] M4 英漢字典 + KK 音標(要先逆向 .dat/.idx 格式)
+- [ ] M5 三平台打包

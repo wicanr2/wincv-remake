@@ -21,6 +21,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bodgit/sevenzip"
+	"github.com/nwaples/rardecode/v2"
+
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
@@ -39,8 +42,8 @@ var Formats = []Format{
 	{[]string{".tar"}, "TAR", true, "archive/tar"},
 	{[]string{".gz", ".tgz", ".tar.gz"}, "GZIP", true, "compress/gzip"},
 	{[]string{".bz2", ".tbz", ".tar.bz2"}, "BZIP2", true, "compress/bzip2"},
-	{[]string{".rar"}, "RAR", false, "待接 nwaples/rardecode"},
-	{[]string{".7z"}, "7-Zip", false, "待接 bodgit/sevenzip"},
+	{[]string{".rar"}, "RAR", true, "nwaples/rardecode/v2"},
+	{[]string{".7z"}, "7-Zip", true, "bodgit/sevenzip"},
 	{[]string{".lzh", ".lha"}, "LHA", false, "Go 實作稀少,可能自寫"},
 	{[]string{".arj"}, "ARJ", false, "無成熟 Go 實作,需自寫"},
 	{[]string{".ace"}, "ACE", false, "格式封閉,排在最後"},
@@ -114,6 +117,10 @@ func Open(name string) (*FS, error) {
 		err = a.loadCompressed(name, func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) })
 	case "BZIP2":
 		err = a.loadCompressed(name, func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil })
+	case "RAR":
+		err = a.loadRar(name)
+	case "7-Zip":
+		err = a.loadSevenZip(name)
 	default:
 		err = fmt.Errorf("%s 沒有對應的讀取器", f.Name)
 	}
@@ -141,6 +148,63 @@ func (a *FS) loadZip(name string) error {
 		})
 	}
 	return nil
+}
+
+// loadRar 讀 RAR。rardecode 是循序讀取的 API,沒有中央目錄可以隨機存取,
+// 所以整份讀進記憶體 —— 瀏覽壓縮檔本來就要先知道裡面有什麼。
+func (a *FS) loadRar(name string) error {
+	rr, err := rardecode.OpenReader(name)
+	if err != nil {
+		return err
+	}
+	defer rr.Close()
+	for {
+		h, err := rr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		body, err := io.ReadAll(rr)
+		if err != nil {
+			return err
+		}
+		b := body
+		a.entries = append(a.entries, entry{
+			path:    normalizeSlash(h.Name),
+			size:    h.UnPackedSize,
+			modTime: h.ModificationTime,
+			isDir:   h.IsDir,
+			open:    func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(b)), nil },
+		})
+	}
+	return nil
+}
+
+func (a *FS) loadSevenZip(name string) error {
+	zr, err := sevenzip.OpenReader(name)
+	if err != nil {
+		return err
+	}
+	// 與 zip 一樣,reader 要活到所有 entry 都讀完。
+	for _, f := range zr.File {
+		f := f
+		a.entries = append(a.entries, entry{
+			path:    normalizeSlash(strings.TrimSuffix(f.Name, "/")),
+			size:    int64(f.UncompressedSize),
+			modTime: f.Modified,
+			isDir:   f.FileInfo().IsDir(),
+			open:    func() (io.ReadCloser, error) { return f.Open() },
+		})
+	}
+	return nil
+}
+
+// normalizeSlash 把反斜線換成斜線。RAR 與部分 zip 工具用 Windows 的
+// 路徑分隔,壓縮檔內部一律當成斜線處理。
+func normalizeSlash(p string) string {
+	return strings.TrimSuffix(strings.ReplaceAll(p, "\\", "/"), "/")
 }
 
 // loadCompressed 處理單檔壓縮(.gz / .bz2)。裡面若是 tar 就展開成多筆,

@@ -14,6 +14,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/archive"
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
@@ -26,6 +27,7 @@ type Mode int
 const (
 	ModeBrowser Mode = iota
 	ModeViewer
+	ModeHex
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -37,6 +39,7 @@ type App struct {
 	FS      vfs.FS
 	Browser *browser.Model
 	Viewer  *viewer.Model
+	Hex     *hexview.Model
 	Mode    Mode
 
 	// Message 是暫時顯示在狀態列的訊息(錯誤、提示)。
@@ -50,6 +53,8 @@ type App struct {
 
 	// viewRaw 留著原始解碼文字,切換 ANSI 時要重新解析。
 	viewRaw string
+	// viewData 是目前檢視中的原始位元組,文字與 16 進位之間切換要用。
+	viewData []byte
 
 	// stack 記錄「進入壓縮檔之前在哪」。進壓縮檔時 push,
 	// 從壓縮檔最上層再往上時 pop —— 使用者感覺就只是進出目錄。
@@ -71,6 +76,8 @@ func (a *App) Draw(s *cell.Screen) {
 	switch a.Mode {
 	case ModeViewer:
 		a.rows = a.Viewer.Draw(s)
+	case ModeHex:
+		a.rows = a.Hex.Draw(s)
 	default:
 		a.rows = a.Browser.Draw(s)
 	}
@@ -87,6 +94,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 	switch a.Mode {
 	case ModeViewer:
 		return a.viewerKey(k)
+	case ModeHex:
+		return a.hexKey(k)
 	default:
 		return a.browserKey(k)
 	}
@@ -298,15 +307,71 @@ func (a *App) openViewer(name string) bool {
 		a.Message = "讀取失敗: " + err.Error()
 		return true
 	}
+	// 判成二進位就直接開 16 進位檢視 —— 原版 0.5 版起就是這個行為
+	// (「按 enter 看檔時自動將可能為執行檔的檔案以 16 進位方式看檔」)。
 	m := viewer.Load(name, data, textenc.Unknown)
 	if m.Enc == textenc.Binary {
-		a.Message = fmt.Sprintf("%s 看起來是二進位檔(%s bytes)", name, comma(int64(len(data))))
+		a.openHex(name, data)
 		return true
 	}
+	a.viewData = data
 	a.viewRaw = textenc.Decode(data, m.Enc)
 	a.Viewer = m
 	a.Mode = ModeViewer
 	return true
+}
+
+func (a *App) openHex(name string, data []byte) {
+	a.Hex = hexview.Load(name, data)
+	a.viewData = data
+	a.Mode = ModeHex
+}
+
+// --- 16 進位檢視 ----------------------------------------------------------
+
+func (a *App) hexKey(k keys.Key) bool {
+	h := a.Hex
+	rows := a.rows
+	if rows <= 0 {
+		rows = 1
+	}
+	switch k.Code {
+	case keys.Up:
+		h.ScrollBy(-1, rows)
+		return true
+	case keys.Down:
+		h.ScrollBy(1, rows)
+		return true
+	case keys.PgUp:
+		h.ScrollBy(-rows, rows)
+		return true
+	case keys.PgDn:
+		h.ScrollBy(rows, rows)
+		return true
+	case keys.Home:
+		h.Home(rows)
+		return true
+	case keys.End:
+		h.End(rows)
+		return true
+	case keys.Esc, keys.Enter, keys.Backspace:
+		a.Mode = ModeBrowser
+		return true
+	}
+	switch k.Letter() {
+	case 'H':
+		// 從 16 進位切回文字 —— 只有本來就是文字檔才切得回去。
+		if a.Viewer != nil {
+			a.Mode = ModeViewer
+			return true
+		}
+	case 'F':
+		if !k.Ctrl && !k.Alt {
+			h.Big5 = !h.Big5
+			return true
+		}
+	}
+	return false
 }
 
 // --- 文字檢視器 -----------------------------------------------------------
@@ -372,6 +437,12 @@ func (a *App) viewerKey(k keys.Key) bool {
 	case 'N':
 		if k.Ctrl {
 			v.NextHit(rows)
+			return true
+		}
+	case 'H':
+		// H 切到 16 進位(image 內的標籤是「&Hex模式」)。
+		if !k.Ctrl && !k.Alt {
+			a.openHex(v.Name, a.viewData)
 			return true
 		}
 	}
