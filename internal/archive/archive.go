@@ -25,6 +25,7 @@ import (
 	"github.com/nwaples/rardecode/v2"
 
 	"github.com/wicanr2/wincv-remake/internal/archive/lzh"
+	"github.com/wicanr2/wincv-remake/internal/archive/zcompress"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
@@ -49,7 +50,7 @@ var Formats = []Format{
 	{[]string{".arj"}, "ARJ", false, "無成熟 Go 實作,需自寫"},
 	{[]string{".ace"}, "ACE", false, "格式封閉,排在最後"},
 	{[]string{".cab"}, "CAB", false, "待寫 MSZIP"},
-	{[]string{".z", ".taz"}, "compress", false, "LZW,需自寫"},
+	{[]string{".z", ".taz", ".tar.z"}, "compress", true, "自寫,見 internal/archive/zcompress"},
 	{[]string{".arc", ".pak"}, "ARC/PAK", false, "原版也是外掛,排在最後"},
 }
 
@@ -124,6 +125,14 @@ func Open(name string) (*FS, error) {
 		err = a.loadSevenZip(name)
 	case "LHA":
 		err = a.loadLZH(name)
+	case "compress":
+		err = a.loadCompressed(name, func(r io.Reader) (io.Reader, error) {
+			b, err := zcompress.DecodeReader(r)
+			if err != nil {
+				return nil, err
+			}
+			return bytes.NewReader(b), nil
+		})
 	default:
 		err = fmt.Errorf("%s 沒有對應的讀取器", f.Name)
 	}
