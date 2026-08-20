@@ -194,7 +194,7 @@ internal/
 | CAB | `CAB32.DLL` | `internal/archive/cab`(自寫) | 對 gcab / cabextract |
 | .Z | — | `internal/archive/zcompress`(自寫) | 對 ncompress |
 | ARC / PAK | 外掛 | `internal/archive/arc`(自寫) | 對 arc 5.21 |
-| ACE | `unace.dll` / `unacev2.dll` | **尚未實作** | 見下方說明 |
+| ACE | `unace.dll` / `unacev2.dll` | `internal/archive/ace`(自寫) | 對 acefile 比 sha256,269 個成員 |
 
 **ACE 在 image 裡沒有演算法可逆向。** 原版自己不解 ACE,是把整包丟給
 WinACE 原廠的免費解壓元件,而且支援兩代 API:`unace.dll`(1999,匯出
@@ -208,7 +208,7 @@ WinACE 原廠的免費解壓元件,而且支援兩代 API:`unace.dll`(1999,匯�
 所以 ACE 和其他格式的差別不是「難」,是**沒有東西可以逆向**:演算法在一個
 42 KB 的封閉 DLL 裡,格式也從來沒有公開規格。
 
-**但 ACE 是可以自己實作的**,材料齊全:
+**ACE 已經自己實作了**,材料是:
 
 - 規格:Marcel Lemke 1998 年的〈Technical information of the archiver ACE v1.2〉
 - 參考實作:[droe/acefile](https://github.com/droe/acefile),BSD 授權的純 Python,
@@ -217,9 +217,25 @@ WinACE 原廠的免費解壓元件,而且支援兩代 API:`unace.dll`(1999,匯�
   實測可解出 268 個成員,壓縮法分布是 type 2(LZ77)265 個、type 0(stored)3 個
 - 額外的 oracle:原版隨附的 `unacev2.dll` 可以在 Wine 底下跑
 
-主流路徑(stored + LZ77,不含加密與 SOUND / PIC)的規模,以 acefile 的
-BitStream + Huffman + LZ77 + 標頭合計約 1160 行 Python 估算,約當
-LZH + ARJ + CAB + ARC 四個加起來。**這是工作量的問題,不是可行性的問題。**
+已實作:stored、ACE 1.0 的 LZ77、ACE 2.0 的 blocked(含 LZ77 / LZ77_DELTA /
+LZ77_EXE 三種子模式)。未實作:SOUND 與 PIC 兩種子模式、加密、跨片壓縮檔,
+遇到會明確回報。
+
+驗證:269 個成員全部通過標頭裡的 CRC-32,並與 acefile 的輸出逐位元組相同。
+committed 的測試樣本只有 8.3 KB(走到 MODE_LZ77);EXE 與 DELTA 由
+`TestFullCorpus` 對完整語料驗,設 `WINCV_ACE_CORPUS` 才會跑。
+
+三個實作上的坑:
+
+1. **位元序**:資料先以小端序每 4 個位元組讀成一個 uint32,再從那個
+   uint32 裡由高位往低位取位元。當成單純的 MSB-first 位元流讀,
+   每 4 個位元組就錯一次序。
+2. **Huffman 表的建法依賴一個特定的不穩定 quicksort**。碼的指派順序
+   取決於相等寬度的符號最後排成什麼次序,換成 `sort.Slice`
+   (即使加 tie-break)會得到一套自洽但與編碼器對不上的碼 ——
+   解出來是垃圾而不是錯誤。這段要逐行照抄。
+3. **字典跨成員延續**。`reinit` 只重設符號讀取器與距離歷史,
+   字典不歸零;壓縮檔後面的成員會回頭引用前面成員的內容。
 
 另外有一條捷徑但沒走:Go 在 Windows 用 `syscall.NewLazyDLL` 就能載入
 `unacev2.dll`,不需要 CGO,不破壞跨平台編譯。不走的理由是只有 Windows 版能用
@@ -230,7 +246,7 @@ LZH + ARJ + CAB + ARC 四個加起來。**這是工作量的問題,不是可行�
 完整性指的是「不因冷門而砍」,不是「沒驗過也塞一個進去」。
 一個沒對照過參考實作的解碼器,會安靜地解出**看起來有內容但其實是錯的**檔案,
 那比明講不支援更糟。同樣的判準適用於 CAB 的 LZX / Quantum、
-ARC 的方法 4 與 7、LHA 的 `-lh1-`、以及圖檔的 PCD。
+ARC 的方法 4 與 7、LHA 的 `-lh1-`、ACE 的 SOUND / PIC、以及圖檔的 PCD。
 
 自寫的四個解碼器都是先取得參考實作的原始碼或規格再寫,不是憑印象 ——
 憑印象寫出來的會是「自洽但錯」的碼,而且**小檔案的測試會剛好通過**

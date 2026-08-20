@@ -24,6 +24,7 @@ import (
 	"github.com/bodgit/sevenzip"
 	"github.com/nwaples/rardecode/v2"
 
+	"github.com/wicanr2/wincv-remake/internal/archive/ace"
 	"github.com/wicanr2/wincv-remake/internal/archive/arc"
 	"github.com/wicanr2/wincv-remake/internal/archive/arj"
 	"github.com/wicanr2/wincv-remake/internal/archive/cab"
@@ -51,12 +52,10 @@ var Formats = []Format{
 	{[]string{".7z"}, "7-Zip", true, "bodgit/sevenzip"},
 	{[]string{".lzh", ".lha"}, "LHA", true, "自寫,見 internal/archive/lzh"},
 	{[]string{".arj"}, "ARJ", true, "自寫,方法 0-4;見 internal/archive/arj"},
-	// ACE 在 WINCV.IMG 裡沒有演算法可逆向:原版自己不解,是載入 WinACE
-	// 原廠的 unace.dll / unacev2.dll 來做,image 裡只有綁定層。
-	// 但格式**有**公開文件(Marcel Lemke 1998)、有 BSD 授權的獨立實作
-	// (droe/acefile)、也有可以當測試資料的檔案(droe/acefile-testdata),
-	// 所以這是工作量問題不是可行性問題。詳見 CLAUDE.md §4.3。
-	{[]string{".ace"}, "ACE", false, "尚未實作;有公開文件與參考實作可循"},
+	// ACE 在 WINCV.IMG 裡沒有演算法可逆向(原版只是載入 WinACE 原廠的
+	// unace.dll / unacev2.dll),但格式有公開文件,所以照文件自己寫。
+	// SOUND / PIC 兩種子模式與加密還沒做,遇到會明確回報。
+	{[]string{".ace"}, "ACE", true, "自寫,見 internal/archive/ace"},
 	{[]string{".cab"}, "CAB", true, "自寫,MSZIP + 不壓縮;LZX / Quantum 未做"},
 	{[]string{".z", ".taz", ".tar.z"}, "compress", true, "自寫,見 internal/archive/zcompress"},
 	{[]string{".arc", ".pak"}, "ARC/PAK", true, "自寫,方法 1/2/3/5/6/8/9;4 與 7 未做"},
@@ -139,6 +138,8 @@ func Open(name string) (*FS, error) {
 		err = a.loadArj(name)
 	case "ARC/PAK":
 		err = a.loadArc(name)
+	case "ACE":
+		err = a.loadAce(name)
 	case "compress":
 		err = a.loadCompressed(name, func(r io.Reader) (io.Reader, error) {
 			b, err := zcompress.DecodeReader(r)
@@ -190,8 +191,10 @@ func (a *FS) loadLZH(name string) error {
 	if len(es) == 0 {
 		// 一筆都沒有:多半根本不是 LZH(或壞掉了)。要報錯,
 		// 不能當成「空的壓縮檔」讓使用者看到一個空目錄。
+		// 訊息一定要帶格式名 —— 使用者看到的是「這個檔開不起來」,
+		// 得知道是哪一種格式在抱怨。
 		if err != nil {
-			return err
+			return fmt.Errorf("%s: LZH %w", path.Base(name), err)
 		}
 		return fmt.Errorf("%s: 讀不到任何成員,可能不是 LZH 檔", path.Base(name))
 	}
@@ -216,6 +219,31 @@ func (a *FS) loadLZH(name string) error {
 					return nil, fmt.Errorf("%s: %w", e.Name, derr)
 				}
 				return io.NopCloser(bytes.NewReader(body)), nil
+			},
+		})
+	}
+	return nil
+}
+
+// loadAce 讀 ACE。
+func (a *FS) loadAce(name string) error {
+	raw, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+	fs, err := ace.Read(raw)
+	if err != nil {
+		return err
+	}
+	for _, f := range fs {
+		f := f
+		a.entries = append(a.entries, entry{
+			path:    f.Name,
+			size:    f.Size,
+			modTime: f.ModTime,
+			isDir:   f.IsDir,
+			open: func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(f.Data)), nil
 			},
 		})
 	}

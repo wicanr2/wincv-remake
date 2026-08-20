@@ -97,7 +97,7 @@
 - [x] M4 MD5 / SFV、換行與編碼轉換、去 HTML/ANSI、批次改名
 - [x] P2 檔案格式規格文件(docs/formats/,七份)
 - [x] M5 三平台打包:Linux / Windows(mingw)/ macOS universal(osxcross)
-- [x] M3 其餘格式:LZH / ARJ / CAB / .Z / ARC(各自對參考實作驗過)
+- [x] M3 其餘格式:LZH / ARJ / CAB / .Z / ARC / ACE(各自對參考實作驗過,12 種全支援)
 - [x] 底部輸入列取代原版的對話框;編輯器 F6 尋找/取代
 - [x] 檔案操作:拷貝 / 移動 / 改名 / 刪除 / 比對(C M R D Alt-C)
 - [x] 建立壓縮檔(Alt-Z,.zip)
@@ -108,10 +108,9 @@
 
 ### 不打算做的(理由寫在對應的 Formats 表)
 
-- **ACE**:格式沒有公開規格,也造不出測試資料(WinACE 是封閉商業軟體)。
 - **PCD**(Photo CD):Huffman 編碼的 YCC + 多組解析度,同樣沒有 oracle。
-- **CAB 的 LZX / Quantum**、**ARC 的方法 4 與 7**、**LHA 的 -lh1-**:
-  同理,沒有可驗證的測試資料就不寫。
+- **CAB 的 LZX / Quantum**、**ARC 的方法 4 與 7**、**LHA 的 -lh1-**、
+  **ACE 的 SOUND / PIC**:同理,沒有可驗證的測試資料就不寫。
 
 共同的判準:**沒有 oracle 就不寫解碼器**。塞一個沒驗過的實作進去,
 使用者會拿到「看起來有東西但內容是錯的」檔案,比明講不支援更糟。

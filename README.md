@@ -65,8 +65,7 @@ CView 是「以前 DOS 時代最喜歡的一套軟體」，看圖「超快」，
 | 項目 | 原版 WinCV 0.52 | 本重製版 | 說明 |
 |---|---|---|---|
 | 平台 | 32 位元 Windows | Linux / Windows / macOS | 純 Go 不用 CGO，同一份程式碼編三個平台 |
-| 解壓縮 | 外掛 Windows DLL | 純 Go：標準庫、第三方套件，加上五個自寫解碼器 | 12 種格式支援 11 種 |
-| ACE 格式 | `unace.dll` / `unacev2.dll` | 尚未實作 | 原版只是綁定層，演算法在封閉 DLL 裡。有公開文件與獨立實作可循，是工作量問題不是可行性問題（見下） |
+| 解壓縮 | 外掛 Windows DLL | 純 Go：標準庫、第三方套件，加上六個自寫解碼器 | 12 種格式全部支援 |
 | 圖檔解碼 | `FreeImage.dll` + Intel `ijl15.dll` | 純 Go 解碼 | 12 種格式支援 11 種，缺 Photo CD |
 | 半形字型 | 自帶點陣字型 `cvga.fon`，8×15 | 直接解析原版的 `.FON` 取字模 | 字模真值來自字型檔本身 |
 | 全形中文字形 | 交給 Windows GDI 用系統字型畫（image 內指名「新細明體」） | 倚天（ETEN）點陣字庫 `STDFONT.15`，16×15 | 原版的中文長相隨每個人的 Windows 而異，重製版需要一個確定的來源 |
@@ -100,18 +99,18 @@ CView 是「以前 DOS 時代最喜歡的一套軟體」，看圖「超快」，
 | CAB（MSZIP） | 自寫 | gcab / cabextract |
 | ARJ（方法 0–4） | 自寫 | arj 3.10 |
 | ARC / PAK | 自寫 | arc 5.21 |
-| ACE | 尚未實作 | — |
+| ACE | 自寫 | acefile，269 個成員 |
 
 沒有 oracle 可比對的格式就不寫解碼器。一個沒驗過的解碼器會安靜地解出
 看起來有內容、實際上是錯的檔案，那比明講不支援更麻煩。
 
-ACE 是唯一還缺的格式。它沒有內建在原版裡——原版載入 WinACE 原廠的
-`unace.dll`（1999，v1 API）或 `unacev2.dll`（2002，v2 API），
-`WINCV.IMG` 裡只有綁定層。要自己實作的材料是齊的：Marcel Lemke 1998 年的
-〈Technical information of the archiver ACE v1.2〉、
-BSD 授權的獨立實作 [acefile](https://github.com/droe/acefile)（Python）、
-以及可以當測試資料的 [acefile-testdata](https://github.com/droe/acefile-testdata)。
-主流路徑（stored + LZ77）的規模約當前述五個解碼器的總和。
+ACE 沒有內建在原版裡——原版載入 WinACE 原廠的 `unace.dll`（1999，v1 API）
+或 `unacev2.dll`（2002，v2 API），`WINCV.IMG` 裡只有綁定層。這裡照
+Marcel Lemke 1998 年的〈Technical information of the archiver ACE v1.2〉
+自己寫，拿 BSD 授權的 [acefile](https://github.com/droe/acefile) 對答案，
+測試資料用 [acefile-testdata](https://github.com/droe/acefile-testdata)。
+支援 stored、ACE 1.0 的 LZ77、ACE 2.0 的 blocked（含 LZ77 / DELTA / EXE
+三種子模式）；SOUND 與 PIC 兩種子模式、加密、跨片壓縮檔還沒做。
 
 ## 建置與驗收
 

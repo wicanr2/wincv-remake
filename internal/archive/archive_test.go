@@ -207,18 +207,55 @@ func TestDetectFormatLongestWins(t *testing.T) {
 	}
 }
 
-// 還沒實作的格式要給清楚的訊息,不是含糊的失敗。
-func TestUnsupportedFormatMessage(t *testing.T) {
+// 認不得的副檔名要說清楚,不是含糊的失敗。
+func TestUnknownExtensionMessage(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "x.ace")
+	p := filepath.Join(dir, "x.wibble")
 	os.WriteFile(p, []byte("dummy"), 0o644)
 	_, err := Open(p)
 	if err == nil {
-		t.Fatal("ACE 目前應該回錯誤")
+		t.Fatal("認不得的副檔名應該回錯誤")
 	}
-	if !strings.Contains(err.Error(), "ACE") || !strings.Contains(err.Error(), "還沒實作") {
+	if !strings.Contains(err.Error(), "認不出壓縮格式") {
 		t.Errorf("訊息不夠清楚: %v", err)
 	}
+}
+
+// 副檔名對但內容不對時,錯誤訊息要指出是哪一種格式在抱怨,
+// 不要只說「失敗」。
+func TestCorruptFileMessageNamesFormat(t *testing.T) {
+	dir := t.TempDir()
+	for ext, want := range map[string]string{
+		".ace": "ACE", ".lzh": "LZH", ".arj": "ARJ", ".cab": "CAB", ".arc": "ARC",
+	} {
+		p := filepath.Join(dir, "x"+ext)
+		os.WriteFile(p, []byte("這不是壓縮檔,只是一段中文"), 0o644)
+		_, err := Open(p)
+		if err == nil {
+			t.Errorf("%s: 內容不對應該回錯誤", ext)
+			continue
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: 訊息沒指出格式(%q): %v", ext, want, err)
+		}
+	}
+}
+
+// Formats 是進度的唯一真相。這個測試盯著它別悄悄過期。
+func TestAllFormatsSupported(t *testing.T) {
+	var missing []string
+	for _, f := range Formats {
+		if !f.Supported {
+			missing = append(missing, f.Name+"("+f.Note+")")
+		}
+		if f.Note == "" {
+			t.Errorf("%s 沒寫實作方式", f.Name)
+		}
+	}
+	if len(missing) > 0 {
+		t.Logf("尚未支援:%v", missing)
+	}
+	t.Logf("壓縮格式支援 %d/%d", len(Formats)-len(missing), len(Formats))
 }
 
 // 真的能把 LZH 當目錄瀏覽。
