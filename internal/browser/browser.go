@@ -28,24 +28,45 @@ const (
 // 所以集中在這裡,不要散在繪圖程式碼裡。
 type Theme struct {
 	PathFG, PathBG     cell.Color
+	MaskFG             cell.Color // 路徑列尾巴的 "*.*"
+	CountFG            cell.Color // 路徑列右邊的「第幾筆 / 共幾筆」
+	MarkStatFG         cell.Color // 「標記:」後面的兩個數字
+	TotalFG            cell.Color // 目錄總位元組
 	DirFG, FileFG      cell.Color
-	SizeFG, DateFG     cell.Color
+	DateFG             cell.Color
 	LinkFG             cell.Color
 	MarkFG             cell.Color
+	MarkColBG          cell.Color // 最左邊那一欄(游標與標記的指示欄)的底色
 	CursorFG, CursorBG cell.Color
 	StatusFG, StatusBG cell.Color
 	BG                 cell.Color
 }
 
+// DefaultTheme 的每個值都是從原版截圖上量的,不是配的。
+// 量測對象 docs/ui/oracle-window.png,重跑:
+//
+//	tools/celldiff.py docs/ui/oracle-window.png <重製版.png> --ox 34 --oy 40
+//
+// 幾個一眼看不出來、但量得到的:
+//   - 最左邊的指示欄是 #000080,而且**游標列也不變**(游標的底色只從第 1 欄開始)。
+//   - 日期固定 #00FF00,連游標列上都不變;其餘每一欄(含時間)都跟著
+//     檔案自己的顏色走。
+//   - 目錄是 #14BE00,不是一般的 ltgreen #00FF00 —— image 裡是另一個 word。
+//   - 游標列是白字配 #800000,不是反白。
+//   - 路徑列不是單一顏色:路徑本身 #FFFF00、尾巴的 "*.*" #00FF00、
+//     右邊的筆數 #C5C5C5、標記數 #FFFF00、目錄總位元組 #FFFFFF。
 func DefaultTheme() Theme {
 	return Theme{
-		PathFG: cell.LtCyan, PathBG: cell.Blue,
-		DirFG: cell.LtGreen, FileFG: cell.LtGray,
-		SizeFG: cell.White, DateFG: cell.DkGray,
-		LinkFG: cell.LtCyan,
+		PathFG: cell.LtYellow, PathBG: cell.Blue,
+		MaskFG: cell.LtGreen, CountFG: cell.LtGray2,
+		MarkStatFG: cell.LtYellow, TotalFG: cell.White,
+		DirFG: cell.DirGreen, FileFG: cell.LtGray,
+		DateFG: cell.LtGreen,
+		LinkFG: cell.LtGray,
 		MarkFG: cell.Yellow,
-		CursorFG: cell.Black, CursorBG: cell.LtGray,
-		StatusFG: cell.Black, StatusBG: cell.LtGray,
+		MarkColBG: cell.Blue,
+		CursorFG: cell.White, CursorBG: cell.Red,
+		StatusFG: cell.LtGray2, StatusBG: cell.Blue,
 		BG: cell.Black,
 	}
 }
@@ -304,6 +325,8 @@ func (m *Model) Draw(s *cell.Screen) int {
 		}
 		m.drawRow(s, 1+i, m.Entries[idx], idx == m.Cursor)
 	}
+	// 指示欄的底色鋪滿整個清單區,空白列也要有 —— 原版量到的就是一整條。
+	s.Fill(0, 1, 1, rows, ' ', t.FileFG, t.MarkColBG)
 	m.drawStatus(s)
 	return rows
 }
@@ -311,22 +334,42 @@ func (m *Model) Draw(s *cell.Screen) int {
 func (m *Model) drawPathBar(s *cell.Screen) {
 	t := m.Theme
 	s.Fill(0, 0, s.Cols, 1, ' ', t.PathFG, t.PathBG)
-	s.Print(0, 0, m.FS.Label(m.Dir)+string(filepath.Separator)+"*.*", t.PathFG, t.PathBG)
+	x := s.Print(0, 0, m.FS.Label(m.Dir)+string(filepath.Separator), t.PathFG, t.PathBG)
+	s.Print(x, 0, "*.*", t.MaskFG, t.PathBG)
 
 	// 分母不含「..」—— 原版顯示的是這個目錄裡實際有幾筆,
 	// 分子則是含「..」在內的第幾列(原版在游標停在第二列時顯示 "2/ 62")。
 	n, bytes := m.MarkedStats()
-	right := fmt.Sprintf("%d/%4d  標記: %d / %s / %s",
-		m.Cursor+1, m.countReal(), n, comma(bytes), comma(m.TotalBytes))
-	x := s.Cols - width(right)
+	segs := []struct {
+		text string
+		fg   cell.Color
+	}{
+		{fmt.Sprintf("%d/%4d  ", m.Cursor+1, m.countReal()), t.CountFG},
+		{"標記: ", t.PathFG},
+		{fmt.Sprintf("%d / %s / ", n, comma(bytes)), t.MarkStatFG},
+		{comma(m.TotalBytes), t.TotalFG},
+	}
+	total := 0
+	for _, sg := range segs {
+		total += width(sg.text)
+	}
+	x = s.Cols - total
 	if x < 0 {
 		x = 0
 	}
-	s.Print(x, 0, right, t.PathFG, t.PathBG)
+	for _, sg := range segs {
+		x += s.Print(x, 0, sg.text, sg.fg, t.PathBG)
+	}
 }
 
 func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	t := m.Theme
+	bg := t.BG
+	if cursor {
+		// 游標列從第 1 欄開始鋪底色,第 0 欄(指示欄)不動。
+		bg = t.CursorBG
+		s.Fill(1, y, s.Cols-1, 1, ' ', t.CursorFG, bg)
+	}
 	nameFG := t.FileFG
 	switch {
 	case e.Marked:
@@ -335,6 +378,9 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 		nameFG = t.DirFG
 	case m.ColorOf != nil:
 		nameFG = m.ColorOf(e)
+	}
+	if cursor {
+		nameFG = t.CursorFG
 	}
 
 	x := 1
@@ -349,9 +395,9 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 		base = truncate(base, colBase)
 		ext = truncate(ext, colExt)
 	}
-	x += s.Print(x, y, pad(base, colBase), nameFG, t.BG)
+	x += s.Print(x, y, pad(base, colBase), nameFG, bg)
 	x++
-	x += s.Print(x, y, pad(ext, colExt), nameFG, t.BG)
+	x += s.Print(x, y, pad(ext, colExt), nameFG, bg)
 	x++
 
 	var size string
@@ -360,28 +406,30 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	} else {
 		size = comma(e.Size)
 	}
-	sizeFG := nameFG
-	if e.IsDir {
-		sizeFG = t.SizeFG
-	}
-	x += s.Print(x, y, lpad(size, colSize), sizeFG, t.BG)
+	x += s.Print(x, y, lpad(size, colSize), nameFG, bg)
 	x++
 
 	if !e.ModTime.IsZero() {
-		x += s.Print(x, y, e.ModTime.Format("01-02-06"), t.DateFG, t.BG)
+		// 日期在游標列上也保持原色,時間則跟著變白 —— 原版量到的就是這樣。
+		x += s.Print(x, y, e.ModTime.Format("01-02-06"), t.DateFG, bg)
 		x++
-		x += s.Print(x, y, e.ModTime.Format("15:04"), t.DateFG, t.BG)
+		// 時間跟著檔案自己的顏色走(量到:magenta 的檔案連時間也是
+		// magenta),只有日期是固定綠色。
+		x += s.Print(x, y, e.ModTime.Format("15:04"), nameFG, bg)
 		x++
 	} else {
 		x += colDate + colTime + 2
 	}
 
-	if long != "" && x < s.Cols {
-		s.Print(x, y, long, t.LinkFG, t.BG)
-	}
-
+	linkFG := t.LinkFG
 	if cursor {
-		s.SetAttr(0, y, s.Cols, t.CursorFG, t.CursorBG)
+		linkFG = t.CursorFG
+	}
+	if long != "" && x < s.Cols {
+		// 長檔名欄原版是加底線的 c0c0c0,不是換色 —— 量到底線就在
+		// 格子的最後一條掃描線上(docs/ui/oracle-window.png)。
+		n := s.Print(x, y, long, linkFG, bg)
+		s.Underline(x, y, n, true)
 	}
 }
 

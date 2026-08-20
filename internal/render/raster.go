@@ -27,6 +27,8 @@ import (
 // 0x50210 是 #C5C5C5。這裡取 #C0C0C0,因為原版檔案清單量到的就是它
 // (docs/ui/oracle-ext.png)。keyword_java.cfg 與 keyword_csharp.cfg
 // 也用得到 ltgray,那一路走的是哪一個還沒實測 —— 見 CLAUDE.md §9 的 A13。
+// 兩個定義都活著:狀態列量到的是 #C5C5C5(cell.LtGray2),
+// 檔案清單量到的是 #C0C0C0(cell.LtGray)。
 //
 // 用 tools/palette.py 可以重新抽一次(需要 original/app/WINCV.IMG)。
 var DefaultPalette = [cell.NumColors]color.RGBA{
@@ -73,6 +75,7 @@ var DefaultPalette = [cell.NumColors]color.RGBA{
 	{0x1E, 0xC8, 0x00, 0xFF}, // origin-green
 	{0x00, 0xB4, 0x00, 0xFF}, // removeable-disk-green
 	{0x96, 0x96, 0x96, 0xFF}, // c-lccw-ltgray
+	{0xC5, 0xC5, 0xC5, 0xFF}, // ltgray2(LTGRAY 的第二個定義,0x50210)
 }
 
 // CJKSource 提供全形字的點陣圖,寬度必須是半形的兩倍、高度相同。
@@ -286,6 +289,15 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 	if c == nil || c.Cont {
 		return // 全形字在左半格一次畫完,右半格不再畫
 	}
+	// 底線畫在最後一條掃描線,而且空白格也要畫 —— 原版的長檔名欄
+	// 底線是連續的一整條,不會在空格處斷掉。所以放在字模查詢之前。
+	if c.Under {
+		w := r.CellW
+		if c.Wide {
+			w *= 2
+		}
+		r.hline(cx*r.CellW, cy*r.CellH+r.CellH-1, w, r.Palette[clampColor(c.FG)])
+	}
 	var g *fnt.Glyph
 	if c.Wide {
 		if r.CJK != nil {
@@ -321,6 +333,24 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 			r.buf.Pix[o+2] = fg.B
 			r.buf.Pix[o+3] = 0xFF
 		}
+	}
+}
+
+// hline 畫一條水平線。
+func (r *Rasterizer) hline(px, py, w int, col color.RGBA) {
+	if py < 0 || py >= r.buf.Rect.Dy() {
+		return
+	}
+	row := r.buf.PixOffset(px, py)
+	for x := 0; x < w; x++ {
+		o := row + x*4
+		if o < 0 || o+3 >= len(r.buf.Pix) {
+			continue
+		}
+		r.buf.Pix[o+0] = col.R
+		r.buf.Pix[o+1] = col.G
+		r.buf.Pix[o+2] = col.B
+		r.buf.Pix[o+3] = 0xFF
 	}
 }
 

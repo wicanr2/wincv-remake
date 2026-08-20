@@ -209,16 +209,21 @@ func TestTruncateWide(t *testing.T) {
 	}
 }
 
-// 畫出來的列表,游標那一列整列換屬性但字不動。
-func TestDrawCursorRowAttrOnly(t *testing.T) {
+// 游標列換底色但字不動,而且**第 0 欄不跟著換** ——
+// 那一欄是指示欄,原版量到的是一整條 #000080,游標經過也不變。
+// (docs/ui/oracle-window.png 的第 2 列:800000 佔滿,000080 剛好 128 px = 一格)
+func TestDrawCursorRowKeepsMarkColumn(t *testing.T) {
 	m := New(sample(), "/w")
 	s := cell.New(80, 12)
 	m.MoveTo(2, 10)
 	m.Draw(s)
 
 	y := 1 + (m.Cursor - m.Top)
+	if bg := s.At(0, y).BG; bg != m.Theme.MarkColBG {
+		t.Errorf("游標列第 0 格背景 = %v, 想要指示欄底色 %v", bg, m.Theme.MarkColBG)
+	}
 	var line strings.Builder
-	for x := 0; x < s.Cols; x++ {
+	for x := 1; x < s.Cols; x++ {
 		c := s.At(x, y)
 		if c.BG != m.Theme.CursorBG {
 			t.Fatalf("游標列第 %d 格背景不是游標色", x)
@@ -229,5 +234,31 @@ func TestDrawCursorRowAttrOnly(t *testing.T) {
 	}
 	if !strings.Contains(line.String(), "sub") {
 		t.Errorf("游標列應該是 sub,實際畫出 %q", line.String())
+	}
+}
+
+// 日期欄在游標列上不變色,時間欄會 —— 兩欄的顏色本來就不同,
+// 這個差別只有拿原版截圖逐格量才看得出來,很容易在重構時被抹平。
+func TestDateKeepsColourUnderCursor(t *testing.T) {
+	m := New(sample(), "/w")
+	s := cell.New(80, 12)
+	m.MoveTo(2, 10)
+	m.Draw(s)
+	y := 1 + (m.Cursor - m.Top)
+
+	var dateSeen, timeSeen bool
+	for x := 1; x < s.Cols; x++ {
+		switch s.At(x, y).FG {
+		case m.Theme.DateFG:
+			dateSeen = true
+		case m.Theme.CursorFG:
+			timeSeen = true
+		}
+	}
+	if !dateSeen {
+		t.Error("游標列上找不到日期色 —— 日期被游標的白色蓋掉了")
+	}
+	if !timeSeen {
+		t.Error("游標列上找不到游標色")
 	}
 }

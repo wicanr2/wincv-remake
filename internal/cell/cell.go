@@ -64,6 +64,12 @@ const (
 	OriginGreen
 	RemovableDiskGreen
 	CLccwLtGray
+
+	// LtGray2 是 image 裡 LTGRAY 的**第二個**定義(0x50210,#C5C5C5)。
+	// 檔案清單用的是 0x1dc40 的 #C0C0C0,狀態列量到的是這一個。
+	// 兩個都在 image 裡,不是同一個 word 被改過。
+	LtGray2
+
 	NumColors
 )
 
@@ -80,7 +86,7 @@ var Names = [NumColors]string{
 	"dir-green", "dir-ltgreen", "dir-cyan", "dir-ltcyan", "dir-yellow",
 	"ltgray1", "newwhite", "toolgray", "histogram-ltgray",
 	"ltbluegreen", "ef-cyan", "origin-green",
-	"removeable-disk-green", "c-lccw-ltgray",
+	"removeable-disk-green", "c-lccw-ltgray", "ltgray2",
 }
 
 // NumConfigColors 是 keyword_*.cfg 認得的顏色數。
@@ -107,6 +113,10 @@ type Cell struct {
 	BG   Color
 	Wide bool // 這格是全形字的左半
 	Cont bool // 這格是前一格全形字的右半
+
+	// Under 是底線。原版在檔案清單最右邊的長檔名欄用它,畫在格子的
+	// 最後一條掃描線上(8×16 的格子裡是第 15 條,也就是字身下方那一列)。
+	Under bool
 }
 
 // Screen 是一整面的格點緩衝區。
@@ -220,6 +230,15 @@ func (s *Screen) Fill(x, y, w, h int, ch rune, fg, bg Color) {
 	for yy := y; yy < y+h; yy++ {
 		for xx := x; xx < x+w; xx++ {
 			s.Set(xx, yy, ch, fg, bg)
+		}
+	}
+}
+
+// Underline 在一段格子上開關底線,不動字元也不動顏色。
+func (s *Screen) Underline(x, y, w int, on bool) {
+	for xx := x; xx < x+w; xx++ {
+		if c := s.At(xx, y); c != nil {
+			c.Under = on
 		}
 	}
 }
