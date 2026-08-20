@@ -43,6 +43,7 @@
 | 2026-08-20 | 符號被 strip,只剩零星名稱殘留 | 完整 header space 存在,9497 筆 | image header 0x0c 的 `0x122794` 指向 header space;走訪後 3509 筆 xt 命中 code body |
 | 2026-08-20 | 這台機器的 Wine 壞了,跑不了 GUI(連 `winver` 都失敗) | Wine 正常;WINEPREFIX 放 `/tmp` 才會讓 `winex11` 載入失敗 | 依 `rulebook/82` 的記載改放 `$HOME/.wine-wincv`,一次就跑起來 |
 | 2026-08-20 | oracle 截圖可以拿來做字模的 pixel diff | 只能當版面與配色真值。Wine 用自己的 `cvgasys.fon`(16 px)替換掉 app 的 `cvga`(15 px) | 拿真實 cvga 字模去截圖上做樣板比對,3663 個位置零命中;Wine log 的 `get_fontsig pix_h 16` 與量到的列距 16 對上 |
+| 2026-08-20 | Ebiten 視窗的路徑列畫成 R/G/B 直條紋,以為是渲染 bug | 程式是對的,`tools/xwd2png.py` 寫死每像素 4 bytes,而容器裡的 Xvfb 用 24 bpp(3 bytes)→ 通道以 3 為週期輪轉 | 同一個畫面用 celldump(純 CPU)畫出來是正確的純藍底;取原始像素看到週期正好是 3 |
 | 2026-08-20 | 15/18 px 檔位「需要 16×16 級 CJK 點陣字」 | 是 **16×15**。倚天 `STDFONT.15` 正好是 16×15,與 `cvga` 8×15 完全對齊 | 解出 `.FON` 的真實 metrics(pixHeight 15、定寬 8)後對照倚天字庫規格 |
 | 2026-08-20 | WinCV 用 16 色 | **29 個具名顏色**,含 mildyellow / gooseyellow / inkgreen / ltorange 等 | `keyword_*.cfg` 用到的顏色名超過 16 個;image 0x5692d 有完整的斜線分隔清單 |
 | 2026-08-20 | 二進位檔按 Enter 顯示「這是二進位檔」訊息 | 直接開 16 進位檢視 | image 的 `&Hex模式` 標籤 + 0.5 版 changelog「按 enter 看檔時自動將可能為執行檔的檔案以 16 進位方式看檔」 |
