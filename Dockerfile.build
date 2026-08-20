@@ -7,7 +7,7 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
         libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev \
         libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config \
         gcc-mingw-w64-x86-64 \
-        xvfb x11-utils xauth libgl1-mesa-dri libglu1-mesa \
+        xvfb x11-utils x11-apps xauth libgl1-mesa-dri libglu1-mesa \
     && rm -rf /var/lib/apt/lists/*
 
 ENV GOFLAGS=-buildvcs=false

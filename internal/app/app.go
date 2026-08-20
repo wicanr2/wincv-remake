@@ -7,9 +7,11 @@ package app
 import (
 	"fmt"
 	"io"
+	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/wicanr2/wincv-remake/internal/archive"
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/keys"
@@ -48,6 +50,16 @@ type App struct {
 
 	// viewRaw 留著原始解碼文字,切換 ANSI 時要重新解析。
 	viewRaw string
+
+	// stack 記錄「進入壓縮檔之前在哪」。進壓縮檔時 push,
+	// 從壓縮檔最上層再往上時 pop —— 使用者感覺就只是進出目錄。
+	stack []layer
+}
+
+type layer struct {
+	fs     vfs.FS
+	dir    string
+	cursor int
 }
 
 func New(fsys vfs.FS, dir string) *App {
@@ -162,21 +174,93 @@ func (a *App) enter() bool {
 		return false
 	}
 	if e.IsDir {
-		dir := a.Browser.Dir
 		if e.Up {
-			dir = vfs.Parent(dir)
-		} else {
-			dir = filepath.Join(dir, e.Name)
+			return a.goParent()
 		}
+		dir := a.joinDir(e.Name)
 		if err := a.Browser.Load(dir); err != nil {
 			a.Message = "無法進入 " + dir + ": " + err.Error()
 		}
 		return true
 	}
+	if archive.IsArchive(e.Name) {
+		return a.enterArchive(e.Name)
+	}
 	return a.openViewer(e.Name)
 }
 
+// joinDir 接出子目錄的路徑。壓縮檔內用 / 分隔,不能用 filepath.Join
+// (Windows 上會變成反斜線,而壓縮檔裡的路徑一律是斜線)。
+func (a *App) joinDir(name string) string {
+	if af, ok := a.Browser.FS.(*archive.FS); ok {
+		_, inner := archiveSplit(a.Browser.Dir)
+		if inner == "" {
+			return af.Path(name)
+		}
+		return af.Path(inner + "/" + name)
+	}
+	return filepath.Join(a.Browser.Dir, name)
+}
+
+func archiveSplit(p string) (string, string) {
+	if i := strings.Index(p, "!"); i >= 0 {
+		return p[:i], strings.Trim(p[i+1:], "/")
+	}
+	return p, ""
+}
+
+// enterArchive 把壓縮檔當目錄進去。
+func (a *App) enterArchive(name string) bool {
+	full := filepath.Join(a.Browser.Dir, name)
+	af, err := archive.Open(full)
+	if err != nil {
+		a.Message = err.Error()
+		return true
+	}
+	a.stack = append(a.stack, layer{fs: a.Browser.FS, dir: a.Browser.Dir, cursor: a.Browser.Cursor})
+	a.Browser.FS = af
+	if err := a.Browser.Load(af.Root()); err != nil {
+		a.Message = err.Error()
+		a.popLayer()
+	}
+	return true
+}
+
+func (a *App) popLayer() bool {
+	if len(a.stack) == 0 {
+		return false
+	}
+	l := a.stack[len(a.stack)-1]
+	a.stack = a.stack[:len(a.stack)-1]
+	a.Browser.FS = l.fs
+	if err := a.Browser.Load(l.dir); err != nil {
+		a.Message = err.Error()
+		return true
+	}
+	a.Browser.MoveTo(l.cursor, a.rows)
+	return true
+}
+
 func (a *App) goParent() bool {
+	// 在壓縮檔最上層再往上,就是離開這個壓縮檔。
+	if af, ok := a.Browser.FS.(*archive.FS); ok {
+		if af.IsRoot(a.Browser.Dir) {
+			return a.popLayer()
+		}
+		_, inner := archiveSplit(a.Browser.Dir)
+		up := path.Dir(inner)
+		if up == "." {
+			up = ""
+		}
+		prev := path.Base(inner)
+		if err := a.Browser.Load(af.Path(up)); err != nil {
+			a.Message = err.Error()
+			return true
+		}
+		a.focusOn(prev)
+		return true
+	}
+
 	p := vfs.Parent(a.Browser.Dir)
 	if p == a.Browser.Dir {
 		return false
@@ -186,20 +270,24 @@ func (a *App) goParent() bool {
 		a.Message = "無法回上一層: " + err.Error()
 		return true
 	}
-	// 回到上一層時,游標停在剛才離開的那個目錄上 —— 一路往回走時
-	// 游標每次都跳回第一筆會很難用。
-	for i, e := range a.Browser.Entries {
-		if e.Name == prev {
-			a.Browser.MoveTo(i, a.rows)
-			break
-		}
-	}
+	a.focusOn(prev)
 	return true
 }
 
+// focusOn 把游標移到指定名稱那一筆。回上一層時游標停在剛才離開的
+// 目錄上 —— 一路往回走時每次都跳回第一筆會很難用。
+func (a *App) focusOn(name string) {
+	for i, e := range a.Browser.Entries {
+		if e.Name == name {
+			a.Browser.MoveTo(i, a.rows)
+			return
+		}
+	}
+}
+
 func (a *App) openViewer(name string) bool {
-	full := filepath.Join(a.Browser.Dir, name)
-	rc, err := a.FS.Open(full)
+	full := a.joinDir(name)
+	rc, err := a.Browser.FS.Open(full)
 	if err != nil {
 		a.Message = "開不了 " + name + ": " + err.Error()
 		return true

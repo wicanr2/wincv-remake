@@ -1,6 +1,8 @@
 package app
 
 import (
+	"archive/zip"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -207,5 +209,127 @@ func TestKeyString(t *testing.T) {
 		if got := tc.k.String(); got != tc.want {
 			t.Errorf("String() = %q, 應為 %q", got, tc.want)
 		}
+	}
+}
+
+// 壓縮檔要能像目錄一樣進出:進去、往下一層、退回來、退出壓縮檔,
+// 而且退出後游標要停在那個壓縮檔上。
+func TestEnterArchiveLikeDirectory(t *testing.T) {
+	root := fixture(t)
+	zipPath := filepath.Join(root, "pack.zip")
+	func() {
+		f, err := os.Create(zipPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		zw := zip.NewWriter(f)
+		for name, body := range map[string]string{
+			"top.txt":       "top\n",
+			"docs/deep.txt": "deep\n",
+		} {
+			w, err := zw.Create(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			io.WriteString(w, body)
+		}
+		zw.Close()
+	}()
+
+	a := New(vfs.OS{}, root)
+	s := cell.New(78, 20)
+	a.Draw(s)
+
+	for cursorName(a) != "pack.zip" {
+		if !a.HandleKey(keys.Named(keys.Down)) {
+			t.Fatal("找不到 pack.zip")
+		}
+		a.Draw(s)
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+
+	var got []string
+	for _, e := range a.Browser.Entries {
+		got = append(got, e.Name)
+	}
+	if strings.Join(got, " ") != ".. docs top.txt" {
+		t.Fatalf("壓縮檔最上層 = %v, 應為 [.. docs top.txt]", got)
+	}
+
+	// 往下一層
+	for cursorName(a) != "docs" {
+		a.HandleKey(keys.Named(keys.Down))
+		a.Draw(s)
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+	if cursorName(a) != ".." {
+		t.Fatalf("進 docs 之後第一筆應是 ..,得到 %q", cursorName(a))
+	}
+	found := false
+	for _, e := range a.Browser.Entries {
+		if e.Name == "deep.txt" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("docs/ 裡看不到 deep.txt")
+	}
+
+	// 看壓縮檔裡的檔案
+	for cursorName(a) != "deep.txt" {
+		a.HandleKey(keys.Named(keys.Down))
+		a.Draw(s)
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	if a.Mode != ModeViewer {
+		t.Fatal("壓縮檔裡的文字檔應該打得開")
+	}
+	if a.Viewer.Lines[0].Text() != "deep" {
+		t.Errorf("讀出 %q", a.Viewer.Lines[0].Text())
+	}
+	a.Draw(s)
+	a.HandleKey(keys.Named(keys.Esc))
+	a.Draw(s)
+
+	// 退回壓縮檔最上層
+	a.HandleKey(keys.Named(keys.Backspace))
+	a.Draw(s)
+	if cursorName(a) != "docs" {
+		t.Errorf("退回上一層後游標應停在 docs,得到 %q", cursorName(a))
+	}
+
+	// 再退一次就離開壓縮檔
+	a.HandleKey(keys.Named(keys.Backspace))
+	a.Draw(s)
+	if a.Browser.Dir != root {
+		t.Fatalf("應該回到 %s,現在在 %s", root, a.Browser.Dir)
+	}
+	if cursorName(a) != "pack.zip" {
+		t.Errorf("離開壓縮檔後游標應停在 pack.zip,得到 %q", cursorName(a))
+	}
+}
+
+// 還沒實作的格式要給訊息,不是默默什麼都不做。
+func TestEnterUnsupportedArchive(t *testing.T) {
+	root := fixture(t)
+	os.WriteFile(filepath.Join(root, "x.rar"), []byte("Rar!\x1a\x07\x00"), 0o644)
+	a := New(vfs.OS{}, root)
+	s := cell.New(78, 20)
+	a.Draw(s)
+	for cursorName(a) != "x.rar" {
+		if !a.HandleKey(keys.Named(keys.Down)) {
+			t.Fatal("找不到 x.rar")
+		}
+		a.Draw(s)
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	if a.Mode != ModeBrowser {
+		t.Error("不支援的格式不該切換模式")
+	}
+	if !strings.Contains(a.Message, "RAR") {
+		t.Errorf("應該說明是什麼格式沒支援,得到 %q", a.Message)
 	}
 }
