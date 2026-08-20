@@ -548,3 +548,66 @@ func (m *Model) ReplaceAll(pattern, with string, caseSensitive bool) int {
 	}
 	return n
 }
+
+// CommentLines 對 [top,bot] 這幾行加上或拿掉行註解。
+//
+// 註解記號取自語法設定(keyword_*.cfg 的 LineComment),沒有設定就
+// 什麼都不做 —— 猜一個 "//" 上去,在 .ini 或 .asm 裡是錯的。
+//
+// 只要**還有一行沒被註解**就整段加註解;全部都已註解才是拿掉。
+// 這樣對半註解的區塊按一次,結果是「全部註解」,語意明確。
+func (m *Model) CommentLines(top, bot int) bool {
+	if m.Syntax == nil || m.Syntax.LineComment == "" {
+		return false
+	}
+	mark := m.Syntax.LineComment
+	if top < 0 {
+		top = 0
+	}
+	if bot >= len(m.Lines) {
+		bot = len(m.Lines) - 1
+	}
+	if top > bot {
+		return false
+	}
+
+	allCommented := true
+	for ln := top; ln <= bot; ln++ {
+		s := strings.TrimLeft(string(m.Lines[ln]), " \t")
+		if s == "" {
+			continue // 空行不算數
+		}
+		if !strings.HasPrefix(s, mark) {
+			allCommented = false
+			break
+		}
+	}
+
+	m.push()
+	for ln := top; ln <= bot; ln++ {
+		l := m.Lines[ln]
+		s := string(l)
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
+		if allCommented {
+			i := 0
+			for i < len(l) && (l[i] == ' ' || l[i] == '\t') {
+				i++
+			}
+			rest := string(l[i:])
+			rest = strings.TrimPrefix(rest, mark)
+			// 加註解時補的那一個空白,拿掉時也要收回來
+			rest = strings.TrimPrefix(rest, " ")
+			m.Lines[ln] = append(append([]rune(nil), l[:i]...), []rune(rest)...)
+		} else {
+			// 註解記號放在行首,不跟著縮排走 —— 縮排不同的幾行
+			// 一起註解時,記號對齊比較看得出範圍。
+			m.Lines[ln] = append([]rune(mark+" "), l...)
+		}
+	}
+	m.Dirty = true
+	m.cmtDirty = true
+	m.clampCur()
+	return true
+}

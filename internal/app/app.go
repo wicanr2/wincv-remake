@@ -94,6 +94,8 @@ type App struct {
 	prompt prompt
 	// menu 是 F1 的指令選單,見 menu.go。
 	menu menu
+	// editFind 是編輯器 F6 的尋找/取代狀態,見 editfind.go。
+	editFind findState
 	// findKindPending / convertPending 是「選單那一步」的暫存狀態:
 	// 這兩個功能都要先問「做哪一種」再問細節,而輸入列一次只能問一件事。
 	findKindPending bool
@@ -587,6 +589,11 @@ func (a *App) imageKey(k keys.Key) bool {
 		}
 		return a.stepImage(1)
 	}
+	// `;` 或 Alt-E 加註解(原版 0xd6908「; 或 Alt-E 註解」)。
+	// 看圖模式沒有文字輸入,所以 `;` 直接當指令沒有歧義。
+	if k.Code == keys.Rune && k.R == ';' && !k.Ctrl {
+		return a.startNote()
+	}
 	switch k.Letter() {
 	case 'I':
 		m.Info = !m.Info
@@ -594,6 +601,10 @@ func (a *App) imageKey(k keys.Key) bool {
 	case 'F':
 		m.ToggleFit()
 		return true
+	case 'E':
+		if k.Alt {
+			return a.startNote()
+		}
 	}
 	return false
 }
@@ -1040,8 +1051,7 @@ func (a *App) editKey(k keys.Key) bool {
 		a.Mode = ModeBrowser
 		return true
 	case keys.F6:
-		a.Message = "F6 尋找/取代:對話框還沒做"
-		return true
+		return a.startEditFind()
 	case keys.F7:
 		// 字典視窗。原版是設定項(「顯示字典視窗?」),沒找到對應的
 		// 快捷鍵,先給 F7(證據等級 C,見 docs/ui/keymap.md)。
@@ -1075,6 +1085,8 @@ func (a *App) editKey(k keys.Key) bool {
 		case 'F':
 			e.FillBlock(' ', true)
 			return true
+		case 'E':
+			return a.editComment()
 		}
 		return false
 	}
@@ -1097,6 +1109,13 @@ func (a *App) editKey(k keys.Key) bool {
 			return true
 		case 'S':
 			return a.SaveEditor()
+		case 'E':
+			// 原版 0x8838c「Ctrl-E ; 標記轉註解」。
+			return a.editComment()
+		case 'N':
+			// 原版 0xe7e97「續找」。
+			a.editFindNext(false)
+			return true
 		}
 		return false
 	}

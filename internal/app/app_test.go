@@ -10,6 +10,7 @@ import (
 
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/keys"
+	"github.com/wicanr2/wincv-remake/internal/syntax"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
 
@@ -822,5 +823,103 @@ func TestChangeDirToFileFocusesIt(t *testing.T) {
 	}
 	if e := a.Browser.Current(); e == nil || e.Name != "target.txt" {
 		t.Errorf("游標沒停在 target.txt 上: %+v", e)
+	}
+}
+
+// --- 編輯器 F6 尋找/取代 -------------------------------------------------
+
+func openEd(t *testing.T, dir, name, body string) *App {
+	t.Helper()
+	os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
+	a := New(vfs.OS{}, dir)
+	a.Draw(cell.New(80, 25))
+	a.HandleKey(keys.Named(keys.Down)) // 離開 ".."
+	a.HandleKey(keys.Ch('E'))
+	if a.Mode != ModeEdit {
+		t.Fatalf("沒進編輯器,mode=%v", a.Mode)
+	}
+	return a
+}
+
+func typeIn(a *App, s string) {
+	for _, r := range s {
+		a.HandleKey(keys.Ch(r))
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+}
+
+func TestEditFindOnly(t *testing.T) {
+	a := openEd(t, t.TempDir(), "a.txt", "one\ntwo\nthree two\n")
+	a.HandleKey(keys.Named(keys.F6))
+	typeIn(a, "two")  // 尋找
+	typeIn(a, "")     // 取代為:空 = 只尋找
+	if a.Prompting() {
+		t.Fatal("只尋找不該再問確認")
+	}
+	if a.Editor.Cur.Line != 1 || a.Editor.Cur.Col != 0 {
+		t.Fatalf("游標沒停在第一處: %+v", a.Editor.Cur)
+	}
+	a.HandleKey(keys.CtrlCh('N')) // 續找
+	if a.Editor.Cur.Line != 2 || a.Editor.Cur.Col != 6 {
+		t.Fatalf("Ctrl-N 沒跳到第二處: %+v", a.Editor.Cur)
+	}
+	a.HandleKey(keys.CtrlCh('N'))
+	if !strings.Contains(a.Message, "找不到") {
+		t.Errorf("找完了應該說找不到,拿到 %q", a.Message)
+	}
+}
+
+func TestEditReplaceOneByOne(t *testing.T) {
+	a := openEd(t, t.TempDir(), "a.txt", "aa\naa\naa\n")
+	a.HandleKey(keys.Named(keys.F6))
+	typeIn(a, "aa")
+	typeIn(a, "bb")
+	if !a.Prompting() {
+		t.Fatal("有取代字串時應該逐一問")
+	}
+	a.HandleKey(keys.Ch('y')) // 換第一處
+	a.HandleKey(keys.Ch('n')) // 跳過第二處
+	a.HandleKey(keys.Ch('y')) // 換第三處
+	if got := string(a.Editor.Bytes()); got != "bb\naa\nbb\n" {
+		t.Errorf("= %q,期望 \"bb\\naa\\nbb\\n\"", got)
+	}
+}
+
+func TestEditReplaceAll(t *testing.T) {
+	a := openEd(t, t.TempDir(), "a.txt", "aa\naa\naa\n")
+	a.HandleKey(keys.Named(keys.F6))
+	typeIn(a, "aa")
+	typeIn(a, "bb")
+	a.HandleKey(keys.Ch('a'))
+	if got := string(a.Editor.Bytes()); got != "bb\nbb\nbb\n" {
+		t.Errorf("= %q", got)
+	}
+	if !strings.Contains(a.Message, "3") {
+		t.Errorf("沒回報換了幾處: %q", a.Message)
+	}
+}
+
+// 編輯器裡的 `;` 是一個可以打出來的字,不是指令 ——
+// 「`;` 或 Alt-E 註解」那條證據在看圖段落,不適用於編輯器。
+func TestSemicolonIsLiteralInEditor(t *testing.T) {
+	a := openEd(t, t.TempDir(), "a.c", "int a\n")
+	a.HandleKey(keys.Named(keys.End))
+	a.HandleKey(keys.Ch(';'))
+	if got := string(a.Editor.Bytes()); got != "int a;\n" {
+		t.Errorf("= %q,分號應該被打進去", got)
+	}
+}
+
+func TestEditorCtrlEComments(t *testing.T) {
+	dir := t.TempDir()
+	a := openEd(t, dir, "a.c", "int a;\n")
+	a.Editor.Syntax = &syntax.Config{Name: "c", LineComment: "//"}
+	a.HandleKey(keys.CtrlCh('E'))
+	if got := string(a.Editor.Bytes()); got != "// int a;\n" {
+		t.Errorf("= %q", got)
+	}
+	a.HandleKey(keys.CtrlCh('E'))
+	if got := string(a.Editor.Bytes()); got != "int a;\n" {
+		t.Errorf("再按一次沒拿掉: %q", got)
 	}
 }

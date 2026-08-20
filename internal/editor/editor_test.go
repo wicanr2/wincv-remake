@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wicanr2/wincv-remake/internal/syntax"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 )
 
@@ -233,4 +234,45 @@ func TestNewLineInVirtualSpace(t *testing.T) {
 	m.MoveTo(Pos{0, 9})
 	m.NewLine()
 	eq(t, m, "ab", "", "cd")
+}
+
+func TestCommentLinesToggle(t *testing.T) {
+	cfg := &syntax.Config{Name: "c", LineComment: "//"}
+	m := Load("a.c", []byte("int a;\nint b;\n\nint c;\n"), textenc.UTF8, cfg)
+
+	if !m.CommentLines(0, 3) {
+		t.Fatal("CommentLines 回 false")
+	}
+	got := string(m.Bytes())
+	want := "// int a;\n// int b;\n\n// int c;\n"
+	if got != want {
+		t.Fatalf("加註解後 = %q,期望 %q", got, want)
+	}
+
+	// 全部都已註解 → 再按一次是拿掉
+	m.CommentLines(0, 3)
+	if got := string(m.Bytes()); got != "int a;\nint b;\n\nint c;\n" {
+		t.Fatalf("拿掉註解後 = %q", got)
+	}
+}
+
+// 半註解的區塊按一次,結果要是「全部註解」,不是各自反轉。
+func TestCommentLinesPartialGoesAllOn(t *testing.T) {
+	cfg := &syntax.Config{Name: "c", LineComment: "//"}
+	m := Load("a.c", []byte("// int a;\nint b;\n"), textenc.UTF8, cfg)
+	m.CommentLines(0, 1)
+	if got := string(m.Bytes()); got != "// // int a;\n// int b;\n" {
+		t.Fatalf("= %q", got)
+	}
+}
+
+// 沒有語法設定就不要猜一個註解記號上去。
+func TestCommentLinesNoConfig(t *testing.T) {
+	m := Load("a.txt", []byte("hello\n"), textenc.UTF8, nil)
+	if m.CommentLines(0, 0) {
+		t.Error("沒有設定時不該動手")
+	}
+	if string(m.Bytes()) != "hello\n" {
+		t.Errorf("內容被改了: %q", m.Bytes())
+	}
 }
