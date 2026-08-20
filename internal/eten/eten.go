@@ -35,6 +35,18 @@ var (
 	baseC940   = rawIndex(0xC9, 0x40) // 次常用起點
 )
 
+// 各區的字模數與碼位數是否對得起來,決定線性索引能不能用:
+//
+//	符號區   raw 0..407        408 個碼位  SPCFONT.15  408 個字模  → 對齊
+//	常用字   raw 471..5871    5401 個碼位  STDFONT 前段 5401 個     → 對齊
+//	次常用   raw 6280..13972  7693 個碼位  STDFONT 後段 7693 個     → 對齊
+//	符號補充 raw 5872..6279    408 個碼位  SPCFSUPP.15 只有 365 個  → **對不起來**
+//
+// 最後一列表示補充區的字模是「把有定義的碼位擠在一起」存的,中間有洞。
+// 用線性索引去取會整批錯位,而錯位取到的是**另一個看起來正常的字**
+// —— 那比缺字難發現得多(實測:C6E7 應為「ゃ」,線性索引取到的是別的字)。
+// 所以在補齊那張洞表之前,這一區一律當缺字。
+
 const nCommon = 5401
 
 // rawIndex 把 Big5 雙位元組換成線性序號。
@@ -117,8 +129,12 @@ func (f *Font) Glyph(r rune) *fnt.Glyph {
 	switch {
 	case raw <= lastSpc:
 		data, idx = f.spc, raw
+	case raw < baseA440:
+		return nil // 符號區與漢字區之間的空隙
 	case raw <= lastCommon:
 		data, idx = f.std, raw-baseA440
+	case raw < baseC940:
+		return nil // 符號補充區,見上面的說明
 	default:
 		data, idx = f.std, nCommon+(raw-baseC940)
 	}

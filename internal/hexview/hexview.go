@@ -25,11 +25,11 @@ type Theme struct {
 
 func DefaultTheme() Theme {
 	return Theme{
-		OffsetFG: cell.BrightCyan,
-		HexFG:    cell.LightGray, HexAltFG: cell.White,
-		AsciiFG: cell.BrightGreen, WideFG: cell.Yellow,
+		OffsetFG: cell.LtCyan,
+		HexFG:    cell.LtGray, HexAltFG: cell.White,
+		AsciiFG: cell.LtGreen, WideFG: cell.Yellow,
 		BG:       cell.Black,
-		StatusFG: cell.Black, StatusBG: cell.LightGray,
+		StatusFG: cell.Black, StatusBG: cell.LtGray,
 	}
 }
 

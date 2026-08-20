@@ -45,8 +45,8 @@ func TestAnsiBrightIsColorNotBold(t *testing.T) {
 	if len(sp) < 2 {
 		t.Fatalf("應該切成至少兩段,得到 %d 段: %+v", len(sp), sp)
 	}
-	if sp[0].FG != cell.BrightRed {
-		t.Errorf("`ESC[1;31m` 的前景 = %d, 應為亮紅 %d", sp[0].FG, cell.BrightRed)
+	if sp[0].FG != cell.LtRed {
+		t.Errorf("`ESC[1;31m` 的前景 = %d, 應為亮紅 %d", sp[0].FG, cell.LtRed)
 	}
 	if sp[1].FG != DefaultTheme().FG {
 		t.Errorf("`ESC[0m` 之後前景 = %d, 應回到預設 %d", sp[1].FG, DefaultTheme().FG)

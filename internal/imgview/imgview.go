@@ -23,8 +23,8 @@ type Theme struct {
 func DefaultTheme() Theme {
 	return Theme{
 		BG:       cell.Black,
-		StatusFG: cell.Black, StatusBG: cell.LightGray,
-		InfoFG: cell.BrightCyan, InfoBG: cell.Blue,
+		StatusFG: cell.Black, StatusBG: cell.LtGray,
+		InfoFG: cell.LtCyan, InfoBG: cell.Blue,
 	}
 }
 
@@ -88,7 +88,7 @@ func (m *Model) ToggleFit() {
 // 「格點座標」換算成「像素矩形」。
 func (m *Model) Draw(s *cell.Screen, cellW, cellH int) *render.Overlay {
 	t := m.Theme
-	s.Clear(cell.LightGray, t.BG)
+	s.Clear(cell.LtGray, t.BG)
 
 	rows := s.Rows - 1
 	if rows < 0 {

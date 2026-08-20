@@ -121,3 +121,44 @@ func TestPunctuationFromSpc(t *testing.T) {
 		}
 	}
 }
+
+// 符號補充區(Big5 C6A1-C8FE)一律回缺字。
+//
+// 那一區有 408 個碼位但字庫只有 365 個字模,中間有洞;用線性索引
+// 會取到**別的字**,而錯字看起來像「有解出來」,比缺字難發現得多。
+func TestSupplementarySymbolAreaReturnsNil(t *testing.T) {
+	f := load(t)
+	for _, r := range []rune{'ゃ', 'や', 'ア', 'ヾ'} {
+		if g := f.Glyph(r); g != nil {
+			t.Errorf("%q 落在符號補充區,應回 nil(缺字)而不是取到別的字", r)
+		}
+	}
+}
+
+// 三個對得齊的區段要正常取得到,不可以被上面那條誤殺。
+func TestAlignedRegionsStillWork(t *testing.T) {
+	f := load(t)
+	for _, tc := range []struct {
+		r    rune
+		what string
+	}{
+		{'，', "符號區"},
+		{'一', "常用字區起點"},
+		{'龜', "次常用字區"},
+	} {
+		g := f.Glyph(tc.r)
+		if g == nil {
+			t.Errorf("%q(%s)取不到字模", tc.r, tc.what)
+			continue
+		}
+		n := 0
+		for _, b := range g.Bits {
+			if b {
+				n++
+			}
+		}
+		if n < 8 {
+			t.Errorf("%q(%s)只有 %d 個前景點", tc.r, tc.what, n)
+		}
+	}
+}

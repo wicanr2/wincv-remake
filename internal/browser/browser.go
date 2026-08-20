@@ -39,13 +39,13 @@ type Theme struct {
 
 func DefaultTheme() Theme {
 	return Theme{
-		PathFG: cell.BrightCyan, PathBG: cell.Blue,
-		DirFG: cell.BrightGreen, FileFG: cell.LightGray,
-		SizeFG: cell.White, DateFG: cell.DarkGray,
-		LinkFG: cell.BrightCyan,
+		PathFG: cell.LtCyan, PathBG: cell.Blue,
+		DirFG: cell.LtGreen, FileFG: cell.LtGray,
+		SizeFG: cell.White, DateFG: cell.DkGray,
+		LinkFG: cell.LtCyan,
 		MarkFG: cell.Yellow,
-		CursorFG: cell.Black, CursorBG: cell.LightGray,
-		StatusFG: cell.Black, StatusBG: cell.LightGray,
+		CursorFG: cell.Black, CursorBG: cell.LtGray,
+		StatusFG: cell.Black, StatusBG: cell.LtGray,
 		BG: cell.Black,
 	}
 }

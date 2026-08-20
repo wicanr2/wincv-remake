@@ -14,6 +14,9 @@ set -euo pipefail
 OUT=${1:-original/ref-shots/main.png}
 WAIT=${2:-20}
 KEYS=${3:-}
+# 第四個參數直接傳給 wincv.exe。原版吃檔名參數(CV.bat 就是這樣包的),
+# 要開特定檔案時這比用方向鍵把游標移過去可靠得多。
+ARGS=${4:-}
 
 PREFIX=${WINCV_PREFIX:-$HOME/.wine-wincv}
 APPDIR=$PREFIX/drive_c/wincv
@@ -30,7 +33,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 cat > "$TMP/run.sh" <<EOS
 cd "$APPDIR"
-wine wincv.exe >/dev/null 2>&1 &
+wine wincv.exe $ARGS >/dev/null 2>&1 &
 WPID=\$!
 sleep $WAIT
 if [ -n "$KEYS" ]; then

@@ -57,8 +57,8 @@ type Theme struct {
 
 func DefaultTheme() Theme {
 	return Theme{
-		FG: cell.LightGray, BG: cell.Black,
-		StatusFG: cell.Black, StatusBG: cell.LightGray,
+		FG: cell.LtGray, BG: cell.Black,
+		StatusFG: cell.Black, StatusBG: cell.LtGray,
 		HitFG: cell.Black, HitBG: cell.Yellow,
 	}
 }
@@ -183,14 +183,27 @@ func stripAnsi(s string) string {
 	return sb.String()
 }
 
-// ansiToCell 把 ANSI 的顏色編號換成 cell 的調色盤索引。
-//
-// 兩邊的位元順序不同,不能直接相減:
-//   ANSI(SGR 30-37)  值 = R*1 + G*2 + B*4   → 1 是紅、4 是藍
-//   IBM PC 文字屬性   值 = R*4 + G*2 + B*1   → 4 是紅、1 是藍
-// 也就是紅與藍的位元對調。cell.Color 用的是後者(DOS 時代程式的色表就是這個順序)。
-func ansiToCell(n int) cell.Color {
-	return cell.Color(((n & 1) << 2) | (n & 2) | ((n & 4) >> 2))
+// ansiDim / ansiBright 把 ANSI 的顏色編號(SGR 30-37)對到 WinCV 的
+// 具名顏色。不能用算的:WinCV 的 29 色不是 ANSI 那種位元順序,
+// 也不是 IBM PC 的屬性順序,它有自己的一套名字與排列。
+var ansiDim = [8]cell.Color{
+	cell.Black, cell.Red, cell.Green, cell.Yellow,
+	cell.Blue, cell.Magenta, cell.Cyan, cell.LtGray,
+}
+
+var ansiBright = [8]cell.Color{
+	cell.DkGray, cell.LtRed, cell.LtGreen, cell.LtYellow,
+	cell.LtBlue, cell.LtMagenta, cell.LtCyan, cell.White,
+}
+
+func ansiToCell(n int, bright bool) cell.Color {
+	if n < 0 || n > 7 {
+		return cell.LtGray
+	}
+	if bright {
+		return ansiBright[n]
+	}
+	return ansiDim[n]
 }
 
 // applySGR 套用一組 SGR 參數,回傳新的前景與背景。
@@ -201,8 +214,7 @@ func applySGR(params string, fg, bg cell.Color, th Theme) (cell.Color, cell.Colo
 	if params == "" {
 		params = "0"
 	}
-	base := fg & 7
-	bright := fg&8 != 0
+	base, bright := -1, false
 	for _, p := range strings.Split(params, ";") {
 		n, err := strconv.Atoi(p)
 		if err != nil {
@@ -210,28 +222,37 @@ func applySGR(params string, fg, bg cell.Color, th Theme) (cell.Color, cell.Colo
 		}
 		switch {
 		case n == 0:
-			base, bright, bg = th.FG&7, th.FG&8 != 0, th.BG
+			base, bright, bg = -1, false, th.BG
+			fg = th.FG
 		case n == 1:
 			bright = true
 		case n == 22:
 			bright = false
 		case n >= 30 && n <= 37:
-			base = ansiToCell(n - 30)
+			base = n - 30
 		case n == 39:
-			base, bright = th.FG&7, th.FG&8 != 0
+			base, bright = -1, false
+			fg = th.FG
 		case n >= 40 && n <= 47:
-			bg = ansiToCell(n - 40)
+			bg = ansiToCell(n-40, false)
 		case n == 49:
 			bg = th.BG
 		case n >= 90 && n <= 97:
-			base, bright = ansiToCell(n-90), true
+			base, bright = n-90, true
 		case n >= 100 && n <= 107:
-			bg = ansiToCell(n-100) | 8
+			bg = ansiToCell(n-100, true)
 		}
 	}
-	fg = base
-	if bright {
-		fg |= 8
+	if base >= 0 {
+		fg = ansiToCell(base, bright)
+	} else if bright {
+		// 只給了 ESC[1m,沒指定顏色:把目前的顏色提亮。
+		for i, c := range ansiDim {
+			if c == fg {
+				fg = ansiBright[i]
+				break
+			}
+		}
 	}
 	return fg, bg
 }

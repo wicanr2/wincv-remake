@@ -5,28 +5,69 @@
 // 換字型、換縮放、換 backend 都不影響上層。
 package cell
 
-// Color 是 16 色調色盤的索引。實際 RGB 由 render 層決定,
+// Color 是調色盤的索引。實際 RGB 由 render 層決定,
 // 因為 WinCV 的配色可由使用者設定(主選單的「顏色」)。
 type Color uint8
 
+// WinCV 有 **29 個具名顏色**,不是一般的 16 色。名稱與順序取自
+// WINCV.IMG 內 0x5692d 的斜線分隔清單(counted string,長度 227),
+// 隨附的 keyword_*.cfg 就是用這些名字指定語法上色。
+//
+// 這裡照抄它的名字與順序 —— 用它自己的詞彙,才不會在
+// 「我的 16 色」與「它的 29 色」之間反覆換算出錯。
 const (
 	Black Color = iota
-	Blue
-	Green
-	Cyan
+	DkGray
 	Red
-	Magenta
-	Brown
-	LightGray
-	DarkGray
-	BrightBlue
-	BrightGreen
-	BrightCyan
-	BrightRed
-	BrightMagenta
+	LtRed
+	Green
+	LtGreen
+	Blue
+	LtBlue
 	Yellow
+	MildYellow
+	LtYellow
+	Magenta
+	LtMagenta
+	Cyan
+	LtCyan
+	Gray
 	White
+	LtGray
+	Purple
+	LtPurple
+	Orange
+	LtOrange
+	GooseYellow
+	BlueGreen
+	InkGreen
+	MildWhite
+	MildGreen
+	MildCyan
+	MildMagenta
+	NumColors
 )
+
+// Names 是每個顏色的名字,順序與上面的常數一致。
+// keyword_*.cfg 用名字指定顏色,解析時要對回索引。
+var Names = [NumColors]string{
+	"black", "dkgray", "red", "ltred", "green", "ltgreen",
+	"blue", "ltblue", "yellow", "mildyellow", "ltyellow",
+	"magenta", "ltmagenta", "cyan", "ltcyan", "gray",
+	"white", "ltgray", "purple", "ltpurple", "orange", "ltorange",
+	"gooseyellow", "bluegreen", "inkgreen",
+	"mildwhite", "mildgreen", "mildcyan", "mildmagenta",
+}
+
+// ByName 把 keyword_*.cfg 裡的顏色名對回索引。認不得回 (0,false)。
+func ByName(n string) (Color, bool) {
+	for i, v := range Names {
+		if v == n {
+			return Color(i), true
+		}
+	}
+	return 0, false
+}
 
 // Cell 是畫面上的一格。
 //
@@ -48,7 +89,7 @@ type Screen struct {
 
 func New(cols, rows int) *Screen {
 	s := &Screen{Cols: cols, Rows: rows, cells: make([]Cell, cols*rows)}
-	s.Clear(LightGray, Black)
+	s.Clear(LtGray, Black)
 	return s
 }
 
@@ -77,7 +118,7 @@ func (s *Screen) Resize(cols, rows int) {
 	}
 	s.Cols, s.Rows = cols, rows
 	s.cells = make([]Cell, cols*rows)
-	s.Clear(LightGray, Black)
+	s.Clear(LtGray, Black)
 }
 
 // Set 寫一格半形字。

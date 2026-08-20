@@ -131,20 +131,20 @@ func loadHalf(p string) (*fnt.Font, error) {
 
 // demo 畫一個能一眼看出「半形、全形、配色、格點」都對的畫面。
 func demo(s *cell.Screen) {
-	s.Clear(cell.LightGray, cell.Black)
+	s.Clear(cell.LtGray, cell.Black)
 
-	s.Fill(0, 0, s.Cols, 1, ' ', cell.Black, cell.LightGray)
-	s.Print(1, 0, "1檔案 2目錄/磁碟 3顏色 4檢視 5環境 6其他 7說明", cell.Black, cell.LightGray)
+	s.Fill(0, 0, s.Cols, 1, ' ', cell.Black, cell.LtGray)
+	s.Print(1, 0, "1檔案 2目錄/磁碟 3顏色 4檢視 5環境 6其他 7說明", cell.Black, cell.LtGray)
 
 	s.Print(2, 2, "半形 ASCII:", cell.White, cell.Black)
 	line := ""
 	for c := 0x20; c < 0x7F; c++ {
 		line += string(rune(c))
 	}
-	s.Print(2, 3, line[:min(len(line), s.Cols-2)], cell.LightGray, cell.Black)
+	s.Print(2, 3, line[:min(len(line), s.Cols-2)], cell.LtGray, cell.Black)
 
 	s.Print(2, 5, "全形漢字:", cell.White, cell.Black)
-	s.Print(2, 6, "檔案瀏覽器 壓縮檔管理 文字檢視 編碼轉換", cell.BrightCyan, cell.Black)
+	s.Print(2, 6, "檔案瀏覽器 壓縮檔管理 文字檢視 編碼轉換", cell.LtCyan, cell.Black)
 	s.Print(2, 7, "全形標點:，。！？「」『』（）《》～", cell.Yellow, cell.Black)
 
 	s.Print(2, 9, "16 色:", cell.White, cell.Black)
@@ -154,12 +154,12 @@ func demo(s *cell.Screen) {
 	}
 
 	s.Print(2, 12, "反白游標列示範(整列換屬性,字不動):", cell.White, cell.Black)
-	s.Print(2, 13, "7-zip32  dll     228,864  2004-10-01  10:00", cell.LightGray, cell.Black)
-	s.Print(2, 14, "big52gbk txt      69,865  2002-10-21  10:00", cell.LightGray, cell.Black)
-	s.SetAttr(2, 14, 44, cell.Black, cell.LightGray)
+	s.Print(2, 13, "7-zip32  dll     228,864  2004-10-01  10:00", cell.LtGray, cell.Black)
+	s.Print(2, 14, "big52gbk txt      69,865  2002-10-21  10:00", cell.LtGray, cell.Black)
+	s.SetAttr(2, 14, 44, cell.Black, cell.LtGray)
 
-	s.Print(2, 16, "全形字佔兩格,右半格是佔位:中|文|字", cell.BrightGreen, cell.Black)
-	s.Print(2, 17, "混排 mixed 中英 test 對齊 align", cell.BrightMagenta, cell.Black)
+	s.Print(2, 16, "全形字佔兩格,右半格是佔位:中|文|字", cell.LtGreen, cell.Black)
+	s.Print(2, 17, "混排 mixed 中英 test 對齊 align", cell.LtMagenta, cell.Black)
 }
 
 func min(a, b int) int {
