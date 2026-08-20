@@ -223,7 +223,7 @@ func TestDrawCursorRowKeepsMarkColumn(t *testing.T) {
 		t.Errorf("游標列第 0 格背景 = %v, 想要指示欄底色 %v", bg, m.Theme.MarkColBG)
 	}
 	var line strings.Builder
-	for x := 1; x < s.Cols; x++ {
+	for x := 1; x < s.Cols-1; x++ { // 最後一欄是捲軸,不屬於游標列
 		c := s.At(x, y)
 		if c.BG != m.Theme.CursorBG {
 			t.Fatalf("游標列第 %d 格背景不是游標色", x)
@@ -247,7 +247,7 @@ func TestDateKeepsColourUnderCursor(t *testing.T) {
 	y := 1 + (m.Cursor - m.Top)
 
 	var dateSeen, timeSeen bool
-	for x := 1; x < s.Cols; x++ {
+	for x := 1; x < s.Cols-1; x++ {
 		switch s.At(x, y).FG {
 		case m.Theme.DateFG:
 			dateSeen = true

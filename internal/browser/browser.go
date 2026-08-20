@@ -41,6 +41,12 @@ type Theme struct {
 	StatusFG, StatusBG cell.Color // 第一列狀態列:游標檔案的各欄位
 	StatusDiskFG       cell.Color // 第一列右邊的「剩餘」
 	StatusNameFG       cell.Color // 第二列狀態列:完整檔名
+
+	ScrollFG, ScrollBG cell.Color // 捲軸的軌道
+	ScrollThumbFG      cell.Color // 捲軸的滑塊
+	ScrollArrowFG      cell.Color // 捲軸上下的箭頭
+	DriveFG, DriveBG   cell.Color // 磁碟窗格
+	DriveVolumeFG      cell.Color // 可卸除磁碟
 	BG                 cell.Color
 }
 
@@ -72,6 +78,13 @@ func DefaultTheme() Theme {
 		CursorFG: cell.White, CursorBG: cell.Red,
 		StatusFG: cell.LtYellow, StatusBG: cell.Blue,
 		StatusDiskFG: cell.LtGray2, StatusNameFG: cell.White,
+		// 捲軸沿用原版 Win32 控制項的灰:軌道 #AAAAAA、滑塊 #FFFFFF、
+		// 箭頭是軌道上的深色。原版量到的軌道是 #F5F5F5、滑塊面 #FFFFFF,
+		// 兩者差 10/255,用格子畫會糊在一起,所以軌道取深一階的 toolgray。
+		ScrollFG: cell.ToolGray, ScrollBG: cell.ToolGray,
+		ScrollThumbFG: cell.White, ScrollArrowFG: cell.Black,
+		DriveFG: cell.LtGray, DriveBG: cell.Blue,
+		DriveVolumeFG: cell.RemovableDiskGreen,
 		BG: cell.Black,
 	}
 }
@@ -107,6 +120,15 @@ type Model struct {
 	// 設成 nil 就全部用 Theme.FileFG。判斷規則需要知道哪些副檔名是
 	// 壓縮檔、哪些是圖檔,那是上層才有的知識,所以做成 hook。
 	ColorOf func(e Entry) cell.Color
+
+	// Drives / DrivePane / DriveCursor 是左側磁碟窗格。
+	//
+	// 原版把它做成一個獨立的窗格(image 裡有 >DISKBUF-PATH / -ATTRIB /
+	// -LABEL 三個欄位存取子,設定裡有「調整 磁碟視窗、預視視窗 的大小」),
+	// 不是選單裡的一次性動作。DrivePane 是它的寬度,0 表示關閉。
+	Drives      []vfs.Drive
+	DrivePane   int
+	DriveCursor int
 
 	// DiskStat 回報這個目錄所在磁碟的可用與總容量,狀態列右邊要用。
 	// 做成 hook 而不是直接呼叫 vfs.DiskUsage —— 壓縮檔內部也走同一個
@@ -321,6 +343,18 @@ func (m *Model) UnmarkAll() {
 
 // --- 繪製 -----------------------------------------------------------------
 
+// listX 是檔案清單的左界,磁碟窗格開著時要往右讓。
+func (m *Model) listX() int { return m.DrivePane }
+
+// listW 是檔案清單的寬度,右邊要留給捲軸。
+func (m *Model) listW(s *cell.Screen) int {
+	w := s.Cols - m.listX() - scrollW
+	if w < 1 {
+		w = 1
+	}
+	return w
+}
+
 // Draw 把整個瀏覽器畫進 s。回傳列表區能顯示幾列,呼叫端移動游標時要用。
 func (m *Model) Draw(s *cell.Screen) int {
 	t := m.Theme
@@ -340,7 +374,9 @@ func (m *Model) Draw(s *cell.Screen) int {
 		m.drawRow(s, 1+i, m.Entries[idx], idx == m.Cursor)
 	}
 	// 指示欄的底色鋪滿整個清單區,空白列也要有 —— 原版量到的就是一整條。
-	s.Fill(0, 1, 1, rows, ' ', t.FileFG, t.MarkColBG)
+	s.Fill(m.listX(), 1, 1, rows, ' ', t.FileFG, t.MarkColBG)
+	m.drawDrivePane(s, rows)
+	m.drawScrollbar(s, rows)
 	m.drawStatus(s)
 	return rows
 }
@@ -380,9 +416,9 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	t := m.Theme
 	bg := t.BG
 	if cursor {
-		// 游標列從第 1 欄開始鋪底色,第 0 欄(指示欄)不動。
+		// 游標列從指示欄的右邊開始鋪底色,指示欄本身不動。
 		bg = t.CursorBG
-		s.Fill(1, y, s.Cols-1, 1, ' ', t.CursorFG, bg)
+		s.Fill(m.listX()+1, y, m.listW(s)-1, 1, ' ', t.CursorFG, bg)
 	}
 	nameFG := t.FileFG
 	switch {
@@ -397,7 +433,7 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 		nameFG = t.CursorFG
 	}
 
-	x := 1
+	x := m.listX() + 1
 	base, ext := e.Base(), e.Ext()
 	long := e.Link
 	// 放不進 8.3 的名字,主欄位放截斷版,完整名字丟到最右欄 —— 原版
@@ -439,11 +475,84 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	if cursor {
 		linkFG = t.CursorFG
 	}
-	if long != "" && x < s.Cols {
+	if right := m.listX() + m.listW(s); long != "" && x < right {
 		// 長檔名欄原版是加底線的 c0c0c0,不是換色 —— 量到底線就在
 		// 格子的最後一條掃描線上(docs/ui/oracle-window.png)。
+		if w := right - x; width(long) > w {
+			long = truncate(long, w)
+		}
 		n := s.Print(x, y, long, linkFG, bg)
 		s.Underline(x, y, n, true)
+	}
+}
+
+// scrollW 是捲軸佔的欄數。原版的是 Win32 控制項(17 px),
+// 這裡用一欄格子做等價物。
+const scrollW = 1
+
+// drawScrollbar 在清單區右邊畫捲軸。
+//
+// 原版那根是 Win32 的 scrollbar 控制項,用系統顏色畫,不在字元格點上,
+// 所以做不到像素等價。這裡做的是功能等價:上下箭頭 + 滑塊,
+// 滑塊的長度與位置反映「看得到的比例」與「捲到哪裡」。
+func (m *Model) drawScrollbar(s *cell.Screen, rows int) {
+	t := m.Theme
+	x := s.Cols - scrollW
+	if x < 1 || rows < 2 {
+		return
+	}
+	s.Fill(x, 1, scrollW, rows, ' ', t.ScrollFG, t.ScrollBG)
+	s.Set(x, 1, cell.ArrowUp, t.ScrollArrowFG, t.ScrollBG)
+	s.Set(x, rows, cell.ArrowDown, t.ScrollArrowFG, t.ScrollBG)
+
+	track := rows - 2 // 扣掉兩個箭頭
+	n := len(m.Entries)
+	if track < 1 || n <= rows {
+		return // 全部看得到就不畫滑塊,跟原版一樣
+	}
+	// 滑塊至少一格,否則長清單捲到底時它會消失。
+	th := track * rows / n
+	if th < 1 {
+		th = 1
+	}
+	// 分母是「最多能捲多少」,不是總筆數 —— 用總筆數的話捲到底時
+	// 滑塊還差一截碰不到下緣,看起來像卡住。
+	maxTop := n - rows
+	pos := 0
+	if maxTop > 0 {
+		pos = m.Top * (track - th) / maxTop
+	}
+	for i := 0; i < th; i++ {
+		s.Set(x, 2+pos+i, cell.Block, t.ScrollThumbFG, t.ScrollBG)
+	}
+}
+
+// drawDrivePane 在清單區左邊畫磁碟窗格。
+//
+// 原版把它放在工具列那一帶(Win32 區域),重製版沒有工具列,
+// 改成清單左邊的一欄格子。內容一樣:每一列是一個可以切過去的磁碟,
+// 可卸除的用不同顏色。
+func (m *Model) drawDrivePane(s *cell.Screen, rows int) {
+	if m.DrivePane <= 0 {
+		return
+	}
+	t := m.Theme
+	w := m.DrivePane
+	s.Fill(0, 1, w, rows, ' ', t.DriveFG, t.DriveBG)
+	for i, d := range m.Drives {
+		if i >= rows {
+			break
+		}
+		fg := t.DriveFG
+		if d.Volume {
+			fg = t.DriveVolumeFG
+		}
+		bg := t.DriveBG
+		if i == m.DriveCursor {
+			fg, bg = t.CursorFG, t.CursorBG
+			s.Fill(0, 1+i, w, 1, ' ', fg, bg)
+		}
+		s.Print(0, 1+i, truncate(d.Label, w), fg, bg)
 	}
 }
 
@@ -508,6 +617,14 @@ func (m *Model) drawStatus(s *cell.Screen) {
 			s.Print(x, y, right, t.StatusDiskFG, t.StatusBG)
 		}
 	}
+
+	// 檔案清單與狀態列之間的分隔線。原版是插在兩列之間的 2 px,
+	// 這裡畫在狀態列自己的上緣(見 cell.Cell.Rule)。
+	//
+	// **一定要放在所有 Print 之後**:Screen.Set 是整格覆寫,
+	// 會把 Rule 與 Under 這類裝飾一起洗掉。同樣的理由,
+	// drawRow 的底線也是印完字才加。
+	s.Rule(0, y, s.Cols, true)
 }
 
 // --- 小工具 ---------------------------------------------------------------

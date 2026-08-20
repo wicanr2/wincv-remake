@@ -757,8 +757,11 @@ func TestEnglishOnlySplitsDoubleBytes(t *testing.T) {
 	if len(got) != 4 {
 		t.Fatalf("英文顯示應該是 4 格,拿到 %d 格 %q", len(got), string(got))
 	}
-	if got[0] != 0xA4 || got[3] != 0xE5 {
-		t.Errorf("位元組沒有原樣對到字碼: %v", got)
+	// 位元組走字型自己的字碼表(CP437),不是 Latin-1 ——
+	// 0xA4 在 CP437 是 ñ、0xE5 是 σ。用 rune(b) 會拿到 ¤ 與 å,
+	// 那是**別的字模**,而畫面上看起來一樣像「亂碼」,分不出對錯。
+	if got[0] != 'ñ' || got[3] != 'σ' {
+		t.Errorf("位元組沒有走 CP437: %q", string(got))
 	}
 }
 

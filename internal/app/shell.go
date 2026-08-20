@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/launch"
 	"github.com/wicanr2/wincv-remake/internal/note"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
@@ -201,13 +202,32 @@ func (a *App) decodeView(data []byte, enc textenc.Enc) string {
 	if !a.EnglishOnly {
 		return textenc.Decode(data, enc)
 	}
-	// 每個位元組畫一格。0x00-0xFF 直接對到半形字型的字碼
-	// (見 render.toCP950Byte),所以 rune(b) 就是要的東西。
+	// 每個位元組畫一格,走字型自己的字碼表(CP437)。
+	//
+	// 不能用 rune(b):那是把位元組當 Latin-1,0x80 以上會對到別的字模
+	// —— 而 DOS 時代的 ANSI art 用的正好就是 0xB0-0xDF 那一段方框與網點。
 	rs := make([]rune, len(data))
 	for i, b := range data {
-		rs[i] = rune(b)
+		rs[i] = rawRune(b)
 	}
 	return string(rs)
+}
+
+// rawRune 把一個位元組轉成它在字型裡的字形。
+//
+// 換行與 tab 例外:它們決定的是**版面**,不是字形。CP437 把 0x0A 畫成 ◙、
+// 0x0D 畫成 ♪ —— 那是 DOS 時代拿它們當圖案用的情況,但這裡的位元組來自
+// 一個正在被斷行的文字檔,交給斷行邏輯處理才對。0x1A 是 DOS 的檔尾記號,
+// 同理。
+func rawRune(b byte) rune {
+	switch b {
+	case '\t', '\n', '\r', 0x1A:
+		return rune(b)
+	}
+	if r := cell.CP437[b]; r != 0 {
+		return r
+	}
+	return ' '
 }
 
 // --- F11 全螢幕 -----------------------------------------------------------

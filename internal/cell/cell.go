@@ -127,6 +127,14 @@ type Cell struct {
 	Wide bool // 這格是全形字的左半
 	Cont bool // 這格是前一格全形字的右半
 
+	// Rule 是格子**上緣**的 2 px 橫線。原版用它把檔案清單與狀態列隔開。
+	//
+	// 為什麼是格子的一部分而不是獨立的一列:原版那條線只有 2 px,
+	// 它是插在兩列之間的額外高度,整個版面因此不是等高格點。
+	// 這裡的格點是等高的(cell 是唯一的繪圖介面,不能為了 2 px 破例),
+	// 所以把線畫在狀態列自己的前 2 條掃描線上。
+	Rule bool
+
 	// Under 是底線。原版在檔案清單最右邊的長檔名欄用它,畫在格子的
 	// 最後一條掃描線上(8×16 的格子裡是第 15 條,也就是字身下方那一列)。
 	Under bool
@@ -173,6 +181,11 @@ func (s *Screen) Resize(cols, rows int) {
 }
 
 // Set 寫一格半形字。
+//
+// 這是**整格覆寫**:Rule 與 Under 這類裝飾會被一起清掉。
+// 所以 Rule / Underline 一律在該區域的字都印完之後才呼叫。
+// (反過來設計也行 —— 讓 Set 保留裝飾 —— 但那樣 Clear 與 Fill
+// 就會留下上一幀的殘留,錯得更難查。)
 func (s *Screen) Set(x, y int, ch rune, fg, bg Color) {
 	if c := s.At(x, y); c != nil {
 		*c = Cell{Ch: ch, FG: fg, BG: bg}
@@ -243,6 +256,15 @@ func (s *Screen) Fill(x, y, w, h int, ch rune, fg, bg Color) {
 	for yy := y; yy < y+h; yy++ {
 		for xx := x; xx < x+w; xx++ {
 			s.Set(xx, yy, ch, fg, bg)
+		}
+	}
+}
+
+// Rule 在一段格子的上緣開關 2 px 橫線。
+func (s *Screen) Rule(x, y, w int, on bool) {
+	for xx := x; xx < x+w; xx++ {
+		if c := s.At(xx, y); c != nil {
+			c.Rule = on
 		}
 	}
 }

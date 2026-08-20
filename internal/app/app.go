@@ -86,6 +86,9 @@ type App struct {
 	// EnglishOnly 是 F8 的狀態:關掉中文解讀,一個位元組畫一格。
 	EnglishOnly bool
 
+	// DriveFocus 是「焦點在左側磁碟窗格」。窗格關著時永遠是 false。
+	DriveFocus bool
+
 	// ShowPreview 是 Alt-P 的狀態:畫面底部留一塊,顯示游標所在檔案的開頭。
 	ShowPreview bool
 	prev        preview
@@ -273,6 +276,16 @@ func (a *App) browserKey(k keys.Key) bool {
 		rows = 1
 	}
 
+	// 焦點在磁碟窗格時,方向鍵歸它。Tab 在兩邊之間切。
+	if a.DriveFocus {
+		if a.driveKey(k) {
+			return true
+		}
+	} else if k.Code == keys.Tab && b.DrivePane > 0 {
+		a.DriveFocus = true
+		return true
+	}
+
 	switch k.Code {
 	case keys.Up:
 		b.MoveBy(-1, rows)
@@ -342,7 +355,10 @@ func (a *App) browserKey(k keys.Key) bool {
 			return a.startRename()
 		}
 	case 'D':
-		if !k.Alt && !k.Ctrl {
+		if k.Alt {
+			return a.toggleDrivePane()
+		}
+		if !k.Ctrl {
 			return a.startDelete(false)
 		}
 	case 'Z':

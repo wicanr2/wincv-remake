@@ -103,6 +103,13 @@ type Rasterizer struct {
 	MissingMark bool
 
 	CellW, CellH int
+
+	// RuleHi / RuleShadow 是 cell.Rule 那條 2 px 橫線的兩條掃描線。
+	// 原版量到的是 #FFFFFF + #C5C5C5(立體感的凹線)。
+	//
+	// 顏色不取自格子的 FG:那條線是**框線**不是字,而它所在的那一列
+	// 同時要用自己的顏色印字(狀態列是黃字)。兩者綁在一起就得二選一。
+	RuleHi, RuleShadow cell.Color
 	buf          *image.RGBA
 }
 
@@ -122,6 +129,9 @@ func New(half *fnt.Font, cjk CJKSource) *Rasterizer {
 		Palette: DefaultPalette,
 		CellW:   half.PixWidth,
 		CellH:   half.PixHeight + LineGap,
+
+		RuleHi:     cell.White,
+		RuleShadow: cell.LtGray2,
 	}
 }
 
@@ -289,6 +299,16 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 	if c == nil || c.Cont {
 		return // 全形字在左半格一次畫完,右半格不再畫
 	}
+	// 格子上緣的 2 px 橫線(原版用它隔開檔案清單與狀態列)。
+	if c.Rule {
+		w := r.CellW
+		if c.Wide {
+			w *= 2
+		}
+		px, py := cx*r.CellW, cy*r.CellH
+		r.hline(px, py, w, r.Palette[clampColor(r.RuleHi)])
+		r.hline(px, py+1, w, r.Palette[clampColor(r.RuleShadow)])
+	}
 	// 底線畫在最後一條掃描線,而且空白格也要畫 —— 原版的長檔名欄
 	// 底線是連續的一整條,不會在空格處斷掉。所以放在字模查詢之前。
 	if c.Under {
@@ -303,7 +323,7 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 		if r.CJK != nil {
 			g = r.CJK.Glyph(c.Ch)
 		}
-	} else if b, ok := toCP950Byte(c.Ch); ok {
+	} else if b, ok := toFontByte(c.Ch); ok {
 		g = r.Half.Glyph(b)
 	}
 	if g == nil && r.Fallback != nil {
@@ -354,11 +374,14 @@ func (r *Rasterizer) hline(px, py, w int, col color.RGBA) {
 	}
 }
 
-// toCP950Byte 把一個半形 rune 對回 .FON 的字碼。
+// toFontByte 把一個半形 rune 對回 .FON 的字碼。
 //
-// 半形字型是 0x00-0xFF 的單位元組字型,0x00-0x7F 就是 ASCII;
-// 0x80-0xFF 在 Big5 環境下是雙位元組字的前導位元組,不會單獨出現在
-// 一個半形格裡,所以只有 U+0000-U+00FF 之間直接對應的才給。
+// 隨附的三個 .FON 是 **CP437**(Wine 的 font trace 是 charset 255 = OEM),
+// 不是 Latin-1。兩者只有 0x20-0x7E 相同,對照表在 cell.CP437。
+func toFontByte(r rune) (byte, bool) {
+	return cell.FromCP437(r)
+}
+
 // drawMissing 畫缺字記號:一個空心框,佔該字應有的寬度。
 //
 // 缺字要看得見。留白的話,使用者看到的是「這個檔案這裡沒東西」,
@@ -391,11 +414,4 @@ func (r *Rasterizer) drawMissing(s *cell.Screen, cx, cy int, c *cell.Cell) {
 		set(left, y)
 		set(right, y)
 	}
-}
-
-func toCP950Byte(r rune) (byte, bool) {
-	if r >= 0 && r <= 0xFF {
-		return byte(r), true
-	}
-	return 0, false
 }
