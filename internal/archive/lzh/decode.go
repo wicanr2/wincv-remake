@@ -46,6 +46,14 @@ func Decode(src io.Reader, method string, origSize int64) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("還不支援 %s", method)
 	}
+	return DecodeBits(src, bits, origSize)
+}
+
+// DecodeBits 是不看壓縮法名稱、直接指定視窗位元數的版本。
+//
+// ARJ 的方法 1-3 用的是同一套編碼(unarj 本來就是從 LHA 衍生的),
+// 視窗 13 位,參數與 -lh5- 相同,所以共用這個解碼器而不是抄一份。
+func DecodeBits(src io.Reader, bits uint, origSize int64) ([]byte, error) {
 	if origSize < 0 || origSize > 1<<32 {
 		return nil, fmt.Errorf("原始大小不合理: %d", origSize)
 	}

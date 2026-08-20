@@ -363,3 +363,16 @@ func (h *huffman) decodeP(b *bitReader) (int, error) {
 	}
 	return j, nil
 }
+
+// Bits 是位元讀取器的公開介面。
+//
+// ARJ 用的是同一套讀法(一次看 16 位、MSB 優先、讀到檔尾補 0),
+// 它的方法 4 沒有 Huffman 但要用同一個讀取器,所以開出來共用,
+// 不要在 arj 那邊再抄一份 —— 兩份會各自漂移。
+type Bits struct{ b *bitReader }
+
+// NewBits 建一個位元讀取器。
+func NewBits(r io.Reader) *Bits { return &Bits{newBitReader(r)} }
+
+// Get 讀 n 個位元。n 為 0 時回 0 且不動指標。
+func (x *Bits) Get(n uint) uint32 { return x.b.get(n) }
