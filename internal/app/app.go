@@ -40,6 +40,7 @@ const (
 	ModeImage
 	ModeEdit
 	ModeThumbs
+	ModeFind
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -55,6 +56,7 @@ type App struct {
 	Image   *imgview.Model
 	Editor  *editor.Model
 	Thumbs  *thumbs.Model
+	Find    *FindResult
 	Mode    Mode
 
 	// Syntax 是語法上色設定,從原版的 keyword.cfg 載入。可為 nil。
@@ -83,6 +85,10 @@ type App struct {
 	thumbCols int
 	// prompt 是畫面底部的輸入列,見 prompt.go。
 	prompt prompt
+	// findKindPending / convertPending 是「選單那一步」的暫存狀態:
+	// 這兩個功能都要先問「做哪一種」再問細節,而輸入列一次只能問一件事。
+	findKindPending bool
+	convertPending  []string
 
 	// viewRaw 留著原始解碼文字,切換 ANSI 時要重新解析。
 	viewRaw string
@@ -132,6 +138,8 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 		ov = a.Thumbs.Draw(s, a.CellW, a.CellH)
 		a.rows = s.Rows - 1
 		a.thumbCols = s.Cols
+	case ModeFind:
+		a.rows = a.drawFind(s)
 	default:
 		a.rows = a.Browser.Draw(s)
 	}
@@ -148,6 +156,14 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 // HandleKey 分派一次按鍵。回傳是否有東西改變(需要重畫)。
 func (a *App) HandleKey(k keys.Key) bool {
 	if a.prompt.active {
+		// 這兩個是「先選一種再問細節」的兩段式流程,
+		// 第一段不走一般的輸入列處理。
+		if a.findKindPending {
+			return a.findKindKey(k)
+		}
+		if a.convertPending != nil {
+			return a.convertKey(k)
+		}
 		return a.promptKey(k)
 	}
 	a.Message = ""
@@ -162,6 +178,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.editKey(k)
 	case ModeThumbs:
 		return a.thumbsKey(k)
+	case ModeFind:
+		return a.findKey(k)
 	default:
 		return a.browserKey(k)
 	}
@@ -244,6 +262,21 @@ func (a *App) browserKey(k keys.Key) bool {
 	case 'D':
 		if !k.Alt && !k.Ctrl {
 			return a.startDelete(false)
+		}
+	case 'Z':
+		if k.Alt {
+			return a.startCreateArchive()
+		}
+		if !k.Ctrl {
+			return a.startExtract()
+		}
+	case 'W':
+		if !k.Alt && !k.Ctrl {
+			return a.startFind()
+		}
+	case 'O':
+		if k.Ctrl {
+			return a.startConvert()
 		}
 	case 'S':
 		if !k.Alt && !k.Ctrl {
@@ -601,7 +634,7 @@ func (a *App) runTransfer(move bool, names []string, dst string) {
 			func(yes, _ bool) {
 				if !yes {
 					a.Message = done
-					a.Browser.Load(a.Browser.Dir)
+					a.Browser.Reload()
 					return
 				}
 				o := fileop.Options{Overwrite: fileop.All}
@@ -612,12 +645,12 @@ func (a *App) runTransfer(move bool, names []string, dst string) {
 					r2 = fileop.Copy(a.Browser.Dir, dst, skipped, o)
 				}
 				a.Message = done + ";覆蓋 " + r2.Summary(verb)
-				a.Browser.Load(a.Browser.Dir)
+				a.Browser.Reload()
 			})
 		return
 	}
 	a.Message = res.Summary(verb)
-	a.Browser.Load(a.Browser.Dir)
+	a.Browser.Reload()
 }
 
 func (a *App) startRename() bool {
@@ -638,7 +671,7 @@ func (a *App) startRename() bool {
 			a.Message = "改名失敗: " + err.Error()
 			return
 		}
-		a.Browser.Load(a.Browser.Dir)
+		a.Browser.Reload()
 		a.focusOn(to)
 		a.Message = old + " → " + to
 	})
@@ -671,7 +704,7 @@ func (a *App) startDelete(zero bool) bool {
 		}
 		res := fileop.Delete(a.Browser.Dir, names, fileop.Options{ZeroFill: zero})
 		a.Message = res.Summary("已刪除")
-		a.Browser.Load(a.Browser.Dir)
+		a.Browser.Reload()
 	})
 	return true
 }

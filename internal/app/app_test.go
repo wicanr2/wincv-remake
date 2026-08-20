@@ -512,3 +512,172 @@ func TestFileOpsBlockedInsideArchive(t *testing.T) {
 		}
 	}
 }
+
+// Z 解壓縮:游標停在壓縮檔上 → 輸入目的地 → 檔案真的解出來。
+func TestExtractFlow(t *testing.T) {
+	root := fixture(t)
+	zp := filepath.Join(root, "pack.zip")
+	f, _ := os.Create(zp)
+	zw := zip.NewWriter(f)
+	for name, body := range map[string]string{"top.txt": "top\n", "d/deep.txt": "deep\n"} {
+		w, _ := zw.Create(name)
+		io.WriteString(w, body)
+	}
+	zw.Close()
+	f.Close()
+
+	a := New(vfs.OS{}, root)
+	s := cell.New(78, 20)
+	a.Draw(s)
+	for cursorName(a) != "pack.zip" {
+		if !a.HandleKey(keys.Named(keys.Down)) {
+			t.Fatal("找不到 pack.zip")
+		}
+		a.Draw(s)
+	}
+	a.HandleKey(keys.Ch('z'))
+	if !a.Prompting() {
+		t.Fatal("Z 應該問目的地")
+	}
+	for i := 0; i < 200; i++ {
+		a.HandleKey(keys.Named(keys.Backspace))
+	}
+	out := filepath.Join(root, "unpacked")
+	for _, r := range out {
+		a.HandleKey(keys.Ch(r))
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+
+	if b, err := os.ReadFile(filepath.Join(out, "d", "deep.txt")); err != nil || string(b) != "deep\n" {
+		t.Errorf("沒解出來: %q %v", b, err)
+	}
+	if !strings.Contains(a.Message, "2") {
+		t.Errorf("訊息 = %q", a.Message)
+	}
+}
+
+// Alt-Z 打包:標記檔案 → 輸入檔名 → zip 真的建出來且讀得回去。
+func TestCreateArchiveFlow(t *testing.T) {
+	a, s := newApp(t)
+	dir := a.Browser.Dir
+	a.HandleKey(keys.Ch('t')) // 標記所有檔案
+	a.Draw(s)
+
+	a.HandleKey(keys.AltCh('Z'))
+	if !a.Prompting() {
+		t.Fatal("Alt-Z 應該問檔名")
+	}
+	for i := 0; i < 100; i++ {
+		a.HandleKey(keys.Named(keys.Backspace))
+	}
+	for _, r := range "out.zip" {
+		a.HandleKey(keys.Ch(r))
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+
+	zp := filepath.Join(dir, "out.zip")
+	if _, err := os.Stat(zp); err != nil {
+		t.Fatalf("zip 沒建出來: %v (訊息 %q)", err, a.Message)
+	}
+	zr, err := zip.OpenReader(zp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	names := map[string]bool{}
+	for _, f := range zr.File {
+		names[f.Name] = true
+	}
+	for _, want := range []string{"a.txt", "b.txt", "z.bin"} {
+		if !names[want] {
+			t.Errorf("zip 裡少了 %s (有 %v)", want, names)
+		}
+	}
+}
+
+// W 尋找:選種類 → 輸入關鍵字 → 結果清單 → Enter 跳到那個檔案。
+func TestFindFlow(t *testing.T) {
+	a, s := newApp(t)
+	a.Draw(s)
+
+	a.HandleKey(keys.Ch('w'))
+	if !a.Prompting() {
+		t.Fatal("W 應該先問種類")
+	}
+	a.HandleKey(keys.Ch('s')) // 找字串
+	if !a.Prompting() {
+		t.Fatal("選了種類之後應該問關鍵字")
+	}
+	for _, r := range "line2" {
+		a.HandleKey(keys.Ch(r))
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+
+	if a.Mode != ModeFind {
+		t.Fatalf("應該進結果清單,現在模式 %v(訊息 %q)", a.Mode, a.Message)
+	}
+	if len(a.Find.Hits) != 1 {
+		t.Fatalf("命中 %d 筆: %+v", len(a.Find.Hits), a.Find.Hits)
+	}
+	h := a.Find.Hits[0]
+	if h.Name != "a.txt" || h.Line != 2 {
+		t.Errorf("命中 = %+v", h)
+	}
+	a.Draw(s)
+	a.HandleKey(keys.Named(keys.Enter))
+	if a.Mode != ModeBrowser {
+		t.Error("Enter 應該跳回瀏覽器")
+	}
+	if cursorName(a) != "a.txt" {
+		t.Errorf("游標應停在命中的檔案上,得到 %q", cursorName(a))
+	}
+}
+
+// Ctrl-O 轉換:換行樣式真的被改掉。
+func TestConvertEOLFlow(t *testing.T) {
+	a, s := newApp(t)
+	dir := a.Browser.Dir
+	for cursorName(a) != "a.txt" {
+		a.HandleKey(keys.Named(keys.Down))
+		a.Draw(s)
+	}
+	a.HandleKey(keys.CtrlCh('O'))
+	if !a.Prompting() {
+		t.Fatal("Ctrl-O 應該開選單")
+	}
+	a.HandleKey(keys.Ch('p')) // 轉 PC 換行
+	b, err := os.ReadFile(filepath.Join(dir, "a.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "\r\n") {
+		t.Errorf("沒轉成 CRLF: %q", b)
+	}
+
+	a.HandleKey(keys.CtrlCh('O'))
+	a.HandleKey(keys.Ch('u')) // 轉回 UNIX
+	b, _ = os.ReadFile(filepath.Join(dir, "a.txt"))
+	if strings.Contains(string(b), "\r") {
+		t.Errorf("沒轉回 LF: %q", b)
+	}
+}
+
+// Esc 要能從選單那一步退出來,不可以卡住。
+func TestTwoStepPromptsCancel(t *testing.T) {
+	a, s := newApp(t)
+	a.Draw(s)
+	a.HandleKey(keys.Ch('w'))
+	a.HandleKey(keys.Named(keys.Esc))
+	if a.Prompting() {
+		t.Error("尋找的種類選單 Esc 不掉")
+	}
+	a.HandleKey(keys.CtrlCh('O'))
+	a.HandleKey(keys.Named(keys.Esc))
+	if a.Prompting() {
+		t.Error("轉換的選單 Esc 不掉")
+	}
+	// Esc 之後一般按鍵要恢復正常
+	if !a.HandleKey(keys.Named(keys.Down)) {
+		t.Error("Esc 之後方向鍵應該又能用")
+	}
+}

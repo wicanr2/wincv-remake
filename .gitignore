@@ -15,3 +15,4 @@
 *.xwd
 *.tmp
 /original/eten/
+/.cache/

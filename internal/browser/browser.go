@@ -109,6 +109,38 @@ func (m *Model) Load(dir string) error {
 	return nil
 }
 
+// Reload 重讀目前的目錄,並讓游標留在原本那一筆上。
+//
+// 檔案操作(拷貝、刪除、轉換)之後都要重讀,但**不該把游標丟回最上面** ——
+// 在幾百個檔案的目錄裡連續做兩次操作時,每次都要重新捲回去很惱人。
+func (m *Model) Reload() error {
+	cur, top := "", m.Top
+	if e := m.Current(); e != nil {
+		cur = e.Name
+	}
+	if err := m.Load(m.Dir); err != nil {
+		return err
+	}
+	if cur == "" {
+		return nil
+	}
+	for i, e := range m.Entries {
+		if e.Name == cur {
+			m.Cursor, m.Top = i, top
+			return nil
+		}
+	}
+	// 原本那一筆不見了(例如剛被刪掉),游標留在同一個位置,
+	// 這樣連續刪除時會自然停在下一個檔案上。
+	if m.Cursor >= len(m.Entries) {
+		m.Cursor = len(m.Entries) - 1
+	}
+	if m.Cursor < 0 {
+		m.Cursor = 0
+	}
+	return nil
+}
+
 // Resort 依目前的排序設定重排,並讓游標跟著原本那一筆走。
 func (m *Model) Resort() {
 	var cur string
