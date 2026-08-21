@@ -282,7 +282,7 @@ MD5 與 SFV 原版沒有查到對應的按鍵,只掛在選單上。
 地方檢查:
 
 ```
-tools/go.sh run ./cmd/celldump -app /src/testdata -keys "F1" -o shot.png
+tools/go.sh run ./cmd/celldump -app /src/testdata -keys "F9" -o shot.png
 tools/go.sh run ./cmd/celldump -app /src/testdata -keys "W,S,t,x,t,Enter" -o find.png
 ```
 
