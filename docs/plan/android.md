@@ -146,7 +146,22 @@ Android Studio 專案。需要 Android NDK 與 gomobile,兩者在 Linux 上
 沿用專案既有的紀律:編譯一律走 docker,做成 `tools/build-android.sh`,
 與 `tools/build-all.sh` 並列。
 
-## 建置環境(已做出來)
+## 現況:APK 已經建得出來
+
+```
+dist/wincv-android.apk   33.8 MB   minSdk 21 / targetSdk 34
+  lib/arm64-v8a/libgojni.so     17.2 MB
+  lib/armeabi-v7a/libgojni.so   16.2 MB
+  lib/x86/libgojni.so           16.5 MB
+  lib/x86_64/libgojni.so        17.8 MB
+```
+
+`tools/build-android.sh` 產出,`tools/verify-apk.sh` 驗過:四個 ABI 的原生
+程式庫都在、launcher activity 是 `tw.lcy.wincv.MainActivity`、簽章有效。
+
+**還沒在真的裝置或模擬器上跑過。** 上面驗的是格式與內容,不是行為。
+
+## 建置環境
 
 `tools/docker/android.Dockerfile` + `tools/build-android.sh`,兩步:
 `ebitenmobile bind` 產 AAR,`gradle assembleRelease` 產 APK。
@@ -195,7 +210,8 @@ Android 的系統字型在 `/system/fonts`,讀得到但不能改。優先挑等�
 
 | # | 假設 | 怎麼驗 |
 |---|---|---|
-| ~~N1~~ | ~~`ebitenmobile bind` 跑得起來~~ | **已驗證**,見上面的建置環境 |
+| ~~N1~~ | ~~`ebitenmobile bind` 跑得起來~~ | **已驗證**,APK 建得出來也驗得過 |
+| N5 | app 在真的裝置上跑得起來(畫得出畫面、讀得到檔案) | sideload 到實機,或用模擬器 |
 | N2 | Ebiten 在 Android 上收得到軟鍵盤的字元事件 | 最小 app 叫出軟鍵盤,印出收到的事件 |
 | N3 | SAF 的目錄樹可以包成 `vfs.FS`(每次 ReadDir 都要 JNI 往返,效能未知) | 用一個幾千個檔案的目錄量 ReadDir 的耗時 |
 | N4 | 格點在手機 DPI 下讀得下去(8×16 的格子在 6 吋 400dpi 螢幕上很小) | 用 celldump 產同尺寸 PNG,在實機上看 |

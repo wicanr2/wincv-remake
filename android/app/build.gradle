@@ -4,6 +4,14 @@ android {
     namespace "tw.lcy.wincv"
     compileSdk 34
 
+    // [雷] buildToolsVersion 一定要釘死。
+    //
+    // 不釘的話 AGP 會依自己的預設去**自動安裝**另一個版本(實測是 33.0.1),
+    // 而容器裡的 SDK 目錄對非 root 使用者不可寫,於是失敗訊息是
+    // 「The SDK directory is not writable」—— 看起來像權限設定的問題,
+    // 實際上是版本沒釘。
+    buildToolsVersion "34.0.0"
+
     defaultConfig {
         applicationId "tw.lcy.wincv"
         // 21 是 ebitenmobile 支援的下限,也涵蓋到 2014 年的機器 ——
@@ -21,6 +29,13 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+    // release 的 lint 在這裡沒有價值(私人 sideload,不上架),
+    // 而 lintVital 這個 task 正是去要另一版 build-tools 的那一個。
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
