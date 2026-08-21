@@ -21,6 +21,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
 	"github.com/wicanr2/wincv-remake/internal/render"
+	"github.com/wicanr2/wincv-remake/internal/session"
 	"github.com/wicanr2/wincv-remake/internal/ttf"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
@@ -47,6 +48,9 @@ type game struct {
 
 	levels []level
 	zoom   int
+	// resume 是「記住位置」的開關,lastSt 是上次寫出去的那一份。
+	resume bool
+	lastSt session.State
 	cols   int
 	rows   int
 }
@@ -100,6 +104,7 @@ func (g *game) Update() error {
 	if g.app.Quit {
 		return ebiten.Termination
 	}
+	g.saveState()
 	// 編輯器要收字元事件才打得出 shift 後的符號與中文。
 	// 編輯器與輸入列都要收字元事件。
 	for _, k := range translate(g.app.Mode == app.ModeEdit || g.app.Prompting()) {
@@ -134,6 +139,24 @@ func (g *game) Update() error {
 		g.app.WantCols, g.app.WantRows = 0, 0
 	}
 	return nil
+}
+
+// saveState 在位置變了的時候記下來。
+//
+// 不等到關閉才存:程式被 kill、系統關機、當掉 —— 這些情況下
+// 「關閉時才存」等於沒存,而使用者失去的是他最後待的地方。
+// 只比對「人在哪裡」那幾個欄位,所以捲一頁不會寫檔。
+func (g *game) saveState() {
+	if !g.resume {
+		return
+	}
+	st := g.app.Snapshot()
+	if st.Dir == g.lastSt.Dir && st.Mode == g.lastSt.Mode && st.File == g.lastSt.File {
+		return
+	}
+	g.lastSt = st
+	// 存不了就算了。這是錦上添花的功能,不該在每一幀噴一次錯誤。
+	_ = st.Save()
 }
 
 // applySize 把視窗調成 cols×rows 格。
@@ -195,6 +218,7 @@ func main() {
 		zoom     = flag.Int("zoom", 0, "字級:0=8x15 1=10x18 2=12x24")
 		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
+		noResume = flag.Bool("no-resume", false, "不要回到上次的位置")
 	)
 	flag.Parse()
 
@@ -208,6 +232,14 @@ func main() {
 	}
 
 	a := app.New(vfs.OS{}, abs)
+	// 命令列指定了目錄就以它為準 —— 使用者說了要去哪,不該被上次的位置蓋掉。
+	st := session.State{}
+	if !*noResume {
+		st = session.Load()
+		if flag.NArg() > 0 {
+			st.Dir, st.Cursor, st.Mode, st.File = abs, "", "", ""
+		}
+	}
 	// 語法上色設定跟半形字型放在一起(原版是同一個安裝目錄)。
 	cfgDir := filepath.Dir(*halfPath)
 	a.LoadSyntax(cfgDir)
@@ -230,7 +262,11 @@ func main() {
 		*scale = app.MaxScale
 	}
 	a.Scale = *scale
-	g := &game{app: a, levels: levels, scale: *scale, zoom: -1, dirty: true}
+	if st.Cols >= 20 && st.Rows >= 5 && !flagGiven("cols") && !flagGiven("rows") {
+		*cols, *rows = st.Cols, st.Rows
+	}
+	g := &game{app: a, levels: levels, scale: *scale, zoom: -1, dirty: true,
+		resume: !*noResume}
 	g.setZoom(*zoom)
 	cw, ch := g.cellPx()
 	g.resize(*cols*cw, *rows*ch)
@@ -242,9 +278,34 @@ func main() {
 	// 畫面只在有事情發生時重畫 —— 這是檔案管理程式,不是遊戲。
 	ebiten.SetScreenClearedEveryFrame(false)
 
-	if err := ebiten.RunGame(g); err != nil && err != ebiten.Termination {
+	a.Restore(st)
+	g.lastSt = a.Snapshot()
+
+	err = ebiten.RunGame(g)
+	// 關掉時再存一次:這一次連捲動位置都記下來(Update 那邊只在
+	// 「人換了地方」時寫,捲一頁不寫檔)。存不了不算錯。
+	if !*noResume {
+		if e := a.Snapshot().Save(); e != nil {
+			fmt.Fprintln(os.Stderr, "記不下這次的位置:", e)
+		}
+	}
+	if err != nil && err != ebiten.Termination {
 		die(err)
 	}
+}
+
+// flagGiven 說明使用者是不是真的在命令列打了這個旗標。
+//
+// 分得出「沒打」與「打了預設值」才有辦法決定要不要用上次的視窗大小:
+// 兩者的變數值一樣,只有 flag 套件知道差別。
+func flagGiven(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }
 
 func die(err error) {

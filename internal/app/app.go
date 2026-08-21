@@ -320,6 +320,11 @@ func (a *App) HandleKey(k keys.Key) bool {
 			return a.setScale(1)
 		}
 	}
+	// Alt-X 離開。原版沒有離開鍵(Win32 程式關視窗就是離開),
+	// 但重製版需要一條「程式自己知道要收尾」的路徑 —— 位置就是在那裡記下的。
+	if k.Alt && k.Code == keys.Rune && (k.R == 'x' || k.R == 'X') {
+		return a.quit()
+	}
 	switch k.Code {
 	case keys.F1:
 		return a.openHelp()
@@ -354,6 +359,26 @@ func (a *App) HandleKey(k keys.Key) bool {
 	default:
 		return a.browserKey(k)
 	}
+}
+
+// quit 收尾離開。編輯中還有沒存的東西就先問一句 ——
+// 原版也問(image 裡有「檔案已修改,要先存檔才離開嗎?」)。
+func (a *App) quit() bool {
+	if a.Editor != nil && a.Editor.Dirty {
+		a.ask("檔案已修改,要先存檔才離開嗎?(y/n)", "y", func(ans string) {
+			switch strings.ToLower(strings.TrimSpace(ans)) {
+			case "y", "yes", "是":
+				a.SaveEditor()
+				a.Quit = true
+			case "n", "no", "否":
+				a.Quit = true
+			}
+			// 其他答案:當作取消,留在原地。
+		})
+		return true
+	}
+	a.Quit = true
+	return true
 }
 
 // setZoom 換字級。回傳是否真的變了。

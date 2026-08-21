@@ -97,6 +97,8 @@ func (a *App) fileMenuItems() []menuItem {
 		{sep: true},
 		{label: "解壓縮", key: k('Z')},
 		{label: "製作壓縮檔(.zip)", key: alt('Z')},
+		{sep: true},
+		{label: "離開", key: alt('X')},
 	}
 }
 
