@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- EbitenView 由 ebitenmobile bind 產生,Java 套件名是
+         -javapkg 加上 Go 套件名。 -->
+    <tw.lcy.wincv.mobile.EbitenView
+        android:id="@+id/ebitenview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:focusable="true" />
+</FrameLayout>

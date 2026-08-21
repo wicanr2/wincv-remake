@@ -1,0 +1,8 @@
+// 頂層建置檔。倉庫只列 google 與 mavenCentral —— 私人專案,不加第三方倉庫。
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath "com.android.tools.build:gradle:8.1.4" }
+}
+allprojects {
+    repositories { google(); mavenCentral() }
+}

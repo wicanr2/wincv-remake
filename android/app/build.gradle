@@ -1,0 +1,33 @@
+apply plugin: "com.android.application"
+
+android {
+    namespace "tw.lcy.wincv"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "tw.lcy.wincv"
+        // 21 是 ebitenmobile 支援的下限,也涵蓋到 2014 年的機器 ——
+        // 這是一支保存老軟體的程式,不該把老機器排除掉。
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "0.52-remake"
+    }
+
+    // 私人使用,用 debug 簽章即可(sideload 裝得起來)。
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // ebitenmobile bind 產出的 AAR,由 tools/build-android.sh 放進來。
+    implementation fileTree(dir: "libs", include: ["*.aar"])
+}

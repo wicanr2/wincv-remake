@@ -94,3 +94,71 @@ func TestTouchBarSkippedOnTinyScreen(t *testing.T) {
 		return // 沒畫,符合預期
 	}
 }
+
+// 「畫在哪」與「點到什麼」必須一致。
+//
+// 兩邊各算一次版面的話會慢慢對不上,而那種錯只有在真的用手指點下去
+// 才會發現 —— 畫面看起來完全正常,按鈕就是點不準。
+func TestTouchHitTestMatchesDrawing(t *testing.T) {
+	for _, cols := range []int{30, 44, 60, 93} {
+		a := New(vfs.OS{}, fixture(t))
+		a.Touch = true
+		s := cell.New(cols, 20)
+		a.Draw(s)
+
+		barY := s.Rows - TouchRows
+		bar := a.touchBar()
+
+		// 每一個鍵的標籤所在的那一格,回查要得到同一個鍵。
+		for i, sp := range a.touchSpans(cols) {
+			if i >= len(bar) {
+				break
+			}
+			mid := sp.x + sp.w/2
+			got, ok := a.TouchKeyAt(mid, 0, cols)
+			if !ok {
+				t.Errorf("%d 欄:第 %d 個鍵的中心點 %d 查不到按鍵", cols, i, mid)
+				continue
+			}
+			if got != bar[i].key {
+				t.Errorf("%d 欄:點在「%s」的位置卻得到別的鍵", cols, bar[i].label)
+			}
+			// 而且那一格畫出來的確實是這個標籤的一部分
+			row := rowText(s, barY)
+			if !strings.Contains(row, bar[i].label) {
+				t.Errorf("%d 欄:畫面上找不到「%s」→ %q", cols, bar[i].label, row)
+			}
+		}
+		// 每一格都要對應到某個鍵,不能有點了沒反應的縫隙。
+		for x := 0; x < cols; x++ {
+			if _, ok := a.TouchKeyAt(x, 0, cols); !ok {
+				t.Errorf("%d 欄:第 %d 格是死區", cols, x)
+				break
+			}
+			if _, ok := a.TouchKeyAt(x, 1, cols); !ok {
+				t.Errorf("%d 欄:導覽列第 %d 格是死區", cols, x)
+				break
+			}
+		}
+	}
+}
+
+// 清單游標的列號是給觸控把「點第幾列」翻成幾次上下鍵用的。
+// 不是瀏覽模式時要回 -1,不然點在文字上會亂送方向鍵。
+func TestListCursorRow(t *testing.T) {
+	a := New(vfs.OS{}, fixture(t))
+	s := cell.New(44, 20)
+	a.Draw(s)
+	if got := a.ListCursorRow(); got != 0 {
+		t.Errorf("一開始游標在第 %d 列,想要 0", got)
+	}
+	a.HandleKey(keys.Named(keys.Down))
+	a.Draw(s)
+	if got := a.ListCursorRow(); got != 1 {
+		t.Errorf("下一列之後 = %d", got)
+	}
+	a.Mode = ModeViewer
+	if got := a.ListCursorRow(); got != -1 {
+		t.Errorf("非瀏覽模式應該回 -1,得到 %d", got)
+	}
+}

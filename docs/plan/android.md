@@ -146,13 +146,44 @@ Android Studio 專案。需要 Android NDK 與 gomobile,兩者在 Linux 上
 沿用專案既有的紀律:編譯一律走 docker,做成 `tools/build-android.sh`,
 與 `tools/build-all.sh` 並列。
 
+## 建置環境(已做出來)
+
+`tools/docker/android.Dockerfile` + `tools/build-android.sh`,兩步:
+`ebitenmobile bind` 產 AAR,`gradle assembleRelease` 產 APK。
+image 約 5.5 GB,tag 固定 `wincv-android:1`。
+
+**這台機器有其他專案的 Android image 與模擬器 image,一律不動。**
+
+組這個工具鏈踩到的三個坑:
+
+1. `gomobile@latest` 要 Go >= 1.25,但 ebiten v2.6.6 要配 Go 1.22。
+   把 gomobile / gobind 釘在 ebiten v2.6.6 自己相依的那一版。
+2. 釘了還是不夠 —— **`ebitenmobile bind` 內部會跑 `gomobile init`,
+   而那一步寫死 `go install gobind@latest`**,繞不過釘選。
+   解法是再裝一份新的 Go 放在 PATH 前面,舊的留給 ebitenmobile 自己
+   (它是已經編好的 binary,不受影響)。
+3. Debian 套件庫的 gradle 是 4.x,吃不動 AGP 8,要抓官方 binary。
+
+## 字型:APK 裡沒有原版字型
+
+原版的 `cvga.fon` 與倚天字庫是第三方版權物,**不打包進 APK**。
+所以 `internal/render.Rasterizer.Half` 從具體型別改成介面
+(`HalfSource`),多一個 `internal/ttf.HalfFont` 用系統 TrueType
+現場產半形字模 —— 對光柵器來說兩者是同一件事。
+
+Android 的系統字型在 `/system/fonts`,讀得到但不能改。優先挑等寬的
+(`DroidSansMono`),半形字模拿等寬字產出來的格點最整齊。
+
+使用者把 `cvga.fon` 放進 `<根目錄>/wincv/` 就會換成原版點陣字,
+啟動時的訊息列會講現在用的是哪一種 —— 不講的話他會以為畫面本來就長這樣。
+
 ## 還沒驗證的假設
 
 寫進來是為了不要被當成已知事實。動到哪一條先驗那一條。
 
 | # | 假設 | 怎麼驗 |
 |---|---|---|
-| N1 | `ebitenmobile bind` 在本機 docker 裡跑得起來(NDK + gomobile) | 建一個最小的 Ebiten app 走完整條流程,產出 AAR |
+| ~~N1~~ | ~~`ebitenmobile bind` 跑得起來~~ | **已驗證**,見上面的建置環境 |
 | N2 | Ebiten 在 Android 上收得到軟鍵盤的字元事件 | 最小 app 叫出軟鍵盤,印出收到的事件 |
 | N3 | SAF 的目錄樹可以包成 `vfs.FS`(每次 ReadDir 都要 JNI 往返,效能未知) | 用一個幾千個檔案的目錄量 ReadDir 的耗時 |
 | N4 | 格點在手機 DPI 下讀得下去(8×16 的格子在 6 吋 400dpi 螢幕上很小) | 用 celldump 產同尺寸 PNG,在實機上看 |

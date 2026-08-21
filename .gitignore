@@ -25,3 +25,8 @@ __pycache__/
 
 # IDA 的工作目錄(資料庫十幾 MB,可由 tools/ida.sh 重建)
 /.ida/
+
+# Android 建置產物
+/android/app/libs/*.aar
+/android/app/build/
+/android/.gradle/

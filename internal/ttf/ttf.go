@@ -131,6 +131,19 @@ func (f *Font) render(r rune) *fnt.Glyph {
 // 第一個讀得起來的就用,都找不到就沒有後備字型。
 func Candidates() []string {
 	switch runtime.GOOS {
+	case "android":
+		// Android 的系統字型都在 /system/fonts,讀得到但不能改。
+		// Noto CJK 從 Android 7 起是標配;DroidSansMono 老機器上還在,
+		// 而且它**是等寬的** —— 半形字模拿它產出來的格點最整齊。
+		return []string{
+			"/system/fonts/DroidSansMono.ttf",
+			"/system/fonts/CutiveMono.ttf",
+			"/system/fonts/NotoSansCJK-Regular.ttc",
+			"/system/fonts/NotoSansMonoCJKtc-Regular.otf",
+			"/system/fonts/NotoSansMonoCJKsc-Regular.otf",
+			"/system/fonts/DroidSansFallback.ttf",
+			"/system/fonts/Roboto-Regular.ttf",
+		}
 	case "darwin":
 		return []string{
 			"/System/Library/Fonts/PingFang.ttc",

@@ -26,6 +26,9 @@ type Font struct {
 	base      int
 }
 
+// Size 回傳格子的字身大小。實作 render.HalfSource。
+func (f *Font) Size() (w, h int) { return f.PixWidth, f.PixHeight }
+
 // Glyph 是一個字的點陣圖,以 row-major 的 bool 表示。
 type Glyph struct {
 	W, H int

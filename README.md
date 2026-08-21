@@ -195,7 +195,7 @@ markdown 裡的圖片只認**文件所在目錄底下**的相對路徑，而且�
 
 程式裡按 `F1` → 關於 可以看到同樣的內容。
 
-### Android 介面草案
+### Android
 
 ![Android 檔案瀏覽器](docs/ui/android-browser.png) ![Android markdown](docs/ui/android-markdown.png)
 

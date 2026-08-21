@@ -78,6 +78,18 @@ var DefaultPalette = [cell.NumColors]color.RGBA{
 	{0xC5, 0xC5, 0xC5, 0xFF}, // ltgray2(LTGRAY 的第二個定義,0x50210)
 }
 
+// HalfSource 提供半形字模。
+//
+// 做成介面的理由與 CJKSource 相同:光柵器不該在意字模從哪來。
+// 桌面版拿原版的 .FON,Android 上沒有那個檔(是版權物,不能打包),
+// 就從系統的 TrueType 現場產一份 —— 兩者對光柵器是同一件事。
+type HalfSource interface {
+	// Glyph 回傳一個字碼的點陣圖。字碼是 CP437(見 cell.CP437)。
+	Glyph(code byte) *fnt.Glyph
+	// Size 回傳字身的寬與高(不含 LineGap)。
+	Size() (w, h int)
+}
+
 // CJKSource 提供全形字的點陣圖,寬度必須是半形的兩倍、高度相同。
 //
 // 原版的全形中文是 Windows GDI 用系統字型(image 裡指名「新細明體」)畫的,
@@ -89,7 +101,7 @@ type CJKSource interface {
 
 // Rasterizer 把 Screen 畫進一張 RGBA。
 type Rasterizer struct {
-	Half    *fnt.Font // 半形字型(cvga / cvga1018 / cvga1224)
+	Half    HalfSource // 半形字模來源(原版的 cvga / cvga1018 / cvga1224,或系統字型現場產的)
 	CJK     CJKSource // 全形字型來源,可為 nil
 	Palette [cell.NumColors]color.RGBA
 
@@ -122,13 +134,14 @@ type Rasterizer struct {
 // 也就是**用全形字的高度當列高**。字模靠上對齊,多的一列留在下面。
 const LineGap = 1
 
-func New(half *fnt.Font, cjk CJKSource) *Rasterizer {
+func New(half HalfSource, cjk CJKSource) *Rasterizer {
+	hw, hh := half.Size()
 	return &Rasterizer{
 		Half:    half,
 		CJK:     cjk,
 		Palette: DefaultPalette,
-		CellW:   half.PixWidth,
-		CellH:   half.PixHeight + LineGap,
+		CellW:   hw,
+		CellH:   hh + LineGap,
 
 		RuleHi:     cell.White,
 		RuleShadow: cell.LtGray2,

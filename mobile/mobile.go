@@ -1,0 +1,206 @@
+// Package mobile 是 Android 版的進入點。
+//
+// ebitenmobile bind 會把這個套件包成 AAR,Java 那一側拿到一個
+// EbitenView 就能顯示。桌面版的進入點在 cmd/wincv,兩者共用
+// internal/app 與 internal/render —— 也就是說「畫什麼」與「按鍵怎麼分派」
+// 只有一份,平台差異只在輸入與字型來源。
+//
+// 建置見 tools/build-android.sh,設計與分期見 docs/plan/android.md。
+package mobile
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	emobile "github.com/hajimehoshi/ebiten/v2/mobile"
+
+	"github.com/wicanr2/wincv-remake/internal/app"
+	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/eten"
+	"github.com/wicanr2/wincv-remake/internal/fnt"
+	"github.com/wicanr2/wincv-remake/internal/render"
+	"github.com/wicanr2/wincv-remake/internal/ttf"
+	"github.com/wicanr2/wincv-remake/internal/vfs"
+)
+
+var (
+	mu   sync.Mutex
+	root = ""
+	note = ""
+)
+
+// SetRoot 由 Java 在開啟 view 之前呼叫,指定要瀏覽的目錄。
+//
+// 為什麼不讓 Go 自己找:Android 10 起是 scoped storage,
+// app 讀得到哪裡是由 Java 那一側的授權決定的,Go 這邊猜不出來。
+func SetRoot(dir string) {
+	mu.Lock()
+	root = dir
+	mu.Unlock()
+}
+
+func init() {
+	emobile.SetGame(&game{})
+}
+
+// Dummy 是 gomobile bind 的要求:套件至少要有一個匯出的東西
+// 才會產生 Java 綁定。
+func Dummy() {}
+
+type game struct {
+	a      *app.App
+	rast   *render.Rasterizer
+	screen *cell.Screen
+	canvas *ebiten.Image
+	cols   int
+	rows   int
+	scale  int
+	dirty  bool
+	touch  touchState
+	ready  bool
+}
+
+// start 在第一次 Layout 時才做,因為那時候才知道螢幕多大,
+// 也才等得到 Java 呼叫過 SetRoot。
+func (g *game) start(w, h int) {
+	dir := pickRoot()
+	g.a = app.New(vfs.OS{}, dir)
+	g.a.Touch = true // 手機一律顯示觸控功能列
+	g.a.Scale = 1
+
+	half, cjk, n := loadFonts(dir, w, h)
+	note = n
+	g.rast = render.New(half, cjk)
+	g.rast.MissingMark = true
+	if chain, _, _ := ttf.LoadChain(8, 16, 16); len(chain) > 0 {
+		g.rast.Fallback = chain
+	}
+	g.a.CellW, g.a.CellH = g.rast.CellW, g.rast.CellH
+	if note != "" {
+		g.a.Message = note
+	}
+	g.ready = true
+}
+
+// pickRoot 決定一開始瀏覽哪裡。
+//
+// Java 沒設就自己找一個讀得到的 —— 第一版是唯讀瀏覽器,
+// 讀不到東西的話畫面會是空的,而空畫面看起來像程式壞了。
+func pickRoot() string {
+	mu.Lock()
+	r := root
+	mu.Unlock()
+	if r != "" {
+		if _, err := os.ReadDir(r); err == nil {
+			return r
+		}
+	}
+	for _, c := range []string{
+		"/storage/emulated/0/Download",
+		"/storage/emulated/0",
+		"/sdcard",
+		"/data/local/tmp",
+		"/",
+	} {
+		if _, err := os.ReadDir(c); err == nil {
+			return c
+		}
+	}
+	return "/"
+}
+
+// loadFonts 決定半形與全形字模從哪來。
+//
+// 優先用使用者匯入的原版字型(點陣像素對齊);沒有就拿系統字型現場產。
+// **原版的 cvga.fon 與倚天字庫是第三方版權物,不打包進 APK。**
+// 回傳的第三個值是要顯示給使用者的說明,不是錯誤 ——
+// 「現在用的是系統字型」這件事應該讓人知道,不然他會以為畫面本來就長這樣。
+func loadFonts(dir string, w, h int) (render.HalfSource, render.CJKSource, string) {
+	fontDir := filepath.Join(dir, "wincv")
+	if d, err := os.ReadFile(filepath.Join(fontDir, "cvga.fon")); err == nil {
+		if f, err := fnt.Parse(d); err == nil {
+			cjk, _ := eten.Load(
+				filepath.Join(fontDir, "STDFONT.15"),
+				filepath.Join(fontDir, "SPCFONT.15"),
+				f.PixWidth*2, f.PixHeight)
+			if cjk != nil {
+				return f, cjk, ""
+			}
+			return f, nil, "找到 cvga.fon,但沒有倚天字庫,全形字會用系統字型"
+		}
+	}
+	half, path, errs := ttf.LoadHalf(8, 15)
+	if half == nil {
+		return nil, nil, fmt.Sprintf("找不到任何可用字型(試過 %d 個候選,%d 個載不起來)",
+			len(ttf.Candidates()), len(errs))
+	}
+	return half, nil, "用系統字型 " + filepath.Base(path) + ";把 cvga.fon 放進 wincv/ 可換成原版點陣字"
+}
+
+func (g *game) Layout(outW, outH int) (int, int) {
+	if !g.ready {
+		g.start(outW, outH)
+	}
+	if g.rast == nil {
+		return outW, outH
+	}
+	// 手機螢幕密度高,格子放大到看得清楚為止。
+	// 目標是一列大約 40-56 格 —— 再少就放不下檔名與大小,
+	// 再多在手指上點不準。
+	sc := outW / (g.rast.CellW * 48)
+	if sc < 1 {
+		sc = 1
+	}
+	if sc > app.MaxScale {
+		sc = app.MaxScale
+	}
+	g.scale = sc
+	cols, rows := outW/(g.rast.CellW*sc), outH/(g.rast.CellH*sc)
+	if cols < 20 {
+		cols = 20
+	}
+	if rows < 8 {
+		rows = 8
+	}
+	if cols != g.cols || rows != g.rows {
+		g.cols, g.rows = cols, rows
+		g.screen = cell.New(cols, rows)
+		g.canvas = nil
+		g.dirty = true
+	}
+	return outW, outH
+}
+
+func (g *game) Update() error {
+	if !g.ready || g.screen == nil {
+		return nil
+	}
+	for _, k := range g.touch.keys(g) {
+		if g.a.HandleKey(k) {
+			g.dirty = true
+		}
+	}
+	return nil
+}
+
+func (g *game) Draw(dst *ebiten.Image) {
+	if !g.ready || g.screen == nil {
+		return
+	}
+	if g.dirty || g.canvas == nil {
+		ov := g.a.Draw(g.screen)
+		img := g.rast.DrawWith(g.screen, ov...)
+		if g.canvas == nil || g.canvas.Bounds().Dx() != img.Rect.Dx() ||
+			g.canvas.Bounds().Dy() != img.Rect.Dy() {
+			g.canvas = ebiten.NewImage(img.Rect.Dx(), img.Rect.Dy())
+		}
+		g.canvas.WritePixels(img.Pix)
+		g.dirty = false
+	}
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(float64(g.scale), float64(g.scale))
+	dst.DrawImage(g.canvas, op)
+}

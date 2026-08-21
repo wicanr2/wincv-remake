@@ -76,30 +76,15 @@ func (a *App) drawTouchBar(s *cell.Screen) {
 	t := a.touchBar()
 	y := s.Rows - TouchRows
 
-	// 上面一列:動作
+	// 上面一列:動作。格位由 touchSpans 算,與 TouchKeyAt 共用 ——
+	// 兩邊各算的話「畫在哪」與「點到什麼」會慢慢對不上。
 	s.Fill(0, y, s.Cols, 1, ' ', cell.Black, cell.ToolGray)
-	units := 0
-	for _, b := range t {
-		units += 1
-		if b.wide {
-			units++
-		}
-	}
-	if units == 0 {
-		return
-	}
-	x := 0
+	spans := a.touchSpans(s.Cols)
 	for i, b := range t {
-		w := s.Cols / units
-		if b.wide {
-			w *= 2
+		if i >= len(spans) {
+			break
 		}
-		if i == len(t)-1 {
-			w = s.Cols - x // 最後一個補滿,不留參差的邊
-		}
-		if w < 1 {
-			w = 1
-		}
+		x, w := spans[i].x, spans[i].w
 		fg := cell.Black
 		if b.wide {
 			fg = cell.Red // 主要動作用不同顏色,不是靠大小分辨
@@ -109,7 +94,6 @@ func (a *App) drawTouchBar(s *cell.Screen) {
 		if i < len(t)-1 && x+w < s.Cols {
 			s.Set(x+w-1, y, cell.VLine, cell.Gray, cell.ToolGray)
 		}
-		x += w
 	}
 
 	// 下面一列:導覽。**位置**固定,標籤隨模式換。
@@ -119,7 +103,7 @@ func (a *App) drawTouchBar(s *cell.Screen) {
 	y++
 	s.Fill(0, y, s.Cols, 1, ' ', cell.LtGray2, cell.Blue)
 	nav := a.touchNav()
-	x = 0
+	x := 0
 	for i, n := range nav {
 		w := s.Cols / len(nav)
 		if i == len(nav)-1 {
@@ -157,6 +141,81 @@ func (a *App) touchNav() []struct {
 			{"結尾 ▶", keys.Named(keys.End)},
 		}
 	}
+}
+
+// ListCursorRow 回傳游標在清單區的第幾列(0 起算,路徑列不算)。
+// 觸控要把「點到第幾列」翻成幾次上下鍵,需要知道現在在哪一列。
+// 回 -1 表示現在的模式沒有清單。
+func (a *App) ListCursorRow() int {
+	if a.Mode != ModeBrowser {
+		return -1
+	}
+	return a.Browser.Cursor - a.Browser.Top
+}
+
+// TouchKeyAt 回傳觸控功能列上某一格對應的按鍵。
+//
+// row 是功能列裡的第幾列(0 = 動作列,1 = 導覽列),cols 是畫面寬度。
+// 版面計算與 drawTouchBar 共用 touchSpans,不各算一次 ——
+// 兩邊各算的話「畫在哪」與「點到什麼」會慢慢對不上,
+// 而那種錯只有在真的用手指點下去才會發現。
+func (a *App) TouchKeyAt(col, row, cols int) (keys.Key, bool) {
+	switch row {
+	case 0:
+		bar := a.touchBar()
+		for i, w := range a.touchSpans(cols) {
+			if i < len(bar) && col >= w.x && col < w.x+w.w {
+				return bar[i].key, true
+			}
+		}
+	case 1:
+		nav := a.touchNav()
+		for i, n := range nav {
+			w := cols / len(nav)
+			x := i * w
+			if i == len(nav)-1 {
+				w = cols - x
+			}
+			if col >= x && col < x+w {
+				return n.key, true
+			}
+		}
+	}
+	return keys.Key{}, false
+}
+
+// touchSpans 算出動作列上每個鍵的格位。
+type touchSpan struct{ x, w int }
+
+func (a *App) touchSpans(cols int) []touchSpan {
+	t := a.touchBar()
+	units := 0
+	for _, b := range t {
+		units++
+		if b.wide {
+			units++
+		}
+	}
+	if units == 0 {
+		return nil
+	}
+	out := make([]touchSpan, 0, len(t))
+	x := 0
+	for i, b := range t {
+		w := cols / units
+		if b.wide {
+			w *= 2
+		}
+		if i == len(t)-1 {
+			w = cols - x
+		}
+		if w < 1 {
+			w = 1
+		}
+		out = append(out, touchSpan{x: x, w: w})
+		x += w
+	}
+	return out
 }
 
 // centerPad 回傳把 label 置中要留幾格。
