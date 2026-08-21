@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"errors"
 	"image"
 	"strings"
 	"testing"
@@ -166,19 +167,23 @@ func TestImageFailureIsVisible(t *testing.T) {
 	}
 }
 
-// 遠端圖片不下載 —— 看一份文件不該變成連外行為。
-func TestRemoteImageNotFetched(t *testing.T) {
-	called := false
-	load := func(string) (image.Image, error) {
-		called = true
-		return nil, nil
+// 「哪些位址可以載」是載入器的政策,排版引擎一律照送。
+//
+// 這一條之前是反過來的:Layout 自己擋掉 http 開頭的位址。那對「開一份
+// .md 檔」是對的,但同一個引擎也服務使用者自己輸入網址的瀏覽模式,
+// 在那裡擋掉等於整頁的圖都不會出現。政策移到各自的載入器上。
+func TestRemoteImagePassedToLoader(t *testing.T) {
+	var got string
+	load := func(src string) (image.Image, error) {
+		got = src
+		return nil, errors.New("載入器說不行")
 	}
 	_, pics := Layout(Parse("![x](https://example.com/a.png)"), 40, 8, 16, load, DefaultTheme())
-	if called {
-		t.Error("去抓了遠端圖片")
+	if got != "https://example.com/a.png" {
+		t.Fatalf("載入器收到 %q", got)
 	}
-	if len(pics) != 1 || pics[0].Err == "" {
-		t.Errorf("沒有標明原因: %+v", pics)
+	if len(pics) != 1 || pics[0].Err != "載入器說不行" {
+		t.Errorf("載入器的說法沒有傳出來: %+v", pics)
 	}
 }
 

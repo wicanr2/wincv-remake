@@ -63,6 +63,14 @@ func (a *App) mdImage(src string) (image.Image, error) {
 	if src == "" {
 		return nil, errors.New("沒有路徑")
 	}
+	// 遠端圖片不抓 —— 開一份 .md 不該變成連外行為,而那份 .md
+	// 可能是從壓縮檔或別人給的目錄裡來的。瀏覽模式是另一回事:
+	// 那是使用者自己輸入位址進去的,連外是他要的動作。
+	for _, p := range []string{"http://", "https://", "//", "data:"} {
+		if strings.HasPrefix(strings.ToLower(src), p) {
+			return nil, errors.New("遠端圖片不下載")
+		}
+	}
 	clean := path.Clean(strings.ReplaceAll(src, "\\", "/"))
 	if path.IsAbs(clean) || strings.HasPrefix(clean, "../") || clean == ".." {
 		return nil, errors.New("只能引用文件所在目錄底下的圖")

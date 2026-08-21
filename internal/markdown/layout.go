@@ -44,6 +44,11 @@ type Line struct {
 //
 // 做成介面而不是直接讀檔:markdown 可能來自壓縮檔內部,
 // 那時候「相對路徑」要對到壓縮檔裡的成員,不是磁碟上的檔案。
+//
+// **「哪些位址可以載」是載入器的政策,不是排版引擎的。** 看一份 .md
+// 不該變成連外行為,但使用者自己輸入網址進去的瀏覽模式就該載 ——
+// 同一個排版引擎服務兩種來源,把政策寫死在這裡會讓其中一種一定是錯的。
+// 回傳錯誤的話會原樣顯示在 alt 旁邊,所以訊息要寫給人看。
 type Loader func(src string) (image.Image, error)
 
 // Theme 是各種元素的顏色。
@@ -198,13 +203,6 @@ func loadPic(src, alt string, cols, cellW, cellH int, load Loader) *Pic {
 	switch {
 	case load == nil:
 		p.Err = "沒有載圖器"
-	case isRemote(src):
-		// markdown 文件裡引到的遠端圖片不抓 —— 開一個 .md 不該變成連外行為,
-		// 而那個 .md 可能是從壓縮檔或別人給的目錄裡來的。
-		//
-		// 這與 gopher 瀏覽模式不衝突:那是使用者自己輸入位址進去的,
-		// 連外是他要的動作,不是看檔案的副作用。
-		p.Err = "遠端圖片不下載"
 	default:
 		img, err := load(src)
 		if err != nil {
@@ -240,15 +238,6 @@ func loadPic(src, alt string, cols, cellW, cellH int, load Loader) *Pic {
 	}
 	p.Cols, p.Rows = c, r
 	return p
-}
-
-func isRemote(s string) bool {
-	for _, p := range []string{"http://", "https://", "//", "data:"} {
-		if strings.HasPrefix(strings.ToLower(s), p) {
-			return true
-		}
-	}
-	return false
 }
 
 func table(b Block, cols int, t Theme) []Line {

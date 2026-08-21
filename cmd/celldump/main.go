@@ -271,7 +271,7 @@ func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool,
 	}
 
 	if gopherURL != "" {
-		a.OpenGopher(gopherURL)
+		a.OpenURL(gopherURL)
 		settle()
 	}
 

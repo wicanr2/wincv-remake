@@ -29,6 +29,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/thumbs"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 	"github.com/wicanr2/wincv-remake/internal/viewer"
+	"github.com/wicanr2/wincv-remake/internal/web"
 )
 
 // Mode 是目前在哪一個畫面。
@@ -43,7 +44,7 @@ const (
 	ModeThumbs
 	ModeFind
 	ModeMarkdown
-	ModeGopher
+	ModeBrowse
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -126,13 +127,14 @@ type App struct {
 	about bool
 	// md 是 markdown 檢視模式,見 mdview.go。
 	md mdView
-	// Gopher 是 gopher 客戶端。nil 表示用預設設定。
+	// Gopher / Web 是兩個協定的客戶端。nil 表示用預設設定。
 	// 做成欄位是為了測試能換掉撥號函式,不必真的連外。
 	Gopher *gopher.Client
+	Web    *web.Client
 
-	gv       gopherView
-	gpending chan gopherResult
-	// gReturn 與 mdReturn 同理:看圖是從 gopher 進來的,Esc 要退回 gopher。
+	bv       browseView
+	gpending chan browseResult
+	// gReturn 與 mdReturn 同理:看圖是從瀏覽模式進來的,Esc 要退回去。
 	gReturn bool
 
 	// mdReturn 記著「看圖是從 markdown 進來的」,Esc 要退回 markdown
@@ -223,12 +225,15 @@ func (a *App) Draw(s *cell.Screen) []*render.Overlay {
 func (a *App) drawModes(s *cell.Screen) []*render.Overlay {
 	// 每一幀收一次網路結果。放在這裡是因為 app 這一層沒有自己的迴圈,
 	// 而外殼會在 Busy() 為真時持續重繪。
-	a.gopherPoll()
+	a.browsePoll()
+	if a.Mode == ModeBrowse {
+		a.browseImages()
+	}
 
 	var ov []*render.Overlay
 	switch a.Mode {
-	case ModeGopher:
-		ov = a.drawGopher(s)
+	case ModeBrowse:
+		ov = a.drawBrowse(s)
 	case ModeMarkdown:
 		ov = a.drawMarkdown(s)
 	case ModeViewer:
@@ -330,8 +335,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.toggleFullscreen()
 	}
 	switch a.Mode {
-	case ModeGopher:
-		return a.gopherKey(k)
+	case ModeBrowse:
+		return a.browseKey(k)
 	case ModeMarkdown:
 		return a.markdownKey(k)
 	case ModeViewer:
@@ -741,10 +746,10 @@ func (a *App) imageKey(k keys.Key) bool {
 	case keys.Backspace:
 		return a.stepImage(-1)
 	case keys.Esc:
-		// 從 gopher 進來的就退回 gopher。
+		// 從瀏覽模式進來的就退回瀏覽模式。
 		if a.gReturn {
 			a.gReturn = false
-			a.Mode = ModeGopher
+			a.Mode = ModeBrowse
 			return true
 		}
 		// 從 markdown 進來的就退回 markdown,不是退回檔案清單。
