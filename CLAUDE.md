@@ -199,6 +199,7 @@ internal/
   web/        HTTP + HTML→區塊 —— 用 gopher 的方式看網頁,同上
   session/    關掉時記下人在哪裡,下次開回同一個位置
   epub/       EPUB 電子書(ZIP + XHTML,借 web 的 HTML 解析器)
+  pdfdoc/     PDF 取文字與圖片(rsc.io/pdf + pdfcpu,不還原版面)
   checksum/   MD5 / SFV      launch/ 跨平台開啟與執行
   archive/    壓縮檔讀取(見 §4.3)
     lzh/ arj/ cab/ arc/ zcompress/   自寫的解碼器

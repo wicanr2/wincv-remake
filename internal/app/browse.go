@@ -95,7 +95,8 @@ func normalizeURL(raw string) (string, error) {
 	if raw == "" {
 		return "", fmt.Errorf("位址是空的")
 	}
-	if web.IsHTTP(raw) || strings.HasPrefix(raw, epubScheme) {
+	if web.IsHTTP(raw) || strings.HasPrefix(raw, epubScheme) ||
+		strings.HasPrefix(raw, pdfScheme) {
 		return raw, nil
 	}
 	u, err := gopher.ParseURL(raw)
@@ -119,6 +120,10 @@ func (a *App) browseFetch(raw string, push bool) {
 	// 只會多一種「正在取回」的狀態要處理。
 	if strings.HasPrefix(full, epubScheme) {
 		a.showBook(full)
+		return
+	}
+	if strings.HasPrefix(full, pdfScheme) {
+		a.showPDF(full)
 		return
 	}
 	ch := make(chan browseResult, 1)
@@ -326,6 +331,18 @@ func (a *App) browseImage(src string) (image.Image, error) {
 	if m := a.bv.imgs[src]; m != nil {
 		return m, nil
 	}
+	// PDF 的圖也是本機的。
+	if strings.HasPrefix(src, pdfScheme) {
+		m, err := a.pdfImage(src)
+		if err != nil {
+			return nil, err
+		}
+		if a.bv.imgs == nil {
+			a.bv.imgs = map[string]image.Image{}
+		}
+		a.bv.imgs[src] = m
+		return m, nil
+	}
 	// 書裡的圖是本機 zip 的成員,讀完就有,不必等一輪。
 	if a.book != nil && !web.IsHTTP(src) {
 		m, err := a.bookImage(src)
@@ -403,6 +420,7 @@ func (a *App) browseKey(k keys.Key) bool {
 	case keys.Esc:
 		a.Mode = ModeBrowser
 		a.closeBook()
+		a.closePDF()
 		return true
 	case keys.Backspace:
 		return a.browseBack()
@@ -483,7 +501,8 @@ func (a *App) browseFollow() bool {
 		return false
 	}
 	href := a.bv.links[a.bv.cur].href
-	if web.IsHTTP(href) || strings.HasPrefix(href, epubScheme) {
+	if web.IsHTTP(href) || strings.HasPrefix(href, epubScheme) ||
+		strings.HasPrefix(href, pdfScheme) {
 		a.browseFetch(href, true)
 		return true
 	}
@@ -614,7 +633,9 @@ func (a *App) drawBrowseStatus(s *cell.Screen) {
 	// 標題比位址好認,但位址才說得出「現在在哪一台」。標題有就先給標題,
 	// 後面補主機名 —— 網頁的標題常常完全看不出是哪個站。
 	left := a.bv.url
-	if book, _, ok := parseBookURL(a.bv.url); ok {
+	if _, _, ok := parsePDFURL(a.bv.url); ok {
+		left = a.bv.title
+	} else if book, _, ok := parseBookURL(a.bv.url); ok {
 		left = a.bv.title
 		if a.book != nil && a.book.Title != a.bv.title {
 			left = a.book.Title + " — " + a.bv.title

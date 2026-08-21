@@ -90,7 +90,9 @@ func (a *App) Restore(st session.State) {
 	if st.Mode == "browse" {
 		// 書是本機檔案,直接開回去。網頁不行 —— 上次停在哪一頁
 		// 不值得讓程式一啟動就對外發出請求,位址留著等使用者按 Enter。
-		if _, _, ok := parseBookURL(st.URL); ok {
+		_, _, isBook := parseBookURL(st.URL)
+		_, _, isPDF := parsePDFURL(st.URL)
+		if isBook || isPDF {
 			a.OpenURL(st.URL)
 			return
 		}

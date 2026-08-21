@@ -1,0 +1,222 @@
+package app
+
+import (
+	"fmt"
+	"image"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/wicanr2/wincv-remake/internal/imgfmt"
+	"github.com/wicanr2/wincv-remake/internal/markdown"
+	"github.com/wicanr2/wincv-remake/internal/pdfdoc"
+)
+
+// pdfScheme 是 PDF 內位址的前綴。與書同一個作法:一份 PDF 就是
+// 「一份頁碼清單加上一頁一頁的內容」,借瀏覽模式的連結導覽。
+const pdfScheme = "pdf:"
+
+func pdfURL(path string, page int) string {
+	if page < 1 {
+		return pdfScheme + path
+	}
+	return pdfScheme + path + "#" + strconv.Itoa(page)
+}
+
+func parsePDFURL(raw string) (path string, page int, ok bool) {
+	if !strings.HasPrefix(raw, pdfScheme) {
+		return "", 0, false
+	}
+	rest := strings.TrimPrefix(raw, pdfScheme)
+	page = 0
+	if i := strings.LastIndex(rest, "#"); i >= 0 {
+		if n, err := strconv.Atoi(rest[i+1:]); err == nil {
+			page, rest = n, rest[:i]
+		}
+	}
+	return rest, page, true
+}
+
+// IsPDF 判斷一個檔名是不是 PDF。
+func IsPDF(name string) bool {
+	return strings.EqualFold(filepath.Ext(name), ".pdf")
+}
+
+// openPDF 用瀏覽模式打開一份 PDF,停在第一頁。
+//
+// 不從目錄開始:PDF 的「目錄」只是一排頁碼,對一份幾頁的文件毫無用處,
+// 而使用者要的就是第一頁。頁末有導覽,要跳頁再回目錄。
+func (a *App) openPDF(name string) bool {
+	full := filepath.Join(a.Browser.Dir, name)
+	a.bv = browseView{cur: -1}
+	a.Mode = ModeBrowse
+	a.browseFetch(pdfURL(full, 1), false)
+	return true
+}
+
+// showPDF 把 PDF 內位址變成畫面。同步做,理由與書相同。
+func (a *App) showPDF(raw string) {
+	path, page, _ := parsePDFURL(raw)
+	if err := a.loadPDF(path); err != nil {
+		a.bv.status = err.Error()
+		return
+	}
+	a.bv.url = raw
+	a.bv.status = ""
+	a.bv.top, a.bv.cur, a.bv.cols = 0, -1, 0
+	a.bv.lines, a.bv.pics = nil, nil
+	a.bv.imgs, a.bv.want = map[string]image.Image{}, nil
+
+	name := filepath.Base(path)
+	if page < 1 {
+		a.bv.title = name
+		a.bv.blocks = pdfTOC(a.pdf, path, name)
+		return
+	}
+	a.bv.title = fmt.Sprintf("%s — 第 %d/%d 頁", name, page, a.pdf.Pages)
+	a.bv.blocks = pdfPageBlocks(a.pdf, path, page)
+}
+
+func (a *App) loadPDF(path string) error {
+	if a.pdf != nil && a.pdfPath == path {
+		return nil
+	}
+	a.closePDF()
+	d, err := pdfdoc.Open(path)
+	if err != nil {
+		return err
+	}
+	a.pdf, a.pdfPath = d, path
+	return nil
+}
+
+func (a *App) closePDF() {
+	if a.pdf != nil {
+		a.pdf.Close()
+		a.pdf, a.pdfPath = nil, ""
+	}
+}
+
+// pdfPageBlocks 排出一頁。
+func pdfPageBlocks(d *pdfdoc.Doc, path string, page int) []markdown.Block {
+	var out []markdown.Block
+	lines, err := d.Text(page)
+	if err != nil {
+		out = append(out, markdown.Block{Kind: markdown.Para,
+			Spans: []markdown.Span{{Text: err.Error()}}})
+	}
+	if len(lines) > 0 {
+		// 用 Pre:文字的位置是從座標算回來的,重新斷行會把好不容易
+		// 對回去的縮排再弄亂一次。
+		texts := make([]string, 0, len(lines))
+		for _, ln := range lines {
+			texts = append(texts, strings.Repeat(" ", clampIndent(ln.Indent))+ln.Text)
+		}
+		out = append(out, markdown.Block{Kind: markdown.Pre, Lines: texts})
+	} else if err == nil {
+		out = append(out, markdown.Block{Kind: markdown.Para,
+			Spans: []markdown.Span{{Text: "(這一頁沒有可以取出的文字)"}}})
+	}
+
+	// 圖片放在頁末,標明是這一頁的。
+	//
+	// 不放回文字中間是因為**位置資訊拿不到**:PDF 把圖畫在哪裡是
+	// content stream 裡的座標變換,而抽圖的那一層只交出點陣資料。
+	// 硬猜位置會讓圖片插在錯誤的段落之間,那比放在頁末更難讀。
+	if names, err := d.ImageNames(page); err == nil && len(names) > 0 {
+		out = append(out, markdown.Block{Kind: markdown.Rule})
+		out = append(out, markdown.Block{Kind: markdown.Para,
+			Spans: []markdown.Span{{Text: fmt.Sprintf("本頁圖片(%d 張)", len(names)),
+				Style: markdown.Bold}}})
+		for _, n := range names {
+			out = append(out, markdown.Block{
+				Kind: markdown.Image, Src: pdfImgRef(page, n), Alt: n})
+		}
+	}
+	return append(out, pdfNav(d, path, page)...)
+}
+
+// pdfImgRef 是圖片在這一份 PDF 裡的參照。
+//
+// 帶頁碼是必要的:不同頁可以有同名的 XObject,只用名字會取到別頁的圖。
+func pdfImgRef(page int, name string) string {
+	return fmt.Sprintf("%spage/%d/%s", pdfScheme, page, name)
+}
+
+func parsePDFImgRef(ref string) (page int, name string, ok bool) {
+	rest, found := strings.CutPrefix(ref, pdfScheme+"page/")
+	if !found {
+		return 0, "", false
+	}
+	num, name, found := strings.Cut(rest, "/")
+	if !found {
+		return 0, "", false
+	}
+	n, err := strconv.Atoi(num)
+	if err != nil {
+		return 0, "", false
+	}
+	return n, name, true
+}
+
+func pdfTOC(d *pdfdoc.Doc, path, name string) []markdown.Block {
+	out := []markdown.Block{{Kind: markdown.Heading, Level: 1,
+		Spans: []markdown.Span{{Text: name}}}}
+	for i := 1; i <= d.Pages; i++ {
+		out = append(out, markdown.Block{
+			Kind: markdown.List, Marker: "  ",
+			Spans: []markdown.Span{{Text: fmt.Sprintf("第 %d 頁", i),
+				Style: markdown.Link, Href: pdfURL(path, i)}},
+		})
+	}
+	return out
+}
+
+func pdfNav(d *pdfdoc.Doc, path string, page int) []markdown.Block {
+	var links []markdown.Span
+	if page > 1 {
+		links = append(links, markdown.Span{Text: "← 上一頁",
+			Style: markdown.Link, Href: pdfURL(path, page-1)})
+	}
+	links = append(links, markdown.Span{Text: "頁碼清單",
+		Style: markdown.Link, Href: pdfURL(path, 0)})
+	if page < d.Pages {
+		links = append(links, markdown.Span{Text: "下一頁 →",
+			Style: markdown.Link, Href: pdfURL(path, page+1)})
+	}
+	out := []markdown.Block{{Kind: markdown.Rule}}
+	for _, sp := range links {
+		out = append(out, markdown.Block{Kind: markdown.List,
+			Marker: "  ", Spans: []markdown.Span{sp}})
+	}
+	return out
+}
+
+// pdfImage 讀 PDF 裡的一張圖。
+func (a *App) pdfImage(ref string) (image.Image, error) {
+	page, name, ok := parsePDFImgRef(ref)
+	if !ok || a.pdf == nil {
+		return nil, fmt.Errorf("不是這份 PDF 的圖")
+	}
+	data, err := a.pdf.Image(page, name)
+	if err != nil {
+		return nil, err
+	}
+	m, _, err := imgfmt.Decode(name, data)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// clampIndent 夾住縮排。座標換算出來的縮排偶爾會很離譜
+// (置中的標題、跑到頁面右半邊的欄),整列被推出畫面就什麼都看不到。
+func clampIndent(n int) int {
+	if n < 0 {
+		return 0
+	}
+	if n > 20 {
+		return 20
+	}
+	return n
+}

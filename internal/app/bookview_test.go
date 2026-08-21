@@ -3,6 +3,7 @@ package app
 import (
 	"archive/zip"
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,5 +143,113 @@ func TestEscClosesBook(t *testing.T) {
 	a.HandleKey(keys.Named(keys.Esc))
 	if a.book != nil {
 		t.Fatal("離開之後書還開著")
+	}
+}
+
+// --- PDF ------------------------------------------------------------------
+
+// makePDFFile 手寫一份兩頁的最小 PDF,回傳它所在的目錄。
+func makePDFFile(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	c1 := "BT /F1 12 Tf 72 720 Td (First) Tj 40 0 Td (page) Tj ET"
+	c2 := "BT /F1 12 Tf 72 720 Td (Second) Tj 50 0 Td (page) Tj ET"
+	objs := []string{
+		"<</Type/Catalog/Pages 2 0 R>>",
+		"<</Type/Pages/Kids[3 0 R 6 0 R]/Count 2>>",
+		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R" +
+			"/Resources<</Font<</F1 5 0 R>>>>>>",
+		fmt.Sprintf("<</Length %d>>\nstream\n%s\nendstream", len(c1), c1),
+		"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 7 0 R" +
+			"/Resources<</Font<</F1 5 0 R>>>>>>",
+		fmt.Sprintf("<</Length %d>>\nstream\n%s\nendstream", len(c2), c2),
+	}
+	var sb strings.Builder
+	sb.WriteString("%PDF-1.4\n")
+	offs := make([]int, len(objs)+1)
+	for i, o := range objs {
+		offs[i+1] = sb.Len()
+		fmt.Fprintf(&sb, "%d 0 obj\n%s\nendobj\n", i+1, o)
+	}
+	x := sb.Len()
+	fmt.Fprintf(&sb, "xref\n0 %d\n0000000000 65535 f \n", len(objs)+1)
+	for i := 1; i <= len(objs); i++ {
+		fmt.Fprintf(&sb, "%010d 00000 n \n", offs[i])
+	}
+	fmt.Fprintf(&sb, "trailer\n<</Size %d/Root 1 0 R>>\nstartxref\n%d\n%%%%EOF\n",
+		len(objs)+1, x)
+	if err := os.WriteFile(filepath.Join(dir, "doc.pdf"), []byte(sb.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// 按 Enter 開 .pdf 要直接看到第一頁,不是頁碼清單 ——
+// 一份文件的「目錄」只是一排頁碼,而使用者要的就是第一頁。
+func TestEnterPDFShowsFirstPage(t *testing.T) {
+	a := New(vfs.OS{}, makePDFFile(t))
+	a.CellW, a.CellH = 8, 16
+	s := cell.New(70, 20)
+	a.Draw(s)
+	a.focusOn("doc.pdf")
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+
+	txt := screenText(s)
+	if !strings.Contains(txt, "First") || !strings.Contains(txt, "page") {
+		t.Fatalf("第一頁的文字沒出來\n%s", txt)
+	}
+	if !strings.Contains(txt, "下一頁") {
+		t.Errorf("頁末沒有下一頁\n%s", txt)
+	}
+}
+
+// 換頁與回頁碼清單。
+func TestPDFPageNavigation(t *testing.T) {
+	a := New(vfs.OS{}, makePDFFile(t))
+	a.CellW, a.CellH = 8, 16
+	s := cell.New(70, 20)
+	a.Draw(s)
+	a.focusOn("doc.pdf")
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+
+	// 第一頁只有「頁碼清單」與「下一頁」兩個連結,往下一個就是下一頁。
+	a.HandleKey(keys.Named(keys.Down))
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+	if txt := screenText(s); !strings.Contains(txt, "Second") {
+		t.Fatalf("沒換到第二頁\n%s", txt)
+	}
+	a.HandleKey(keys.Named(keys.Backspace))
+	a.Draw(s)
+	if txt := screenText(s); !strings.Contains(txt, "First") {
+		t.Fatalf("回不到第一頁\n%s", txt)
+	}
+}
+
+func TestPDFURLRoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		page int
+	}{{"/tmp/a.pdf", 0}, {"/tmp/a.pdf", 1}, {"/tmp/a.pdf", 250}, {"/tmp/怪#名.pdf", 7}} {
+		raw := pdfURL(tc.path, tc.page)
+		p, n, ok := parsePDFURL(raw)
+		if !ok || p != tc.path || n != tc.page {
+			t.Errorf("%q → %q %d %v", raw, p, n, ok)
+		}
+	}
+}
+
+// 不同頁可以有同名的 XObject,圖片參照要帶頁碼。
+func TestPDFImageRefCarriesPage(t *testing.T) {
+	ref := pdfImgRef(7, "Im1.png")
+	pg, name, ok := parsePDFImgRef(ref)
+	if !ok || pg != 7 || name != "Im1.png" {
+		t.Fatalf("%q → %d %q %v", ref, pg, name, ok)
+	}
+	if _, _, ok := parsePDFImgRef("epub:/x#1"); ok {
+		t.Error("書的位址不該被當成 PDF 的圖")
 	}
 }
