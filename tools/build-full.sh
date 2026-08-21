@@ -133,3 +133,27 @@ echo "dist-all/ 的完整版:"
 ls -la --time-style=+ "$OUT" | grep -E "full" | awk '{printf "  %-36s %10s\n", $NF, $5}'
 echo
 echo "校驗:cd dist-all && sha256sum -c SHA256SUMS-full"
+
+# 怎麼確認字型真的進去了(檔案大小差不算證據)
+# ------------------------------------------------------------------
+# Linux 版:把三條字型路徑都指到不存在的目錄,還畫得出中文就是內建生效。
+#
+#   WINCV_FONT_DIR=/nope/ WINCV_ETEN_DIR=/nope/ ./dist-all/wincv-linux-amd64-full
+#
+# Android 版:沒有那個開關,改在原生庫裡找字庫的位元組。
+#
+#   unzip -p dist-all/wincv-android-full.apk lib/arm64-v8a/libgojni.so > /tmp/f.so
+#   unzip -p dist-all/wincv-android.apk      lib/arm64-v8a/libgojni.so > /tmp/p.so
+#   docker run --rm --log-opt max-size=10m --log-opt max-file=3 \
+#     -v "$PWD:/w" -v /tmp:/t -w /t python:3.12-slim python3 -c '
+#   import pathlib
+#   fp = pathlib.Path("/w/original/eten/STDFONT.15").read_bytes()[200000:200064]
+#   for n in ("p.so","f.so"):
+#       print(n, pathlib.Path(n).read_bytes().count(fp))'
+#
+#   公開版要是 0、完整版要是 1。
+#
+# [雷] 這一步不要用 grep -a -F -f pattern.bin。字模裡有 0x00,
+# grep 會在那裡把 pattern 截斷,於是**兩個 APK 都命中五萬次** ——
+# 看起來像「兩邊都有字型」,實際上是查詢本身壞了。
+# 回滿跟回空一樣需要先做對照組:公開版必須是 0,那個 0 才讓完整版的 1 有意義。
