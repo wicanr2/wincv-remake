@@ -278,6 +278,21 @@ func (s *Screen) Underline(x, y, w int, on bool) {
 	}
 }
 
+// CopyFrom 把 src 整面貼到 (x,y)。超出邊界的部分裁掉。
+//
+// 用途是「先畫進一個小一點的畫面,再貼到大畫面的某一塊」——
+// 觸控功能列就是這樣讓出底部兩列的:每個模式都畫滿它拿到的畫面,
+// 不必各自知道底下被佔了幾列。
+func (s *Screen) CopyFrom(src *Screen, x, y int) {
+	for sy := 0; sy < src.Rows; sy++ {
+		for sx := 0; sx < src.Cols; sx++ {
+			if d := s.At(x+sx, y+sy); d != nil {
+				*d = *src.At(sx, sy)
+			}
+		}
+	}
+}
+
 // SetAttr 只改屬性、不動字元。反白游標列用得到。
 func (s *Screen) SetAttr(x, y, w int, fg, bg Color) {
 	for xx := x; xx < x+w; xx++ {

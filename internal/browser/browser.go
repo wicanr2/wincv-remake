@@ -384,8 +384,6 @@ func (m *Model) Draw(s *cell.Screen) int {
 func (m *Model) drawPathBar(s *cell.Screen) {
 	t := m.Theme
 	s.Fill(0, 0, s.Cols, 1, ' ', t.PathFG, t.PathBG)
-	x := s.Print(0, 0, m.FS.Label(m.Dir)+string(filepath.Separator), t.PathFG, t.PathBG)
-	s.Print(x, 0, "*.*", t.MaskFG, t.PathBG)
 
 	// 分母不含「..」—— 原版顯示的是這個目錄裡實際有幾筆,
 	// 分子則是含「..」在內的第幾列(原版在游標停在第二列時顯示 "2/ 62")。
@@ -403,10 +401,27 @@ func (m *Model) drawPathBar(s *cell.Screen) {
 	for _, sg := range segs {
 		total += width(sg.text)
 	}
-	x = s.Cols - total
-	if x < 0 {
-		x = 0
+	right := s.Cols - total
+	if right < 0 {
+		right = 0
 	}
+
+	// 路徑先畫,但要讓開右邊那一塊 —— 窄畫面上兩者會撞在一起,
+	// 而撞上去的症狀是路徑被statistics蓋掉一半(看起來像路徑本身是錯的)。
+	// 讓不開就從**前面**截,保留尾端:使用者要認的是現在在哪個目錄,
+	// 不是根目錄叫什麼。
+	path := m.FS.Label(m.Dir) + string(filepath.Separator)
+	avail := right - 4 // 留給 "*.*" 與一格間隔
+	if avail < 4 {
+		avail = 4
+	}
+	if width(path) > avail {
+		path = "…" + tailOf(path, avail-1)
+	}
+	x := s.Print(0, 0, path, t.PathFG, t.PathBG)
+	s.Print(x, 0, "*.*", t.MaskFG, t.PathBG)
+
+	x = right
 	for _, sg := range segs {
 		x += s.Print(x, 0, sg.text, sg.fg, t.PathBG)
 	}
@@ -628,6 +643,25 @@ func (m *Model) drawStatus(s *cell.Screen) {
 }
 
 // --- 小工具 ---------------------------------------------------------------
+
+// tailOf 取字串尾端最多 w 格寬的部分,不切在全形字中間。
+func tailOf(s string, w int) string {
+	r := []rune(s)
+	n := 0
+	i := len(r)
+	for i > 0 {
+		rw := 1
+		if cell.IsWide(r[i-1]) {
+			rw = 2
+		}
+		if n+rw > w {
+			break
+		}
+		n += rw
+		i--
+	}
+	return string(r[i:])
+}
 
 // width 回傳一個字串佔幾格(全形算兩格)。
 func width(s string) int {

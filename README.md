@@ -145,6 +145,32 @@ tools/go.sh run ./cmd/celldump -app <目錄> -keys "F1" -o shot.png -cols 93 -ro
 
 `-keys` 的寫法與 `docs/ui/keymap.md` 的按鍵欄一致（`Ctrl-O`、`Alt-Z`、`F6`、`Down`…）。
 
+## 移植成果
+
+![markdown 檢視模式](docs/ui/showcase-markdown.png)
+
+上面這張是重製版**自己畫出來的**——文件是 `docs/demo/showcase.md`，
+裡面的字模圖集（PNG）與 29 色色票（SVG）不是貼上去的，
+是 markdown 檢視模式把 `![...](...)` 解出來、光柵化、再嵌進字元格點裡。
+重跑：
+
+```bash
+tools/go.sh run ./cmd/celldump -app docs/demo -cols 104 -rows 56 \
+    -keys "Down,Down,Down,Enter" -o docs/ui/showcase-markdown.png
+```
+
+同一份 `render.Rasterizer` 也是 Ebiten 視窗用的那一份，
+所以這張 PNG 與視窗裡看到的是同一批像素。
+
+### 檔案瀏覽器（與原版逐格比對過）
+
+| 重製版 | 原版（Wine） |
+|---|---|
+| ![重製版主畫面](docs/ui/shot-main.png) | ![原版主畫面](original/ref-shots/main-cjk.png) |
+
+檔案清單那 16 列與原版的**屬性差是 0**，狀態列第二列連字模都完全相同。
+量測方式與數字記在 [`docs/ui/main-screen.md`](docs/ui/main-screen.md)。
+
 ## 重製版多做的東西
 
 原版沒有、但這一版有的：
@@ -169,11 +195,27 @@ markdown 裡的圖片只認**文件所在目錄底下**的相對路徑，而且�
 
 程式裡按 `F1` → 關於 可以看到同樣的內容。
 
+### Android 介面草案
+
+![Android 檔案瀏覽器](docs/ui/android-browser.png) ![Android markdown](docs/ui/android-markdown.png)
+
+**這兩張不是實機截圖**，是同一份程式碼在手機比例（44×62 格）下畫出來的，
+底部的觸控功能列是真的實作（桌面版加 `-touch` 就看得到），不是示意圖。
+Android 版還沒建置——需要 NDK 與 `ebitenmobile`，計畫寫在
+[`docs/plan/android.md`](docs/plan/android.md)。
+
+已經實測的是：`internal/...` 全部 33 個套件與 `cmd/celldump`
+在 `GOOS=android GOARCH=arm64` 下編得過，也就是壓縮、圖檔、字型、
+渲染、markdown、瀏覽器邏輯這一整套已經是可攜的。
+
+功能列隨模式換內容（瀏覽時是拷貝／移動／更名，讀文件時是尋找／編碼／中英），
+底下那排導覽的**格位**固定、標籤隨模式換——位置固定是為了讓拇指記得住，
+但讀文件時擺一個「標記」按鈕是按了沒反應的按鈕，那比位置變動更糟。
+
 ## 規劃中
 
-- [Android 版評估與規劃](docs/plan/android.md)——核心已經可以跨過去
-  （`internal/...` 與 `cmd/celldump` 在 `GOOS=android` 下編得過），
-  要重做的是鍵盤驅動的介面與 scoped storage。
+- [Android 版評估與規劃](docs/plan/android.md)——第一版**只做唯讀瀏覽**，
+  所以 `vfs.FS` 不用改介面，只要多一個 SAF 實作。
 
 ## 文件
 

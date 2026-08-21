@@ -90,6 +90,9 @@ type App struct {
 	// DriveFocus 是「焦點在左側磁碟窗格」。窗格關著時永遠是 false。
 	DriveFocus bool
 
+	// Touch 開啟底部的觸控功能列(Android 版的介面草案,見 touch.go)。
+	Touch bool
+
 	// ShowPreview 是 Alt-P 的狀態:畫面底部留一塊,顯示游標所在檔案的開頭。
 	ShowPreview bool
 	prev        preview
@@ -165,6 +168,20 @@ func (a *App) LoadSyntax(dir string) {
 //
 // 回傳的是一組而不是一個:markdown 一頁可以有好幾張圖。
 func (a *App) Draw(s *cell.Screen) []*render.Overlay {
+	// 觸控功能列佔掉底部兩列。與其讓每個模式各自知道「底下被佔了幾列」,
+	// 不如先畫進一個矮兩列的畫面再貼上去 —— 一次對所有模式成立,
+	// 而且之後加新模式不必記得這件事。
+	if a.Touch && s.Rows > TouchRows+2 {
+		inner := cell.New(s.Cols, s.Rows-TouchRows)
+		ov := a.drawModes(inner)
+		s.CopyFrom(inner, 0, 0)
+		a.drawTouchBar(s)
+		return ov
+	}
+	return a.drawModes(s)
+}
+
+func (a *App) drawModes(s *cell.Screen) []*render.Overlay {
 	var ov []*render.Overlay
 	switch a.Mode {
 	case ModeMarkdown:

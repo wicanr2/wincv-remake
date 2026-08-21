@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wicanr2/wincv-remake/internal/cell"
@@ -136,4 +137,32 @@ func rowTextOf(s *cell.Screen, y int) string {
 		}
 	}
 	return string(out)
+}
+
+// 窄畫面上路徑列與右邊的統計會撞在一起。撞上去的症狀是路徑被蓋掉一半,
+// 看起來像「路徑本身是錯的」—— 這在手機那種寬度是常態,不是邊角情況。
+func TestPathBarDoesNotCollide(t *testing.T) {
+	m := New(sample(), "/very/long/path/that/will/not/fit/anywhere")
+	for _, cols := range []int{30, 40, 44, 60, 100} {
+		s := cell.New(cols, 12)
+		m.Draw(s)
+		// 路徑那一段(到 *.* 為止)不可以覆蓋到右邊那一塊。
+		// 判準:整列不能有「非空白之後又出現路徑字元」的交錯,
+		// 直接檢查右段起點前一格是空白就夠。
+		row := rowTextOf(s, 0)
+		// rowTextOf 會跳過全形字的右半格,所以要量顯示寬度不是 rune 數。
+		if w := width(row); w != cols {
+			t.Fatalf("%d 欄:路徑列寬 %d → %q", cols, w, row)
+		}
+		if !strings.Contains(row, "*.*") {
+			t.Errorf("%d 欄:遮罩 *.* 不見了 → %q", cols, row)
+		}
+		if !strings.Contains(row, "標記") {
+			t.Errorf("%d 欄:右邊的統計不見了 → %q", cols, row)
+		}
+		// 路徑放不下時要留尾端(現在在哪個目錄),前面用刪節號。
+		if cols <= 44 && !strings.Contains(row, "…") {
+			t.Errorf("%d 欄:路徑沒有截斷 → %q", cols, row)
+		}
+	}
 }

@@ -92,6 +92,7 @@ func main() {
 		keyStr   = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
 		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
+		touch    = flag.Bool("touch", false, "顯示觸控功能列(Android 版介面草案)")
 	)
 	flag.Parse()
 
@@ -104,6 +105,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "警告:載不到倚天字庫,全形字會留白 (%v)\n", err)
 	}
 
+	// 光柵器要先建,因為 overlay 的座標必須用**格子**的大小(CellH)
+	// 而不是字身高(PixHeight)。兩者差一個 LineGap,用錯的話每列偏 1 px,
+	// 到第 40 列就累積成兩列半 —— 而單一張圖鋪滿整個畫面時看不出來,
+	// 要到 markdown 一頁好幾張圖才會現形。
+	r := render.New(half, cjkOrNil(cjk))
+	r.MissingMark = true
+	if !*noFB {
+		attachFallback(r, *fbFont, half.PixWidth, half.PixHeight)
+	}
+
 	s := cell.New(*cols, *rows)
 	var overlay []*render.Overlay
 	if *edit != "" {
@@ -111,13 +122,13 @@ func main() {
 			die(err)
 		}
 	} else if *file != "" {
-		ov, err := drawFile(s, *file, half.PixWidth, half.PixHeight)
+		ov, err := drawFile(s, *file, r.CellW, r.CellH)
 		if err != nil {
 			die(err)
 		}
 		overlay = ov
 	} else if *appDir != "" {
-		ov, err := drawApp(s, *appDir, *cfgDir, *keyStr, half.PixWidth, half.PixHeight)
+		ov, err := drawApp(s, *appDir, *cfgDir, *keyStr, r.CellW, r.CellH, *touch)
 		if err != nil {
 			die(err)
 		}
@@ -132,11 +143,6 @@ func main() {
 		demo(s)
 	}
 
-	r := render.New(half, cjkOrNil(cjk))
-	r.MissingMark = true
-	if !*noFB {
-		attachFallback(r, *fbFont, half.PixWidth, half.PixHeight)
-	}
 	img := r.DrawWith(s, overlay...)
 
 	f, err := os.Create(*out)
@@ -223,13 +229,14 @@ func die(err error) {
 //
 // 這條路徑和 cmd/wincv 走的是同一份 app 程式碼,只是沒有 Ebiten ——
 // 所以選單、對話框、模式切換都可以在沒有顯示器的地方檢查。
-func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int) ([]*render.Overlay, error) {
+func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool) ([]*render.Overlay, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
 	}
 	a := app.New(vfs.OS{}, abs)
 	a.CellW, a.CellH = cw, ch
+	a.Touch = touch
 	a.LoadSyntax(cfgDir)
 	a.DictDir = cfgDir
 
