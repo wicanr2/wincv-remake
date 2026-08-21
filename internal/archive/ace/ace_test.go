@@ -91,7 +91,7 @@ func TestStored(t *testing.T) {
 //	git clone --depth 1 https://github.com/droe/acefile-testdata
 //	WINCV_ACE_CORPUS=<那個目錄> go test ./internal/archive/ace/
 //
-// 實測結果:268 個成員全部通過 CRC-32,並與 acefile 的輸出逐位元組相同。
+// 實測結果:2 個壓縮檔共 269 個成員全部通過 CRC-32,並與 acefile 的輸出逐位元組相同。
 func TestFullCorpus(t *testing.T) {
 	dir := os.Getenv("WINCV_ACE_CORPUS")
 	if dir == "" {

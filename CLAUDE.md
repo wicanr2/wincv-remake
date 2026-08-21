@@ -237,7 +237,7 @@ WinACE 原廠的免費解壓元件,而且支援兩代 API:`unace.dll`(1999,匯�
 - 參考實作:[droe/acefile](https://github.com/droe/acefile),BSD 授權的純 Python,
   支援 ACE 1.0/2.0(含 EXE / DELTA / PIC / SOUND 模式與加密)
 - 測試資料:[droe/acefile-testdata](https://github.com/droe/acefile-testdata),
-  實測可解出 268 個成員,壓縮法分布是 type 2(LZ77)265 個、type 0(stored)3 個
+  實測可解出 269 個成員,壓縮法分布是 type 2(LZ77)265 個、type 0(stored)4 個
 - 額外的 oracle:原版隨附的 `unacev2.dll` 可以在 Wine 底下跑
 
 已實作:stored、ACE 1.0 的 LZ77、ACE 2.0 的 blocked(含 LZ77 / LZ77_DELTA /
