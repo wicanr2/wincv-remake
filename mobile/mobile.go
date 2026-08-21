@@ -92,7 +92,13 @@ func (g *game) start(w, h int) {
 	note = n
 	g.rast = render.New(half, cjk)
 	g.rast.MissingMark = true
-	if chain, _, _ := ttf.LoadChain(8, 16, 16); len(chain) > 0 {
+	chain, _, _ := ttf.LoadChain(8, 16, 16)
+	for _, b := range bundled.Fallbacks() {
+		if f, err := ttf.LoadBytes(b, 8, 16, 16); err == nil {
+			chain = append(chain, f)
+		}
+	}
+	if len(chain) > 0 {
 		g.rast.Fallback = chain
 	}
 	g.a.CellW, g.a.CellH = g.rast.CellW, g.rast.CellH

@@ -37,6 +37,26 @@ FONTS=(
     "$REPO/original/eten/SPCFSUPP.15"
 )
 
+# Unicode 後備字型。倚天只有 Big5 的字,而網頁、EPUB、UTF-8 檔案
+# 隨時會碰到簡體、日文假名、韓文、西里爾、阿拉伯、泰文與各種符號。
+#
+# 檔名是 fb-<順序>-<用途>,`internal/bundled` 靠 `fb-` 這個前綴認出
+# 它們、靠數字決定誰先補到某個字(見 bundled_fonts.go)。
+#
+# **授權**:這幾份都是 SIL Open Font License 1.1,可以隨產物散布。
+# 不打包 unifont —— 它是 GPL-2+,會傳染到整個產物,而這個 repo 走 BSD。
+# 系統上裝了 unifont 的話字型鏈還是會用它(那是使用者自己的字型)。
+FALLBACKS=(
+    "10-cjk.ttc:/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+    "20-symbols.ttf:/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf"
+    "21-symbols2.ttf:/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf"
+    "22-math.ttf:/usr/share/fonts/truetype/noto/NotoSansMath-Regular.ttf"
+    "30-thai.ttf:/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf"
+    "31-arabic.ttf:/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"
+    "32-hebrew.ttf:/usr/share/fonts/truetype/noto/NotoSansHebrew-Regular.ttf"
+    "33-devanagari.ttf:/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
+)
+
 for f in "${FONTS[@]}"; do
     [ -s "$f" ] || {
         echo "缺字型:$f" >&2
@@ -51,7 +71,21 @@ cleanup() { rm -rf "$ASSETS"; }
 trap cleanup EXIT
 rm -rf "$ASSETS"; mkdir -p "$ASSETS"
 for f in "${FONTS[@]}"; do cp "$f" "$ASSETS/$(basename "$f")"; done
-echo "==> 內嵌素材 $(du -sh "$ASSETS" | cut -f1),$(ls "$ASSETS" | wc -l) 個檔"
+
+# 後備字型是**可選的**:這台機器沒裝就跳過,產物仍然可用(缺字時
+# 靠使用者自己的系統字型)。缺一份就整個失敗會讓這支腳本綁死在
+# 某一台機器的字型清單上。
+fbn=0
+for entry in "${FALLBACKS[@]}"; do
+    name=${entry%%:*}; src=${entry#*:}
+    if [ -s "$src" ]; then
+        cp "$src" "$ASSETS/fb-$name"
+        fbn=$((fbn + 1))
+    else
+        echo "   (跳過後備字型 $name:$src 不在)" >&2
+    fi
+done
+echo "==> 內嵌素材 $(du -sh "$ASSETS" | cut -f1),$(ls "$ASSETS" | wc -l) 個檔(含 $fbn 份 Unicode 後備)"
 
 mkdir -p "$OUT"
 
@@ -117,12 +151,16 @@ cat > "$OUT/README-full.txt" <<EOF
   wincv-darwin-universal-full
   wincv-android-full.apk
 
-與同目錄不帶 -full 的產物差別只有一件事:這些把原版的 cvga.fon /
-CVGA1018.FON / cvga1224.FON 與倚天的 STDFONT.15 / SPCFONT.15 /
-SPCFSUPP.15 嵌進執行檔,不必另外放檔案就是點陣像素對齊的畫面。
+與同目錄不帶 -full 的產物差別只有一件事:這些把字型嵌進執行檔,
+不必另外放檔案就是點陣像素對齊的畫面。嵌的是:
 
-那六份字型是第三方版權物。**這幾個檔不要上傳到 release,也不要轉給別人。**
+  原版半形    cvga.fon / CVGA1018.FON / cvga1224.FON
+  倚天全形    STDFONT.15 / SPCFONT.15 / SPCFSUPP.15
+  Unicode 後備 Noto Sans CJK 與幾份語系子集(fb-*)
+
+前兩組是第三方版權物。**這幾個檔不要上傳到 release,也不要轉給別人。**
 要給別人的是不帶 -full 的版本,由對方自己準備字型。
+(fb-* 是 SIL Open Font License,那一部分本身可以散布。)
 
 建置:tools/build-full.sh
 commit:$(cd "$REPO" && git rev-parse HEAD)

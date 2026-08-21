@@ -538,6 +538,15 @@ func loadFallback(path string, cw, ch int) render.CJKSource {
 		return f
 	}
 	chain, _, errs := ttf.LoadChain(cw, cw*2, ch)
+	// 內嵌的後備接在系統字型後面,不是取代它 —— 系統上裝的字型
+	// 通常比較新、比較齊,而內嵌的那份是「這台機器什麼都沒裝」時的保險。
+	for _, b := range bundled.Fallbacks() {
+		f, err := ttf.LoadBytes(b, cw, cw*2, ch)
+		if err != nil {
+			continue
+		}
+		chain = append(chain, f)
+	}
 	if len(chain) > 0 {
 		// 個別字型載不起來(x/image 讀不了某些 TTC)在有其他字型
 		// 頂上時只是雜訊。一條都沒載到才是使用者需要知道的事。

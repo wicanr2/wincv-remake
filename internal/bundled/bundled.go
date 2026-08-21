@@ -21,3 +21,6 @@ const Available = false
 
 // Get 取一份內嵌字型。沒有內嵌時一律回 nil。
 func Get(name string) []byte { return nil }
+
+// Fallbacks 回傳內嵌的 Unicode 後備字型,依偏好排序。沒有就是空的。
+func Fallbacks() [][]byte { return nil }

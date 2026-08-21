@@ -48,9 +48,18 @@ func Load(path string, halfW, fullW, h int) (*Font, error) {
 	if err != nil {
 		return nil, err
 	}
+	f, err := loadFrom(data, halfW, fullW, h)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return f, nil
+}
+
+// loadFrom 是 Load 與 LoadBytes 共用的那一段。
+func loadFrom(data []byte, halfW, fullW, h int) (*Font, error) {
 	col, err := opentype.ParseCollection(data)
 	if err != nil {
-		return nil, fmt.Errorf("%s: 認不得的字型: %w", path, err)
+		return nil, fmt.Errorf("認不得的字型: %w", err)
 	}
 	sf, err := col.Font(0)
 	if err != nil {
@@ -418,4 +427,11 @@ func FindAndLoad(halfW, fullW, h int) (*Font, string, []error) {
 		return f, p, errs
 	}
 	return nil, "", errs
+}
+
+// LoadBytes 從記憶體裡的一份字型建 face。
+//
+// 給打包進執行檔的字型用:那時候沒有檔案路徑可以給 Load。
+func LoadBytes(data []byte, halfW, fullW, h int) (*Font, error) {
+	return loadFrom(data, halfW, fullW, h)
 }
