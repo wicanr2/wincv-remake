@@ -22,7 +22,17 @@ DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
         -e GOFLAGS=-buildvcs=false
         -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod
         -e GRADLE_USER_HOME=/tmp/gradle
-        -e HOME=/tmp"
+        -e HOME=/tmp
+        -e JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8"
+
+# [雷] JAVA_TOOL_OPTIONS 那一行不能拿掉。
+#
+# gobind 會把 Go 的 doc comment 原樣抄進產生的 Java 檔,而 javac 預設用
+# 平台的 charset 讀原始碼 —— 在這個容器裡是 US-ASCII。本專案的註解是
+# 繁體中文,於是每個中文字都變成 "unmappable character",一次噴 222 個錯。
+#
+# 治標的作法是把 mobile 套件的註解改成英文,但那是讓工具鏈決定文件語言。
+# 治本是告訴 javac 原始碼是 UTF-8。
 
 echo "== 1/2 ebitenmobile bind =="
 $DOCKER "$IMG" ebitenmobile bind \

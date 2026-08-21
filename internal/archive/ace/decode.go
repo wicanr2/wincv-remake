@@ -203,23 +203,30 @@ func patchExe(buf []byte, filePos int, exeMode int) ([]byte, []byte) {
 		}
 		switch buf[i] {
 		case 0xE8: // CALL rel16/rel32
-			pos := filePos + i
+			// 位移的寬度是格式定的(16 或 32 位元),要用固定寬度的型別算。
+			//
+			// [雷] 寫成 `int` 再 `& 0xFFFFFFFF` 在 64 位元機器上「剛好對」,
+			// 但在 32 位元平台(Android 的 armeabi-v7a)連編都編不過 ——
+			// 0xFFFFFFFF 當 untyped 常數塞不進 32 位元的 int。
+			// 就算編得過,那個遮罩在 32 位元上也是沒有作用的空操作。
+			pos := uint32(filePos + i)
 			if exeMode == 0 {
-				rel := int(buf[i+1]) | int(buf[i+2])<<8
-				rel = (rel - pos) & 0xFFFF
+				rel := uint16(buf[i+1]) | uint16(buf[i+2])<<8
+				rel -= uint16(pos)
 				buf[i+1], buf[i+2] = byte(rel), byte(rel>>8)
 				i += 2
 			} else {
-				rel := int(buf[i+1]) | int(buf[i+2])<<8 | int(buf[i+3])<<16 | int(buf[i+4])<<24
-				rel = (rel - pos) & 0xFFFFFFFF
+				rel := uint32(buf[i+1]) | uint32(buf[i+2])<<8 |
+					uint32(buf[i+3])<<16 | uint32(buf[i+4])<<24
+				rel -= pos
 				buf[i+1], buf[i+2] = byte(rel), byte(rel>>8)
 				buf[i+3], buf[i+4] = byte(rel>>16), byte(rel>>24)
 				i += 4
 			}
 		case 0xE9: // JMP rel16
-			pos := filePos + i
-			rel := int(buf[i+1]) | int(buf[i+2])<<8
-			rel = (rel - pos) & 0xFFFF
+			pos := uint16(filePos + i)
+			rel := uint16(buf[i+1]) | uint16(buf[i+2])<<8
+			rel -= pos
 			buf[i+1], buf[i+2] = byte(rel), byte(rel>>8)
 			i += 2
 		}

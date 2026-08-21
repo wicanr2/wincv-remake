@@ -163,6 +163,18 @@ image 約 5.5 GB,tag 固定 `wincv-android:1`。
    解法是再裝一份新的 Go 放在 PATH 前面,舊的留給 ebitenmobile 自己
    (它是已經編好的 binary,不受影響)。
 3. Debian 套件庫的 gradle 是 4.x,吃不動 AGP 8,要抓官方 binary。
+4. **gobind 把 Go 的 doc comment 原樣抄進產生的 Java**,而 javac 預設用
+   平台的 charset 讀原始碼(容器裡是 US-ASCII)。本專案的註解是繁體中文,
+   於是每個中文字都變成 `unmappable character`,一次噴 222 個錯。
+   治標是把 `mobile` 套件的註解改成英文,但那是讓工具鏈決定文件語言;
+   治本是 `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8`。
+5. **32 位元 ABI(armeabi-v7a)會抓出 64 位元機器上看不見的錯**。
+   實測抓到 `internal/archive/ace` 的 `rel = (rel - pos) & 0xFFFFFFFF`:
+   那是平台的 `int`,在 64 位元上「剛好對」,在 32 位元上連編都編不過;
+   就算編得過,那個遮罩在 32 位元上是**沒有作用的空操作** ——
+   同一份程式碼在兩種機器上會解出不同的位元組,而兩邊都不會報錯。
+   改成固定寬度的 `uint32` / `uint16` 之後,對 acefile 的 269 個成員
+   重驗過 CRC-32 全數通過。
 
 ## 字型:APK 裡沒有原版字型
 
