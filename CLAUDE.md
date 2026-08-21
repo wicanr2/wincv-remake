@@ -5,7 +5,21 @@
 檔案系統等周邊功能做等價實作。
 
 原作者 Lcc Wizard(林健總),`lccw@ms8.hinet.net`,原站 `cview.com.tw`。
-本專案為**私人使用**,repo 私有,不對外散布;原版素材與衍生資料檔一律不進公開通道。
+
+## 授權與定位
+
+remake 自己寫的原始碼、工具與文件走 **MIT**(見 `LICENSE`),repo 公開。
+
+**原版 WinCV 的著作權屬於原作者。** MIT 只涵蓋這個 repo 自己寫的東西,
+不涵蓋原版 —— 重寫它是為了保存這份文化資產,這件事不會、也不能讓任何人
+取得原版的權利。repo 裡保留了原版安裝檔 `wincv052a.exe` 與由它抽出的資料
+(符號表、UI 字串、參考截圖),那些的權利仍然在原作者手上;放著是為了讓
+逆向結論可以被重跑驗證,不是主張任何權利。原作者若希望調整處置,
+透過 GitHub issue 聯繫。
+
+倚天字庫、原版隨附的字型與字典資料是第三方版權物,**不打包進任何產物**,
+由使用者自備(`tools/setup-eten.sh` / `tools/setup-wine-oracle.sh` 從使用者
+自己的來源抽)。
 
 ---
 
@@ -153,7 +167,7 @@ tools/ida.sh load_wincv.py /work/out/load.json    # 建庫、種函式邊界、�
 
 沿用 `~/.claude/knowledge-base/retro-cht/retro-game-remake/SKILL.md` 的母方法論:
 反組譯結果只當**行為真值**用來抽演算法與版面常數,Go 端手寫乾淨模組,
-不逐字翻譯 Forth。原版執行檔與資料檔不進 remake 的散布物。
+不逐字翻譯 Forth。原版執行檔與資料檔不進 remake 的**產物**(dist / APK / release 附件)。
 
 ---
 
