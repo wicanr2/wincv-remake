@@ -65,7 +65,14 @@ $(cd "$OUT" && ls -la --time-style=+ wincv-* | awk '{printf "  %-32s %s\n", $NF,
 
 四個產物都不含原版的字型與資料檔——那些是第三方版權物，由使用者自備。
 校驗：sha256sum -c SHA256SUMS
+
+發布用的是同目錄的 zip(tools/package.sh 產生)：授權與說明跟著產物走，
+而且解壓之後執行位元還在——瀏覽器下載裸執行檔會把它掉掉。
 EOF
+
+echo
+echo "== 打包 =="
+"$REPO/tools/package.sh"
 
 echo
 echo "dist-all/（commit $SHORT）:"
