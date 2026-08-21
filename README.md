@@ -169,6 +169,12 @@ markdown 裡的圖片只認**文件所在目錄底下**的相對路徑，而且�
 
 程式裡按 `F1` → 關於 可以看到同樣的內容。
 
+## 規劃中
+
+- [Android 版評估與規劃](docs/plan/android.md)——核心已經可以跨過去
+  （`internal/...` 與 `cmd/celldump` 在 `GOOS=android` 下編得過），
+  要重做的是鍵盤驅動的介面與 scoped storage。
+
 ## 文件
 
 - `CLAUDE.md` — 目標軟體的已查證事實、逆向方法、架構、硬規則
