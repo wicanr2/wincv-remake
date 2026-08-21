@@ -684,15 +684,15 @@ func TestTwoStepPromptsCancel(t *testing.T) {
 	}
 }
 
-// --- F1 選單 / F8 / F11 / Alt-E 註解 / P 改路徑 ---------------------------
+// --- F9 選單 / F1 說明 / F8 / F11 / Alt-E 註解 / P 改路徑 -----------------
 
 func TestMenuOpensAndRuns(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0o644)
 	a := New(vfs.OS{}, dir)
-	a.HandleKey(keys.Named(keys.F1))
+	a.HandleKey(keys.Named(keys.F9))
 	if !a.Menuing() {
-		t.Fatal("F1 應該打開選單")
+		t.Fatal("F9 應該打開選單")
 	}
 	// 選單開著時,一般的瀏覽器按鍵不該漏過去
 	a.HandleKey(keys.Ch('D'))
@@ -712,7 +712,7 @@ func TestMenuHotkeyPassesThrough(t *testing.T) {
 	a := New(vfs.OS{}, dir)
 	a.Draw(cell.New(80, 25))
 	a.HandleKey(keys.Named(keys.Down)) // 離開 ".."
-	a.HandleKey(keys.Named(keys.F1))
+	a.HandleKey(keys.Named(keys.F9))
 	a.HandleKey(keys.Ch('R')) // 更名
 	if a.Menuing() {
 		t.Error("按了功能鍵之後選單應該關掉")

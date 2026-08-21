@@ -59,7 +59,7 @@ func (a *App) touchBar() []touchButton {
 			{label: "更名", key: k('R')},
 			{label: "磁碟", key: keys.AltCh('D')},
 			{label: "預視", key: keys.AltCh('P')},
-			{label: "選單", key: keys.Named(keys.F1), wide: true},
+			{label: "選單", key: keys.Named(keys.F9), wide: true},
 		}
 	}
 }

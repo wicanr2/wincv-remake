@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -42,7 +43,7 @@ type game struct {
 	rast   *render.Rasterizer
 	canvas *ebiten.Image
 	dirty  bool
-	scale  int
+	scale  float64
 
 	levels []level
 	zoom   int
@@ -73,9 +74,9 @@ func (g *game) setZoom(n int) {
 // resize 依視窗像素大小算出裝得下幾欄幾列。
 //
 // 「視窗放大時內容多一點」就是這件事:格子大小固定,視窗變大就多幾格,
-// 而不是把同樣的內容拉大。要把內容拉大是換字級(Ctrl-+)或整數倍放大。
+// 而不是把同樣的內容拉大。要把內容拉大是換字級(Ctrl-+)或放大倍率(Alt-+)。
 func (g *game) resize(w, h int) {
-	cw, ch := g.rast.CellW*g.scale, g.rast.CellH*g.scale
+	cw, ch := g.cellPx()
 	if cw <= 0 || ch <= 0 {
 		return
 	}
@@ -143,10 +144,19 @@ func (g *game) applySize(cols, rows int) {
 		g.resize(ebiten.WindowSize())
 		return
 	}
-	w := cols * g.rast.CellW * g.scale
-	h := rows * g.rast.CellH * g.scale
+	cw, ch := g.cellPx()
+	w, h := cols*cw, rows*ch
 	ebiten.SetWindowSize(w, h)
 	g.resize(w, h)
+}
+
+// cellPx 是放大之後一格佔幾個螢幕像素。
+//
+// 無條件進位:1.1 倍時 8×15 的格子是 8.8×16.5 px,取小的那邊會讓
+// 最後一列/欄被視窗切掉一半。寧可視窗底部多幾個像素的黑邊。
+func (g *game) cellPx() (int, int) {
+	return int(math.Ceil(float64(g.rast.CellW) * g.scale)),
+		int(math.Ceil(float64(g.rast.CellH) * g.scale))
 }
 
 func (g *game) Draw(dst *ebiten.Image) {
@@ -161,7 +171,7 @@ func (g *game) Draw(dst *ebiten.Image) {
 		g.dirty = false
 	}
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(float64(g.scale), float64(g.scale))
+	op.GeoM.Scale(g.scale, g.scale)
 	dst.DrawImage(g.canvas, op)
 }
 
@@ -181,7 +191,7 @@ func main() {
 		spcPath  = flag.String("eten-spc", "original/eten/SPCFONT.15", "倚天符號區")
 		cols     = flag.Int("cols", 80, "欄數")
 		rows     = flag.Int("rows", 30, "列數")
-		scale    = flag.Int("scale", 2, "整數倍放大")
+		scale    = flag.Float64("scale", 2, "放大倍率,0.1 為一階")
 		zoom     = flag.Int("zoom", 0, "字級:0=8x15 1=10x18 2=12x24")
 		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
@@ -222,10 +232,11 @@ func main() {
 	a.Scale = *scale
 	g := &game{app: a, levels: levels, scale: *scale, zoom: -1, dirty: true}
 	g.setZoom(*zoom)
-	g.resize(*cols*g.rast.CellW*g.scale, *rows*g.rast.CellH*g.scale)
+	cw, ch := g.cellPx()
+	g.resize(*cols*cw, *rows*ch)
 
 	w, h := g.rast.Size(g.cols, g.rows)
-	ebiten.SetWindowSize(w*g.scale, h*g.scale)
+	ebiten.SetWindowSize(int(math.Ceil(float64(w)*g.scale)), int(math.Ceil(float64(h)*g.scale)))
 	ebiten.SetWindowTitle("WinCV")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	// 畫面只在有事情發生時重畫 —— 這是檔案管理程式,不是遊戲。

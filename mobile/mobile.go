@@ -69,7 +69,7 @@ type game struct {
 	rows   int
 	lastW  int // 最後一次合理的外部尺寸,用來擋掉壞的輸入
 	lastH  int
-	scale  int
+	scale  float64
 	dirty  bool
 	touch  touchState
 	ready  bool
@@ -183,14 +183,16 @@ func (g *game) Layout(outW, outH int) (int, int) {
 	// 手機螢幕密度高,格子放大到看得清楚為止。
 	// 目標是一列大約 40-56 格 —— 再少就放不下檔名與大小,
 	// 再多在手指上點不準。
+	// 手機上維持整數倍:非整數倍會讓點陣字的筆畫粗細不勻,
+	// 而在高密度的小螢幕上那個不勻比「格子稍微大一點」更明顯。
 	sc := outW / (g.rast.CellW * 48)
 	if sc < 1 {
 		sc = 1
 	}
-	if sc > app.MaxScale {
-		sc = app.MaxScale
+	if float64(sc) > app.MaxScale {
+		sc = int(app.MaxScale)
 	}
-	g.scale = sc
+	g.scale = float64(sc)
 	cols, rows := outW/(g.rast.CellW*sc), outH/(g.rast.CellH*sc)
 	if cols < 20 {
 		cols = 20
@@ -228,6 +230,11 @@ func (g *game) Update() error {
 	return nil
 }
 
+// cellPx 是放大之後一格佔幾個螢幕像素。
+func (g *game) cellPx() (int, int) {
+	return int(float64(g.rast.CellW) * g.scale), int(float64(g.rast.CellH) * g.scale)
+}
+
 func (g *game) Draw(dst *ebiten.Image) {
 	if !g.ready || g.screen == nil {
 		return
@@ -243,6 +250,6 @@ func (g *game) Draw(dst *ebiten.Image) {
 		g.dirty = false
 	}
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(float64(g.scale), float64(g.scale))
+	op.GeoM.Scale(g.scale, g.scale)
 	dst.DrawImage(g.canvas, op)
 }

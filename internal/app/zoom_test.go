@@ -68,3 +68,63 @@ func TestAboutScreen(t *testing.T) {
 		t.Error("按鍵之後關於畫面沒關掉")
 	}
 }
+
+// 放大倍率一階 0.1,而且要真的停在 0.1 的整數倍上。
+//
+// [雷] 0.1 在二進位裡除不盡。1.0 一路加十次 0.1 會走到
+// 0.9999999999999999,顯示成「1.0×」卻與 1.0 不相等 —— 於是
+// 「已經是這個倍率了」永遠不成立,每按一次都回傳 true,
+// 外層每次都重建視窗與畫布。所以每一階都要量化回去。
+func TestScaleStepsByTenth(t *testing.T) {
+	a := New(vfs.OS{}, fixture(t))
+	if a.Scale != 1 {
+		t.Fatalf("預設倍率是 %v", a.Scale)
+	}
+	for i, want := range []float64{1.1, 1.2, 1.3, 1.4, 1.5} {
+		a.HandleKey(altRune('+'))
+		if a.Scale != want {
+			t.Fatalf("第 %d 次放大之後是 %v,想要 %v", i+1, a.Scale, want)
+		}
+	}
+	for i, want := range []float64{1.4, 1.3} {
+		a.HandleKey(altRune('-'))
+		if a.Scale != want {
+			t.Fatalf("第 %d 次縮小之後是 %v,想要 %v", i+1, a.Scale, want)
+		}
+	}
+	if !a.HandleKey(altRune('0')) || a.Scale != 1 {
+		t.Fatalf("Alt-0 之後是 %v,想要 1", a.Scale)
+	}
+}
+
+// 上下限要夾住,而且「沒變」要回傳 false —— 外層靠這個決定要不要重建視窗。
+func TestScaleClamps(t *testing.T) {
+	a := New(vfs.OS{}, fixture(t))
+	for i := 0; i < 40; i++ {
+		a.HandleKey(altRune('+'))
+	}
+	if a.Scale != MaxScale {
+		t.Fatalf("一路放大之後是 %v,想要 %v", a.Scale, MaxScale)
+	}
+	if a.HandleKey(altRune('+')) {
+		t.Error("已經在上限了還回報有變")
+	}
+	for i := 0; i < 40; i++ {
+		a.HandleKey(altRune('-'))
+	}
+	if a.Scale != MinScale {
+		t.Fatalf("一路縮小之後是 %v,想要 %v", a.Scale, MinScale)
+	}
+	if a.HandleKey(altRune('-')) {
+		t.Error("已經在下限了還回報有變")
+	}
+}
+
+// 訊息要說得出現在是幾倍 —— 倍率沒有別的地方看得到。
+func TestScaleReportsValue(t *testing.T) {
+	a := New(vfs.OS{}, fixture(t))
+	a.HandleKey(altRune('+'))
+	if !strings.Contains(a.Message, "1.1") {
+		t.Fatalf("訊息是 %q", a.Message)
+	}
+}

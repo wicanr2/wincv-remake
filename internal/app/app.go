@@ -95,6 +95,9 @@ type App struct {
 	// Touch 開啟底部的觸控功能列(Android 版的介面草案,見 touch.go)。
 	Touch bool
 
+	// MenuBar 開啟最上方那一列選單列(見 menu.go)。預設開著。
+	MenuBar bool
+
 	// ShowPreview 是 Alt-P 的狀態:畫面底部留一塊,顯示游標所在檔案的開頭。
 	ShowPreview bool
 	prev        preview
@@ -103,9 +106,9 @@ type App struct {
 	// 載到了幾種字型)。app 這一層只管索引,實際換字型是視窗層的事。
 	Zoom, MaxZoom int
 
-	// Scale 是整數倍放大(把同一份字模每個像素複製 n×n)。
-	// 與 Zoom 是兩件事:Zoom 換的是點陣字本身,Scale 只是放大。
-	Scale int
+	// Scale 是放大倍率,以 0.1 為一階。與 Zoom 是兩件事:
+	// Zoom 換的是點陣字本身,Scale 只是把同一份字模放大。
+	Scale float64
 
 	// WantCols / WantRows 是「請視窗層把視窗調成這麼多格」的請求。
 	// 0 表示沒有請求。視窗層處理完要自己歸零。
@@ -117,7 +120,7 @@ type App struct {
 	thumbCols int
 	// prompt 是畫面底部的輸入列,見 prompt.go。
 	prompt prompt
-	// menu 是 F1 的指令選單,見 menu.go。
+	// menu 是選單列與它的下拉,見 menu.go。
 	menu menu
 	// about 是「關於」畫面,見 about.go。
 	about bool
@@ -159,7 +162,8 @@ type layer struct {
 }
 
 func New(fsys vfs.FS, dir string) *App {
-	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15, Scale: 1}
+	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15,
+		Scale: 1, MenuBar: true}
 	a.Browser.NoteLoader = a.loadNotes
 	a.Browser.DiskStat = a.diskStat
 	a.Browser.ColorOf = fileColor
@@ -174,22 +178,46 @@ func (a *App) LoadSyntax(dir string) {
 	}
 }
 
+// TopRows 回傳畫面最上方被選單列佔掉幾列。
+//
+// 公開是因為觸控那一側要把「螢幕上的第幾列」換算成「清單的第幾筆」,
+// 而那個換算與這裡的版面必須是同一份真相 —— 兩邊各寫一次條件的話,
+// 差一列的錯誤會表現成「點 A 選到 B」,而不是任何一種當掉。
+func (a *App) TopRows(rows int) int {
+	if a.MenuBar && rows > MenuBarRows+2 {
+		return MenuBarRows
+	}
+	return 0
+}
+
 // Draw 依目前模式畫出畫面。回傳的 overlay 要交給
 // render.Rasterizer.DrawWith(s, ovs...)。
 //
 // 回傳的是一組而不是一個:markdown 一頁可以有好幾張圖。
 func (a *App) Draw(s *cell.Screen) []*render.Overlay {
-	// 觸控功能列佔掉底部兩列。與其讓每個模式各自知道「底下被佔了幾列」,
-	// 不如先畫進一個矮兩列的畫面再貼上去 —— 一次對所有模式成立,
-	// 而且之後加新模式不必記得這件事。
-	if a.Touch && s.Rows > TouchRows+2 {
-		inner := cell.New(s.Cols, s.Rows-TouchRows)
-		ov := a.drawModes(inner)
-		s.CopyFrom(inner, 0, 0)
-		a.drawTouchBar(s)
-		return ov
+	// 選單列佔掉最上面一列,觸控功能列佔掉底下兩列。與其讓每個模式
+	// 各自知道「上下被佔了幾列」,不如先畫進一個矮的畫面再貼上去 ——
+	// 一次對所有模式成立,而且之後加新模式不必記得這件事。
+	top, bottom := a.TopRows(s.Rows), 0
+	if a.Touch && s.Rows > top+TouchRows+2 {
+		bottom = TouchRows
 	}
-	return a.drawModes(s)
+	if top+bottom == 0 {
+		return a.drawModes(s)
+	}
+	inner := cell.New(s.Cols, s.Rows-top-bottom)
+	ov := a.drawModes(inner)
+	s.CopyFrom(inner, 0, top)
+	if top > 0 {
+		a.drawMenuBar(s)
+		// overlay 記的是像素座標。格點整個往下移了一列,圖片
+		// 不跟著移的話會蓋到選單列上,而且與它底下的文字錯開一列。
+		shiftOverlays(ov, top*a.CellH)
+	}
+	if bottom > 0 {
+		a.drawTouchBar(s)
+	}
+	return ov
 }
 
 func (a *App) drawModes(s *cell.Screen) []*render.Overlay {
@@ -263,8 +291,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.menuKey(k)
 	}
 	a.Message = ""
-	// F1 選單、F8 中英文、F11 全螢幕在每個模式下都通,
-	// 所以在分派到各模式之前先攔下來。
+	// F1 說明、F2 網路瀏覽、F9 選單、F8 中英文、F11 全螢幕
+	// 在每個模式下都通,所以在分派到各模式之前先攔下來。
 	// 字級與縮放:Ctrl-+ / Ctrl-- / Ctrl-0。每個模式下都通。
 	if k.Ctrl && k.Code == keys.Rune {
 		switch k.R {
@@ -276,19 +304,23 @@ func (a *App) HandleKey(k keys.Key) bool {
 			return a.setZoom(0)
 		}
 	}
-	// 整數倍放大:Alt-+ / Alt-- / Alt-0。
+	// 放大倍率:Alt-+ / Alt-- 每次 0.1,Alt-0 回到 1.0。
 	if k.Alt && k.Code == keys.Rune {
 		switch k.R {
 		case '+', '=':
-			return a.setScale(a.Scale + 1)
+			return a.setScale(a.Scale + ScaleStep)
 		case '-', '_':
-			return a.setScale(a.Scale - 1)
+			return a.setScale(a.Scale - ScaleStep)
 		case '0':
 			return a.setScale(1)
 		}
 	}
 	switch k.Code {
 	case keys.F1:
+		return a.openHelp()
+	case keys.F2:
+		return a.browseAsk()
+	case keys.F9:
 		return a.openMenu()
 	case keys.F8:
 		if !k.Ctrl {
@@ -455,7 +487,7 @@ func (a *App) browserKey(k keys.Key) bool {
 		}
 	case 'G':
 		if k.Alt {
-			return a.gopherAsk()
+			return a.browseAsk()
 		}
 		if !k.Ctrl {
 			return a.startRun()

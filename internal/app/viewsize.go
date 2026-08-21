@@ -1,35 +1,70 @@
 package app
 
-import "fmt"
+import (
+	"fmt"
+	"math"
 
-// MinScale / MaxScale 是整數倍放大的範圍。
+	"github.com/wicanr2/wincv-remake/internal/render"
+)
+
+// MinScale / MaxScale / ScaleStep 是放大倍率的範圍與階距。
 //
 // 上限 4 是實用的界線:8×16 的格子放到 4 倍是 32×64 px,
 // 在 4K 螢幕上一列還放得下 60 格。再大就沒有欄數可用了。
+//
+// [取捨] 階距 0.1 換來的是「調得準」,代價是**點陣字不再等倍複製**。
+// 1.0/2.0/3.0/4.0 這幾階每個原始像素都變成同樣大小的方塊;1.1 倍時
+// 有些原始像素佔 1 個螢幕像素、有些佔 2 個,筆畫粗細會不勻。
+// 要與原版逐像素對齊請用整數倍(Alt-0 回到 1.0)。
 const (
-	MinScale = 1
-	MaxScale = 4
+	MinScale  = 1.0
+	MaxScale  = 4.0
+	ScaleStep = 0.1
 )
 
+// shiftOverlays 把一組圖片往下移 dy 個像素。
+//
+// 選單列讓格點整個下移一列,而 overlay 記的是像素座標,不會自己跟著動。
+func shiftOverlays(ov []*render.Overlay, dy int) {
+	if dy == 0 {
+		return
+	}
+	for _, o := range ov {
+		if o == nil {
+			continue
+		}
+		o.Rect.Min.Y += dy
+		o.Rect.Max.Y += dy
+	}
+}
+
 // 視窗大小的預設檔位。原版的 792×506 client area 換算成格子是 93×21
-// (docs/ui/main-screen.md),放在第一個。
+// (docs/ui/main-screen.md)。
+//
+// 第一個檔位是 93×22 而不是 93×21:選單列自己吃掉一列(原版那條是
+// Win32 的原生選單,掛在 client area 之外,不佔字元格),多給一列
+// 之後內容區才是原版的 21 列。
 var sizePresets = []struct {
 	name       string
 	cols, rows int
 }{
-	{"原版版面 93×21", 93, 21},
+	{"原版版面 93×21(+選單列)", 93, 22},
 	{"80×25", 80, 25},
 	{"100×30", 100, 30},
 	{"120×40", 120, 40},
 }
 
-// setScale 換整數倍放大。回傳是否真的變了。
+// setScale 換放大倍率。回傳是否真的變了。
 //
 // 與字級(Zoom)分開:字級換的是**點陣字本身**(8×15 / 10×18 / 12×24),
-// 換過去字形會重新設計、細節更多;整數倍放大是把同一份字模每個像素
-// 複製 n×n,細節不會增加,但任何字級都能再放大。兩個都要有 ——
+// 換過去字形會重新設計、細節更多;放大倍率是把同一份字模拉大,
+// 細節不會增加,但任何字級都能再放大。兩個都要有 ——
 // 只有三種點陣字,單靠字級在 4K 螢幕上還是太小。
-func (a *App) setScale(n int) bool {
+func (a *App) setScale(n float64) bool {
+	// 先量化到 0.1:0.1 在二進位裡除不盡,一路累加下去
+	// 會走到 1.2000000000000002 這種值,顯示成「1.2×」卻與 1.2 不相等,
+	// 於是「已經是這個倍率了」的判斷永遠不成立。
+	n = math.Round(n*10) / 10
 	if n < MinScale {
 		n = MinScale
 	}
@@ -40,7 +75,7 @@ func (a *App) setScale(n int) bool {
 		return false
 	}
 	a.Scale = n
-	a.Message = fmt.Sprintf("放大倍率 %d×", n)
+	a.Message = fmt.Sprintf("放大倍率 %.1f×", n)
 	return true
 }
 
@@ -65,10 +100,10 @@ func (a *App) sizeMenuItems() []menuItem {
 	}
 	out = append(out, menuItem{sep: true})
 	out = append(out, menuItem{label: "放大倍率 +", run: func() bool {
-		return a.setScale(a.Scale + 1)
+		return a.setScale(a.Scale + ScaleStep)
 	}})
 	out = append(out, menuItem{label: "放大倍率 -", run: func() bool {
-		return a.setScale(a.Scale - 1)
+		return a.setScale(a.Scale - ScaleStep)
 	}})
 	out = append(out, menuItem{label: "自訂欄列數…", run: a.startCustomSize})
 	return out

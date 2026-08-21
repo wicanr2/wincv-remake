@@ -233,7 +233,7 @@ func (a *App) gopherKey(k keys.Key) bool {
 		return a.gopherFollow()
 	}
 	if k.Code == keys.Rune && k.Alt && (k.R == 'g' || k.R == 'G') {
-		return a.gopherAsk()
+		return a.browseAsk()
 	}
 	return false
 }
@@ -316,8 +316,8 @@ func (a *App) gopherBack() bool {
 	return true
 }
 
-// gopherAsk 問一個新位址。
-func (a *App) gopherAsk() bool {
+// browseAsk 問一個新位址。
+func (a *App) browseAsk() bool {
 	cur := ""
 	if a.gv.url.Host != "" {
 		cur = a.gv.url.String()
