@@ -38,7 +38,15 @@ for entry in "${PLATFORMS[@]}"; do
     # APK 不必可執行,其餘要。zip 會保住這個位元。
     case "$plat" in android) chmod 644 "$dir/$exe" ;; *) chmod 755 "$dir/$exe" ;; esac
     cp "$REPO/LICENSE" "$REPO/NOTICE" "$dir/"
-    "$REPO/tools/readme-for.sh" "$plat" "$exe" > "$dir/讀我.txt"
+    # [雷] zip 裡的檔名用 ASCII。`zip` 不會設 UTF-8 旗標(旗標位元 0x800),
+    # 而沒有那個旗標時 Windows 的內建解壓縮會拿系統編碼(繁中是 Big5)
+    # 去解 UTF-8 的位元組 —— 「讀我.txt」變成一串亂碼。
+    # 檔名是 ASCII 就完全繞開這件事,內容仍然是中文。
+    "$REPO/tools/readme-for.sh" "$plat" "$exe" > "$dir/README.txt"
+    # Windows 版換成 CRLF:雖然新版記事本讀得懂 LF,舊的會擠成一行。
+    if [ "$plat" = "windows-amd64" ]; then
+        sed -i 's/$/\r/' "$dir/README.txt"
+    fi
 
     zip -qr "wincv-remake-$TAG-$plat.zip" "$dir"
     rm -rf "$dir"
