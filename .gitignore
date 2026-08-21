@@ -30,3 +30,4 @@ __pycache__/
 /android/app/libs/*.aar
 /android/app/build/
 /android/.gradle/
+/dist-all/
