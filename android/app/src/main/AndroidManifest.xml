@@ -10,6 +10,10 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
+    <!-- gopher 瀏覽模式要連外。只有使用者自己輸入位址時才會用到,
+         程式不會自己連任何地方。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="WinCV"
         android:hardwareAccelerated="true"

@@ -106,6 +106,11 @@ func (g *game) Update() error {
 			g.dirty = true
 		}
 	}
+	// 有還沒完成的網路取回時要一直重繪。app 那一層不會自己叫重繪,
+	// 而結果是非同步回來的 —— 不這樣做的話畫面會永遠停在「連線中」。
+	if g.app.Busy() {
+		g.dirty = true
+	}
 	// app 那一層只翻旗標,真的去動視窗是這裡的事。每幀比對一次,
 	// 使用者從視窗管理員那邊切全螢幕時也能跟上。
 	if g.app.Fullscreen != ebiten.IsFullscreen() {

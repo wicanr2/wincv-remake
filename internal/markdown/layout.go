@@ -196,7 +196,11 @@ func loadPic(src, alt string, cols, cellW, cellH int, load Loader) *Pic {
 	case load == nil:
 		p.Err = "沒有載圖器"
 	case isRemote(src):
-		// 不去抓遠端資源。看文件不該變成連外行為。
+		// markdown 文件裡引到的遠端圖片不抓 —— 開一個 .md 不該變成連外行為,
+		// 而那個 .md 可能是從壓縮檔或別人給的目錄裡來的。
+		//
+		// 這與 gopher 瀏覽模式不衝突:那是使用者自己輸入位址進去的,
+		// 連外是他要的動作,不是看檔案的副作用。
 		p.Err = "遠端圖片不下載"
 	default:
 		img, err := load(src)

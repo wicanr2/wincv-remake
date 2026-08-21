@@ -18,6 +18,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/dict"
 	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/fileop"
+	"github.com/wicanr2/wincv-remake/internal/gopher"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
@@ -42,6 +43,7 @@ const (
 	ModeThumbs
 	ModeFind
 	ModeMarkdown
+	ModeGopher
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -121,6 +123,15 @@ type App struct {
 	about bool
 	// md 是 markdown 檢視模式,見 mdview.go。
 	md mdView
+	// Gopher 是 gopher 客戶端。nil 表示用預設設定。
+	// 做成欄位是為了測試能換掉撥號函式,不必真的連外。
+	Gopher *gopher.Client
+
+	gv       gopherView
+	gpending chan gopherResult
+	// gReturn 與 mdReturn 同理:看圖是從 gopher 進來的,Esc 要退回 gopher。
+	gReturn bool
+
 	// mdReturn 記著「看圖是從 markdown 進來的」,Esc 要退回 markdown
 	// 而不是退回檔案清單。
 	mdReturn bool
@@ -182,8 +193,14 @@ func (a *App) Draw(s *cell.Screen) []*render.Overlay {
 }
 
 func (a *App) drawModes(s *cell.Screen) []*render.Overlay {
+	// 每一幀收一次網路結果。放在這裡是因為 app 這一層沒有自己的迴圈,
+	// 而外殼會在 Busy() 為真時持續重繪。
+	a.gopherPoll()
+
 	var ov []*render.Overlay
 	switch a.Mode {
+	case ModeGopher:
+		ov = a.drawGopher(s)
 	case ModeMarkdown:
 		ov = a.drawMarkdown(s)
 	case ModeViewer:
@@ -281,6 +298,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.toggleFullscreen()
 	}
 	switch a.Mode {
+	case ModeGopher:
+		return a.gopherKey(k)
 	case ModeMarkdown:
 		return a.markdownKey(k)
 	case ModeViewer:
@@ -435,7 +454,10 @@ func (a *App) browserKey(k keys.Key) bool {
 			return a.startChangeDir()
 		}
 	case 'G':
-		if !k.Alt && !k.Ctrl {
+		if k.Alt {
+			return a.gopherAsk()
+		}
+		if !k.Ctrl {
 			return a.startRun()
 		}
 	case 'S':
@@ -687,6 +709,12 @@ func (a *App) imageKey(k keys.Key) bool {
 	case keys.Backspace:
 		return a.stepImage(-1)
 	case keys.Esc:
+		// 從 gopher 進來的就退回 gopher。
+		if a.gReturn {
+			a.gReturn = false
+			a.Mode = ModeGopher
+			return true
+		}
 		// 從 markdown 進來的就退回 markdown,不是退回檔案清單。
 		if a.mdReturn {
 			a.mdReturn = false

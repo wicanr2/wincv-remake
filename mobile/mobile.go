@@ -220,6 +220,11 @@ func (g *game) Update() error {
 			g.dirty = true
 		}
 	}
+	// 同 cmd/wincv:有網路取回還沒完成就持續重繪,
+	// 不然結果回來了畫面也不動。
+	if g.a.Busy() {
+		g.dirty = true
+	}
 	return nil
 }
 

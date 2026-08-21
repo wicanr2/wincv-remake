@@ -195,6 +195,7 @@ internal/
   textenc/    編碼判讀   convert/ 換行與編碼轉換、去 HTML/ANSI
   fileop/     拷貝 / 移動 / 改名 / 刪除 / 比對
   search/     尋找 檔名 / 字串 / 註解      note/ dir.doc 註解讀寫
+  gopher/     Gopher(RFC 1436)客戶端 —— 原版沒有的功能,見 docs/ui/keymap.md
   checksum/   MD5 / SFV      launch/ 跨平台開啟與執行
   archive/    壓縮檔讀取(見 §4.3)
     lzh/ arj/ cab/ arc/ zcompress/   自寫的解碼器

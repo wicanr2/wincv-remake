@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wicanr2/wincv-remake/internal/app"
 	"github.com/wicanr2/wincv-remake/internal/browser"
@@ -79,21 +80,22 @@ func browserModel(dir string) (*browser.Model, error) {
 
 func main() {
 	var (
-		halfPath = flag.String("half", "original/app/cvga.fon", "半形 .FON")
-		stdPath  = flag.String("eten-std", "original/eten/STDFONT.15", "倚天漢字區")
-		spcPath  = flag.String("eten-spc", "original/eten/SPCFONT.15", "倚天符號區")
-		out      = flag.String("o", "screen.png", "輸出 PNG")
-		cols     = flag.Int("cols", 80, "欄數")
-		rows     = flag.Int("rows", 25, "列數")
-		dir      = flag.String("dir", "", "要瀏覽的目錄。留空則畫字型與配色的示範畫面")
-		file     = flag.String("file", "", "要檢視的檔案(文字或 16 進位,依內容自動判斷)")
-		edit     = flag.String("edit", "", "用編輯器開這個檔案(含語法上色)")
-		cfgDir   = flag.String("cfg", "original/app", "語法上色設定所在的目錄")
-		appDir   = flag.String("app", "", "跑完整的 app(含選單、模式切換)並瀏覽這個目錄")
-		keyStr   = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
-		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
-		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
-		touch    = flag.Bool("touch", false, "顯示觸控功能列(Android 版介面草案)")
+		halfPath  = flag.String("half", "original/app/cvga.fon", "半形 .FON")
+		stdPath   = flag.String("eten-std", "original/eten/STDFONT.15", "倚天漢字區")
+		spcPath   = flag.String("eten-spc", "original/eten/SPCFONT.15", "倚天符號區")
+		out       = flag.String("o", "screen.png", "輸出 PNG")
+		cols      = flag.Int("cols", 80, "欄數")
+		rows      = flag.Int("rows", 25, "列數")
+		dir       = flag.String("dir", "", "要瀏覽的目錄。留空則畫字型與配色的示範畫面")
+		file      = flag.String("file", "", "要檢視的檔案(文字或 16 進位,依內容自動判斷)")
+		edit      = flag.String("edit", "", "用編輯器開這個檔案(含語法上色)")
+		cfgDir    = flag.String("cfg", "original/app", "語法上色設定所在的目錄")
+		appDir    = flag.String("app", "", "跑完整的 app(含選單、模式切換)並瀏覽這個目錄")
+		keyStr    = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
+		fbFont    = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
+		noFB      = flag.Bool("no-fallback", false, "不要後備字型")
+		touch     = flag.Bool("touch", false, "顯示觸控功能列(Android 版介面草案)")
+		gopherURL = flag.String("gopher", "", "開一個 gopher 位址(會真的連外)")
 	)
 	flag.Parse()
 
@@ -135,7 +137,7 @@ func main() {
 		}
 		overlay = ov
 	} else if *appDir != "" {
-		ov, err := drawApp(s, *appDir, *cfgDir, *keyStr, r.CellW, r.CellH, *touch)
+		ov, err := drawApp(s, *appDir, *cfgDir, *keyStr, r.CellW, r.CellH, *touch, *gopherURL)
 		if err != nil {
 			die(err)
 		}
@@ -239,7 +241,7 @@ func die(err error) {
 //
 // 這條路徑和 cmd/wincv 走的是同一份 app 程式碼,只是沒有 Ebiten ——
 // 所以選單、對話框、模式切換都可以在沒有顯示器的地方檢查。
-func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool) ([]*render.Overlay, error) {
+func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool, gopherURL string) ([]*render.Overlay, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -256,9 +258,27 @@ func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool)
 	}
 	// 先畫一次,讓 app 知道畫面有幾列(翻頁與選單定位要用)
 	a.Draw(s)
+
+	// settle 一直畫到沒有未完成的非同步動作為止。
+	//
+	// 不等的話,任何會觸發網路取回的按鍵之後截到的都是「連線中」——
+	// 而那看起來像功能壞了,不像截圖截太早。
+	settle := func() {
+		for i := 0; i < 600 && a.Busy(); i++ {
+			a.Draw(s)
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+
+	if gopherURL != "" {
+		a.OpenGopher(gopherURL)
+		settle()
+	}
+
 	for _, k := range ks {
 		a.HandleKey(k)
 		a.Draw(s)
+		settle()
 	}
 	return a.Draw(s), nil
 }
