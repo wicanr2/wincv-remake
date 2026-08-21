@@ -17,6 +17,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/dict"
 	"github.com/wicanr2/wincv-remake/internal/editor"
+	"github.com/wicanr2/wincv-remake/internal/epub"
 	"github.com/wicanr2/wincv-remake/internal/fileop"
 	"github.com/wicanr2/wincv-remake/internal/gopher"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
@@ -132,7 +133,11 @@ type App struct {
 	Gopher *gopher.Client
 	Web    *web.Client
 
-	bv       browseView
+	bv browseView
+	// book 是瀏覽模式正開著的一本 EPUB,bookPath 是它的路徑。
+	// 開著不關是為了翻頁 —— 換一節就重解一次 zip 會讓翻頁變成等待。
+	book     *epub.Book
+	bookPath string
 	gpending chan browseResult
 	// gReturn 與 mdReturn 同理:看圖是從瀏覽模式進來的,Esc 要退回去。
 	gReturn bool
@@ -563,6 +568,12 @@ func (a *App) enter() bool {
 			a.Message = "無法進入 " + dir + ": " + err.Error()
 		}
 		return true
+	}
+	// [雷] .epub 要在壓縮檔判斷**之前**攔下來。EPUB 就是一個 zip,
+	// 不先攔的話按 Enter 會走進去看到 META-INF 與一堆 xhtml,
+	// 而那不是任何人想看一本書時要的東西。
+	if IsBook(e.Name) && !a.readOnlyHere() {
+		return a.openBook(e.Name)
 	}
 	if archive.IsArchive(e.Name) {
 		return a.enterArchive(e.Name)

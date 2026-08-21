@@ -329,12 +329,15 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 	}
 	// 底線畫在最後一條掃描線,而且空白格也要畫 —— 原版的長檔名欄
 	// 底線是連續的一整條,不會在空格處斷掉。所以放在字模查詢之前。
-	if c.Under {
-		w := r.CellW
-		if c.Wide {
-			w *= 2
-		}
-		r.hline(cx*r.CellW, cy*r.CellH+r.CellH-1, w, r.Palette[clampColor(c.FG)])
+	//
+	// [雷] 全形格不畫。倚天 16×15 的字模**十五列全是字身**,底線那一列
+	// 正好壓在筆畫上,而且同色 —— 畫出來是「這個字下半截糊掉了」,
+	// 不是「這個字底下有一條線」。半形字有下伸部的空間,不會撞到。
+	//
+	// 續格(Cont)要一起排除:全形字佔兩格,而 Wide 只標在第一格,
+	// 只看 Wide 的話右半邊照樣被劃一條。
+	if c.Under && !c.Wide && !c.Cont {
+		r.hline(cx*r.CellW, cy*r.CellH+r.CellH-1, r.CellW, r.Palette[clampColor(c.FG)])
 	}
 	var g *fnt.Glyph
 	if c.Wide {

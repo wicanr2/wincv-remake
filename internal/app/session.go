@@ -88,8 +88,12 @@ func (a *App) Restore(st session.State) {
 	}
 
 	if st.Mode == "browse" {
-		// 瀏覽模式要連外才回得去。不自動連 —— 上次停在哪一頁不值得
-		// 讓程式一啟動就發出網路請求。位址填回輸入列,按 Enter 才走。
+		// 書是本機檔案,直接開回去。網頁不行 —— 上次停在哪一頁
+		// 不值得讓程式一啟動就對外發出請求,位址留著等使用者按 Enter。
+		if _, _, ok := parseBookURL(st.URL); ok {
+			a.OpenURL(st.URL)
+			return
+		}
 		a.bv.url = st.URL
 		return
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/markdown"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/web"
+	"path/filepath"
 )
 
 // browseLink 是排版之後畫面上的一個可點目標。
@@ -94,7 +95,7 @@ func normalizeURL(raw string) (string, error) {
 	if raw == "" {
 		return "", fmt.Errorf("位址是空的")
 	}
-	if web.IsHTTP(raw) {
+	if web.IsHTTP(raw) || strings.HasPrefix(raw, epubScheme) {
 		return raw, nil
 	}
 	u, err := gopher.ParseURL(raw)
@@ -113,6 +114,12 @@ func (a *App) browseFetch(raw string, push bool) {
 	}
 	if push && a.bv.url != "" {
 		a.bv.hist = append(a.bv.hist, a.bv.url)
+	}
+	// 書是本機檔案,同步做完就好 —— 為它多開一條非同步的路
+	// 只會多一種「正在取回」的狀態要處理。
+	if strings.HasPrefix(full, epubScheme) {
+		a.showBook(full)
+		return
 	}
 	ch := make(chan browseResult, 1)
 	a.gpending = ch
@@ -319,6 +326,18 @@ func (a *App) browseImage(src string) (image.Image, error) {
 	if m := a.bv.imgs[src]; m != nil {
 		return m, nil
 	}
+	// 書裡的圖是本機 zip 的成員,讀完就有,不必等一輪。
+	if a.book != nil && !web.IsHTTP(src) {
+		m, err := a.bookImage(src)
+		if err != nil {
+			return nil, err
+		}
+		if a.bv.imgs == nil {
+			a.bv.imgs = map[string]image.Image{}
+		}
+		a.bv.imgs[src] = m
+		return m, nil
+	}
 	return nil, fmt.Errorf("還沒取回")
 }
 
@@ -383,6 +402,7 @@ func (a *App) browseKey(k keys.Key) bool {
 	switch k.Code {
 	case keys.Esc:
 		a.Mode = ModeBrowser
+		a.closeBook()
 		return true
 	case keys.Backspace:
 		return a.browseBack()
@@ -463,7 +483,7 @@ func (a *App) browseFollow() bool {
 		return false
 	}
 	href := a.bv.links[a.bv.cur].href
-	if web.IsHTTP(href) {
+	if web.IsHTTP(href) || strings.HasPrefix(href, epubScheme) {
 		a.browseFetch(href, true)
 		return true
 	}
@@ -594,7 +614,15 @@ func (a *App) drawBrowseStatus(s *cell.Screen) {
 	// 標題比位址好認,但位址才說得出「現在在哪一台」。標題有就先給標題,
 	// 後面補主機名 —— 網頁的標題常常完全看不出是哪個站。
 	left := a.bv.url
-	if a.bv.title != "" && a.bv.title != hostOf(a.bv.url) {
+	if book, _, ok := parseBookURL(a.bv.url); ok {
+		left = a.bv.title
+		if a.book != nil && a.book.Title != a.bv.title {
+			left = a.book.Title + " — " + a.bv.title
+		}
+		if left == "" {
+			left = filepath.Base(book)
+		}
+	} else if a.bv.title != "" && a.bv.title != hostOf(a.bv.url) {
 		left = a.bv.title + " — " + hostOf(a.bv.url)
 	}
 	if a.bv.status != "" {
