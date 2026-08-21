@@ -24,6 +24,14 @@ PLATFORMS=(
     "wincv-android.apk:wincv.apk:android"
 )
 
+# 完整版(字型嵌在執行檔裡,tools/build-full.sh 產生)。有才打包。
+FULL=(
+    "wincv-linux-amd64-full:wincv:linux-amd64"
+    "wincv-windows-amd64-full.exe:wincv.exe:windows-amd64"
+    "wincv-darwin-universal-full:wincv:macos-universal"
+    "wincv-android-full.apk:wincv.apk:android"
+)
+
 cd "$OUT"
 rm -f ./*.zip SHA256SUMS-zip
 
@@ -54,6 +62,48 @@ for entry in "${PLATFORMS[@]}"; do
         "$(stat -c%s "wincv-remake-$TAG-$plat.zip")"
 done
 
+# 完整版:同樣的結構,檔名多一個 -full。
+#
+# **這幾個不要上傳到 release,也不要轉給別人。** 裡面嵌著原版的 .FON
+# 與倚天字庫,那是第三方版權物。要給別人的是上面不帶 -full 的版本 ——
+# 它沒有字型也跑得起來(半形改用系統字型現場產,見 cmd/wincv 的
+# ttfLevels),只是畫面不是原版的點陣字。
+fulln=0
+for entry in "${FULL[@]}"; do
+    src=${entry%%:*}; rest=${entry#*:}
+    exe=${rest%%:*}; plat=${rest#*:}
+    [ -s "$src" ] || continue
+
+    dir="wincv-remake-$plat-full"
+    rm -rf "$dir"; mkdir -p "$dir"
+    cp "$src" "$dir/$exe"
+    case "$plat" in android) chmod 644 "$dir/$exe" ;; *) chmod 755 "$dir/$exe" ;; esac
+    cp "$REPO/LICENSE" "$REPO/NOTICE" "$dir/"
+    { "$REPO/tools/readme-for.sh" "$plat" "$exe"
+      cat <<'EOF'
+
+這一份是完整版
+--------------
+
+字型已經嵌在執行檔裡,解開就是與原版逐像素對齊的畫面,不必自己準備。
+嵌的是原版的 cvga.fon / CVGA1018.FON / cvga1224.FON、倚天的
+STDFONT.15 / SPCFONT.15 / SPCFSUPP.15,以及幾份 Noto 的 Unicode 後備。
+
+前兩組是第三方版權物。**這一份不要轉給別人。**
+EOF
+    } > "$dir/README.txt"
+    [ "$plat" = "windows-amd64" ] && sed -i 's/$/\r/' "$dir/README.txt"
+
+    zip -qr "wincv-remake-$TAG-$plat-full.zip" "$dir"
+    rm -rf "$dir"
+    printf "  %-40s %10s  (完整版,不對外)\n" "wincv-remake-$TAG-$plat-full.zip" \
+        "$(stat -c%s "wincv-remake-$TAG-$plat-full.zip")"
+    fulln=$((fulln + 1))
+done
+
 sha256sum ./*.zip > SHA256SUMS-zip
 echo
 echo "校驗:cd dist-all && sha256sum -c SHA256SUMS-zip"
+if [ "$fulln" -gt 0 ]; then
+    echo "注意:$fulln 個 -full.zip 嵌著第三方版權的字型,只留本機,不要上傳。"
+fi
