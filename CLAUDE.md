@@ -4,7 +4,7 @@
 乾淨重寫,目標 Linux / Windows / macOS / Android 四平台,介面做到與原版點陣像素對齊,
 檔案系統等周邊功能做等價實作。
 
-原作者 Lcc Wizard(林健總),`lccw@ms8.hinet.net`,原站 `cview.com.tw`。
+原作者 Lcc Wizard(林健總),原站 `cview.com.tw`。
 
 ## 授權與定位
 
