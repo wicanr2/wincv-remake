@@ -30,14 +30,14 @@ var want = map[string]struct {
 	size int
 	sum  string
 }{
-	"winappdbg-winappdbg_v1.6/doc/Makefile":            {3136, "d476fb416efdb1c7"},
+	"winappdbg-winappdbg_v1.6/doc/Makefile":             {3136, "d476fb416efdb1c7"},
 	"winappdbg-winappdbg_v1.6/winappdbg/plugins/README": {49, "8efd4ce2c5c19a44"},
-	"winappdbg-winappdbg_v1.6/distro.bat":              {8637, "ddc6c757b15ac84a"},
-	"winappdbg-winappdbg_v1.6/install.bat":             {1848, "47717acbd26023ca"},
-	"winappdbg-winappdbg_v1.6/doc/make.bat":            {3194, "ea81a1047b6b2369"},
-	"winappdbg-winappdbg_v1.6/epydoc.cfg":              {351, "bc682ec8b2a49092"},
-	"winappdbg-winappdbg_v1.6/tools/example.cfg":       {4966, "4bc0d5fdc0ca3180"},
-	"winappdbg-winappdbg_v1.6/install.cfg":             {664, "f6ee9501635926b2"},
+	"winappdbg-winappdbg_v1.6/distro.bat":               {8637, "ddc6c757b15ac84a"},
+	"winappdbg-winappdbg_v1.6/install.bat":              {1848, "47717acbd26023ca"},
+	"winappdbg-winappdbg_v1.6/doc/make.bat":             {3194, "ea81a1047b6b2369"},
+	"winappdbg-winappdbg_v1.6/epydoc.cfg":               {351, "bc682ec8b2a49092"},
+	"winappdbg-winappdbg_v1.6/tools/example.cfg":        {4966, "4bc0d5fdc0ca3180"},
+	"winappdbg-winappdbg_v1.6/install.cfg":              {664, "f6ee9501635926b2"},
 }
 
 // blocked.ace 是 ACE 2.0 的 blocked 模式,含 8 個有內容的成員

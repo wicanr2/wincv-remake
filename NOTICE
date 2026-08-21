@@ -1,0 +1,80 @@
+# 著作權與出處
+
+`LICENSE`(BSD 2-Clause)涵蓋的是**這個 repo 自己寫的東西**:`cmd/`、
+`internal/`、`mobile/`、`android/` 底下的原始碼,`tools/` 底下的工具,
+以及 `docs/` 底下的文件。
+
+下面這些不在涵蓋範圍內,各自的權利仍在原權利人手上。
+
+## 原版 WinCV 0.52(CView for Windows)
+
+著作權屬於原作者 **Lcc Wizard(林健總)**,原站 cview.com.tw。
+
+重寫這支軟體是為了保存這份文化資產。這件事不會、也不能讓任何人取得
+原版的權利。repo 裡保留了原版安裝檔 `wincv052a.exe`,以及由它抽出的資料 ——
+符號表(`docs/re/symbols.tsv`、`words.tsv`)、UI 字串(`docs/re/big5-strings.tsv`)、
+參考截圖(`original/ref-shots/`)、更新紀錄(`whatsnew.txt`)。
+放著是為了讓逆向的結論可以被重跑驗證,不是主張任何權利。
+
+原作者若希望調整任何與原版有關的處置,請開一個 issue。
+
+## ACE 解壓縮:`internal/archive/ace`
+
+格式規格來自 Marcel Lemke,〈Technical information of the archiver ACE v1.2〉
+(1998)。ACE 格式與其壓縮/解壓縮演算法由 Marcel Lemke 設計。
+
+`internal/archive/ace/huffman.go` 的 `aceSort` 是**逐行照著
+[droe/acefile](https://github.com/droe/acefile) 的實作搬過來的** ——
+那個 quicksort 對相等的鍵以特定方式不穩定,而碼的指派順序直接取決於
+這個行為,換成別的排序會解出垃圾。依 acefile 的授權條款,
+其著作權聲明如下:
+
+```
+acefile - read/test/extract ACE 1.0 and 2.0 archives in pure python
+Copyright (C) 2017-2026, Daniel Roethlisberger <daniel@roe.ch>
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions, and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+## 字型與資料檔:不打包進任何產物
+
+- **倚天中文系統的點陣字庫**(`STDFONT.15` / `SPCFONT.15` / `STD.24x` 等)。
+  由使用者自備,`tools/setup-eten.sh` 從使用者自己的來源抽。
+- **原版隨附的字型與字典資料**(`cvga.fon`、`CVGA1018.FON`、`cvga1224.FON`、
+  `eng.txt.*`、`kk.txt.*`、`chi.txt.*`、`origin-verb.txt.*`、`keyword_*.cfg` 等)。
+  由使用者自備,`tools/setup-wine-oracle.sh` 從原版安裝檔解出。
+
+`dist/`、`dist-all/` 與 release 附件裡的四個產物**都不含**上面這些。
+
+## 測試資料:`testdata/`
+
+各檔案來源不同:
+
+- `testdata/ace/` 取自 [droe/acefile-testdata](https://github.com/droe/acefile-testdata)。
+  該 repo 說明其壓縮檔內容「may be licenced under various permissive licenses,
+  no proprietary or confidential data」。
+- 其餘格式的樣本由對應的參考實作(p7zip、ncompress、cabextract、
+  arj 3.10、arc 5.21)產生,用來與自寫的解碼器比對。
+
+## Go 相依套件
+
+`go.mod` 列的第三方套件各有其授權,以各自 repo 的 LICENSE 為準。

@@ -1,47 +1,24 @@
-MIT License
+BSD 2-Clause License
 
-Copyright (c) 2026 王俊又 (wicanr2)
+Copyright (c) 2026, 王俊又 (wicanr2)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
 
----
-
-這份 MIT 授權涵蓋的範圍
-======================
-
-**涵蓋**:本 repo 自己寫的東西 —— `cmd/`、`internal/`、`mobile/`、`android/`
-底下的原始碼,`tools/` 底下的工具,以及 `docs/` 底下的文件。
-
-**不涵蓋**:
-
-* **原版 WinCV 0.52(CView for Windows)**。著作權屬於原作者
-  Lcc Wizard(林健總),原站 cview.com.tw。重寫這支軟體是為了保存這份
-  文化資產 —— 這件事不會、也不能讓任何人取得原版的權利。原版的執行檔、
-  資料檔與從它抽出的內容,權利仍然在原作者手上。
-
-* **倚天中文系統的點陣字庫**(`STDFONT.15` / `SPCFONT.15` 等)。第三方版權物,
-  不打包進任何產物,由使用者自備。
-
-* **原版隨附的字型與字典資料**(`cvga.fon`、`eng.txt.*`、`kk.txt.*` 等)。
-  同上,由使用者自備。
-
-* `testdata/` 底下的壓縮檔樣本。各自來源不同,例如 `testdata/ace/` 取自
-  BSD 授權的 [droe/acefile-testdata](https://github.com/droe/acefile-testdata)。
-
-原作者若希望調整任何與原版有關的處置,請透過 GitHub issue 聯繫。
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

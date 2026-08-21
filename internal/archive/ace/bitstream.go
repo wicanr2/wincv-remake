@@ -4,7 +4,8 @@
 // image 裡只有綁定層。這裡照公開規格自己寫:
 //
 //	規格   Marcel Lemke,〈Technical information of the archiver ACE v1.2〉(1998)
-//	參照   droe/acefile(BSD,純 Python),用來對答案
+//	參照   droe/acefile(BSD 2-Clause,純 Python)。多數是拿來對答案,
+//	       但 huffman.go 的 aceSort 是逐行移植的 —— 見 NOTICE
 //	測資   droe/acefile-testdata
 //
 // 支援 stored、ACE 1.0 的 LZ77、以及 ACE 2.0 的 blocked 模式底下的

@@ -36,7 +36,8 @@ func (t *huffTree) readSymbol(b *bitStream) (int, error) {
 // 而且是以特定的方式不穩定;碼的指派順序直接取決於相等寬度的符號
 // 最後排成什麼次序。換成 sort.Slice(即使加上 tie-break)會得到
 // 一套自洽但與編碼器對不上的碼,解出來是垃圾而不是錯誤。
-// 這裡逐行照參考實作搬過來。
+// 這裡逐行照參考實作(droe/acefile,BSD 2-Clause)搬過來。
+// 依其授權條款,著作權聲明放在 repo 根目錄的 NOTICE。
 func aceSort(keys, values []int) {
 	var sub func(left, right int)
 	swap := func(a, b int) {
