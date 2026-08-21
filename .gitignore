@@ -31,3 +31,9 @@ __pycache__/
 /android/app/build/
 /android/.gradle/
 /dist-all/
+
+# 模擬器實跑的原始產物(每跑一次就重生)。留下來的是 android-emulator.png
+docs/ui/android-run-*.png
+docs/ui/android-logcat.txt
+docs/ui/android-crash.txt
+docs/ui/android-emulator.log

@@ -21,11 +21,11 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
+	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/syntax"
-	"github.com/wicanr2/wincv-remake/internal/thumbs"
-	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
+	"github.com/wicanr2/wincv-remake/internal/thumbs"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 	"github.com/wicanr2/wincv-remake/internal/viewer"
 )

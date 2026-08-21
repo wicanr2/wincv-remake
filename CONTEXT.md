@@ -58,6 +58,9 @@
 | 2026-08-20 | 原版設定存在 `%windir%\wincv.cfg` | 是 `%windir%\WinCV-cd-pos.cfg`,而且只存離開時的目錄與游標檔名,不是一般設定 | `WinCVins.bat` 裡的註解行寫的是 `wincv.cfg`,但那是註解;跑一次原版之後去 prefix 的 windows 目錄看實際生成什麼 |
 | 2026-08-21 | `WINCV.IMG` 在 IDA 裡把 segment 設成 `set_segm_addressing(seg, 2)` 當 32 位元 | 2 是 **64 位元**,1 才是 32 位元。整批指令沿著錯的邊界解(0x40-0x4F 在 32 位元是 inc/dec,在 64 位元是 REX 前綴),而反組譯**看起來仍然是合理的指令**,只是暫存器變成 rdi/rax | `[edi+X]` 的調查結果印出 `mov eax, [rdi+20h]` 才發現。錯的資料庫下只找到 1 處 `[edi+X]`,修正後是 8703 處 |
 | 2026-08-21 | 用 `str.replace('main()', ...)` 給 IDA 腳本加 try/except | 那會連 `def main():` 一起換掉,變成 `def try:`。整份腳本語法錯誤 → IDAPython **一行都沒跑**,而症狀是零輸出零訊息,與「IDAPython 在這個環境不能用」一模一樣 | 讓腳本第一行就寫痕跡檔,分得出「沒被執行」與「執行到一半死掉」。`tools/ida.sh` 現在會先 `ast.parse` 再燒一次 IDA |
+| 2026-08-21 | `CLAUDE.md` 的里程碑表寫「12 種格式支援 11 種(ACE 不做)」 | 12 種全支援。同一份文件的 §4.3 早就寫著 ACE 自己實作完並對 acefile 驗過 269 個成員 | 這一輪回頭對 `archive.Formats` 核實時發現;那張表是文件裡的,程式碼裡的表才是真相 |
+| 2026-08-21 | Android 版用的是 Ebiten v2.6.6,相依 `golang.org/x/mobile` | 是 **v2.8.8**,相依 `github.com/ebitengine/gomobile`(ebiten 自己 fork 的那支) | 模擬器上的 panic stack trace 印出 `ebiten/v2@v2.8.8`;`go.mod` 核對後確認 |
+| 2026-08-21 | APK 驗過四個 ABI、簽章有效,行為只差「還沒實跑」 | 一跑就 panic 死在第一次 Layout。`EbitenView.onLayout` 用「像素 ÷ deviceScale()」算尺寸,而 deviceScale 在 JVM 還沒就緒時是 0,`+Inf` 轉 int 變負數,`mobile.go` 的 `Layout` 又把它原樣傳回去 | `tools/run-android-emulator.sh` 第一次真的把 APK 跑起來。格式驗證(`verify-apk.sh`)對這個問題完全無感 —— 它驗的是檔案內容,不是行為 |
 | 2026-08-20 | 二進位檔按 Enter 顯示「這是二進位檔」訊息 | 直接開 16 進位檢視 | image 的 `&Hex模式` 標籤 + 0.5 版 changelog「按 enter 看檔時自動將可能為執行檔的檔案以 16 進位方式看檔」 |
 
 ---
@@ -88,9 +91,9 @@
 - [x] P2 `.FON` 格式規格 + 解析器(`tools/fnt.py` 與 `internal/fnt` 互為對照)
 - [x] P2 image 內 Big5 字串表(`docs/re/big5-strings.tsv`,845 筆)
 - [x] 渲染鏈:`cell` + `fnt` + `eten` + `render` 可 headless 出圖(`cmd/celldump`)
-- [ ] P0 IDA 載入 `WINCV.IMG` 並套 `docs/re/symbols.tsv`
+- [x] P0 IDA 載入 `WINCV.IMG` 並套 `docs/re/symbols.tsv`(`tools/ida.sh`,3253 個函式 / 6837 個名字)
 - [ ] P1 word 呼叫圖
-- [ ] P3 主畫面格點量測(要先讓 Wine 用真正的 cvga 才算得準)
+- [x] P3 主畫面格點量測(`docs/ui/main-screen.md`,格子 8×16)
 - [x] P4 keymap 規格(`docs/ui/keymap.md`,證據分三級)
 - [x] M1 檔案瀏覽器(列表、游標、標記、排序、進出目錄)
 - [x] M2 文字檢視器(編碼判讀、ANSI 色碼、換行、搜尋)
@@ -110,7 +113,11 @@
 - [x] KOA 圖檔
 - [x] 主畫面按鍵補齊:O 開啟、P 改路徑、G 執行、Alt-E 註解、
       F1 選單、F8 中英文顯示、F11 全螢幕
-- [ ] P0 IDA 載入 WINCV.IMG 並套符號 → P1 呼叫圖 → 解出真實色表
+- [x] Android:`mobile/` 進入點、觸控功能列、`internal/ttf` 系統字型後備
+- [x] Android:APK 建得出來(`tools/build-android.sh`,四個 ABI)
+- [x] Android N5:APK 在模擬器上實跑(Android 14 / Pixel 5 profile,畫得出畫面、讀得到檔案)
+- [ ] Android:觸控輸入實測(目前只證明畫得出來、讀得到,沒證明點下去會動)
+- [ ] Android N2:軟鍵盤字元事件(`mobile.Update` 目前完全沒讀鍵盤)
 
 ### 不打算做的(理由寫在對應的 Formats 表)
 

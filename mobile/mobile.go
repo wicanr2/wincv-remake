@@ -10,6 +10,7 @@ package mobile
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -37,6 +38,14 @@ var (
 // 為什麼不讓 Go 自己找:Android 10 起是 scoped storage,
 // app 讀得到哪裡是由 Java 那一側的授權決定的,Go 這邊猜不出來。
 func SetRoot(dir string) {
+	// 順便把螢幕資訊讀出來 —— 這一步會讓 Ebiten 去問 JVM 拿 density 並快取。
+	//
+	// 為什麼要在這裡做:EbitenView.onLayout 是用「像素 ÷ deviceScale()」
+	// 算版面尺寸的,而 deviceScale() 在 JVM 還沒回應時是 0,除出來是 +Inf。
+	// SetRoot 由 Activity.onCreate 呼叫,那時 JVM 一定就緒,
+	// 所以在這裡讀一次就能讓 onLayout 拿到真的值。
+	_ = ebiten.Monitor().DeviceScaleFactor()
+
 	mu.Lock()
 	root = dir
 	mu.Unlock()
@@ -57,6 +66,8 @@ type game struct {
 	canvas *ebiten.Image
 	cols   int
 	rows   int
+	lastW  int // 最後一次合理的外部尺寸,用來擋掉壞的輸入
+	lastH  int
 	scale  int
 	dirty  bool
 	touch  touchState
@@ -141,6 +152,13 @@ func loadFonts(dir string, w, h int) (render.HalfSource, render.CJKSource, strin
 }
 
 func (g *game) Layout(outW, outH int) (int, int) {
+	// 這一步不是防禦性程式碼,是必要的:Android 那一側算出來的尺寸
+	// 可能是 +Inf(見 app.SaneLayout 的說明),原樣傳回去會被 Ebiten
+	// 當成非法值 panic 掉整個 app。
+	monW, monH := ebiten.Monitor().Size()
+	outW, outH = app.SaneLayout(outW, outH, g.lastW, g.lastH, monW, monH)
+	g.lastW, g.lastH = outW, outH
+
 	if !g.ready {
 		g.start(outW, outH)
 	}
@@ -166,6 +184,10 @@ func (g *game) Layout(outW, outH int) (int, int) {
 		rows = 8
 	}
 	if cols != g.cols || rows != g.rows {
+		// 印進 logcat(tag GoLog)。截圖看不出格點是不是剛好填滿畫面,
+		// 這幾個數字看得出來。
+		log.Printf("wincv: 外部 %dx%d dp, 格 %dx%d, 倍率 %d, 畫布 %dx%d px",
+			outW, outH, cols, rows, sc, cols*g.rast.CellW*sc, rows*g.rast.CellH*sc)
 		g.cols, g.rows = cols, rows
 		g.screen = cell.New(cols, rows)
 		g.canvas = nil

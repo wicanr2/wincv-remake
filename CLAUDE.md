@@ -1,7 +1,7 @@
 # WinCV Remake
 
 把 1999–2011 年的台灣共享軟體 **WinCV 0.52 (CView for Windows)** 逆向並以 Go + Ebiten
-乾淨重寫,目標 Linux / Windows / macOS 三平台,介面做到與原版點陣像素對齊,
+乾淨重寫,目標 Linux / Windows / macOS / Android 四平台,介面做到與原版點陣像素對齊,
 檔案系統等周邊功能做等價實作。
 
 原作者 Lcc Wizard(林健總),`lccw@ms8.hinet.net`,原站 `cview.com.tw`。
@@ -163,8 +163,10 @@ tools/ida.sh load_wincv.py /work/out/load.json    # 建庫、種函式邊界、�
 
 ```
 cmd/
-  wincv/      Ebiten 進入點
+  wincv/      Ebiten 進入點(桌面)
   celldump/   同一份 app,不開視窗直接出 PNG(-app + -keys 可送按鍵)
+mobile/       Android 進入點(ebitenmobile bind 的對象)+ 觸控事件翻按鍵
+android/      Gradle 專案:MainActivity 與 manifest
 internal/
   cell/       Screen:cols×rows 的 Cell{Ch, FG, BG, Wide, Cont};全形佔兩格
   fnt/        NE .FON(FNT 2.0)解析 → 半形字模
@@ -356,9 +358,10 @@ remake 這一側不需要開視窗:`cmd/celldump` 用與 Ebiten 相同的 `rende
 | **P4** keymap | 逐鍵實測原版行為 | `docs/ui/keymap.md` |
 | **M1** ✅ | 檔案瀏覽器主畫面:目錄列表、游標、標記、排序、進出目錄 | `internal/browser`,測試涵蓋排序/標記/捲動邊界 |
 | **M2** ✅ | 文字瀏覽器:編碼判讀、ANSI 色碼、換行、搜尋 | `internal/viewer` + `internal/textenc` |
-| **M3** ✅ | 壓縮檔當目錄瀏覽 | 12 種格式支援 11 種(ACE 不做,理由見 §4.3) |
+| **M3** ✅ | 壓縮檔當目錄瀏覽 | 12 種格式全支援(六種自寫;各自的未做子模式列在 `archive.Formats` 裡) |
 | **M4** ✅ | 編輯器 / HEX / 看圖 / 縮圖 / 轉碼 / 字典 / MD5-SFV / 檔案操作 | 主畫面與編輯器的按鍵表都接完(見 `docs/ui/keymap.md`) |
 | **M5** ✅ | 三平台打包 | `tools/build-all.sh` + `tools/verify-dist.sh` |
+| **M6** ✅ | Android:APK 建得出來並在模擬器上跑起來 | `tools/build-android.sh` + `tools/verify-apk.sh`(格式)+ `tools/run-android-emulator.sh`(行為);規劃與實測見 `docs/plan/android.md` |
 
 各格式的支援進度是**程式碼裡的表**,不是文件:
 `archive.Formats` 與 `imgfmt.Formats`,各有一個測試盯著它別悄悄過期。

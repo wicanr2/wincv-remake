@@ -18,7 +18,7 @@ type menuItem struct {
 	label string
 	key   keys.Key
 	sep   bool
-	run   func() bool     // 沒有對應按鍵的功能(例如 MD5/SFV)用這個
+	run   func() bool       // 沒有對應按鍵的功能(例如 MD5/SFV)用這個
 	sub   func() []menuItem // 子選單。選中時換成它的內容,Esc 退回來
 }
 

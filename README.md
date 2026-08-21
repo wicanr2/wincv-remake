@@ -232,25 +232,34 @@ markdown 裡的圖片只認**文件所在目錄底下**的相對路徑，而且�
 
 ### Android
 
-![Android 檔案瀏覽器](docs/ui/android-browser.png) ![Android markdown](docs/ui/android-markdown.png)
+![Android 實機畫面](docs/ui/android-emulator.png)
 
-**這兩張不是實機截圖**，是同一份程式碼在手機比例（44×62 格）下畫出來的，
-底部的觸控功能列是真的實作（桌面版加 `-touch` 就看得到），不是示意圖。
-Android 版還沒建置——需要 NDK 與 `ebitenmobile`，計畫寫在
-[`docs/plan/android.md`](docs/plan/android.md)。
+這張是 Android 14 模擬器（Pixel 5 profile，1080×2340）上的真實截圖。
+畫面上看得到的：目錄列表、`剩餘: 5,114MB / 5,939MB` 的容量、
+底部兩列觸控功能列，以及訊息列講「現在用的是系統字型 `DroidSansMono.ttf`」
+——APK 裡不放原版的 `cvga.fon`（第三方版權物），使用者自己放進
+`wincv/` 才會換成點陣像素對齊的版本。
 
-已經實測的是：`internal/...` 全部 33 個套件與 `cmd/celldump`
-在 `GOOS=android GOARCH=arm64` 下編得過，也就是壓縮、圖檔、字型、
-渲染、markdown、瀏覽器邏輯這一整套已經是可攜的。
+`tools/build-android.sh` 建 APK（四個 ABI，minSdk 21），
+`tools/run-android-emulator.sh` 把它裝進模擬器跑起來、截圖、收 logcat。
+**還沒在實機上跑過，觸控輸入也還沒實測**——截圖證明畫得出來、讀得到檔案，
+不證明點下去會動。
 
 功能列隨模式換內容（瀏覽時是拷貝／移動／更名，讀文件時是尋找／編碼／中英），
 底下那排導覽的**格位**固定、標籤隨模式換——位置固定是為了讓拇指記得住，
 但讀文件時擺一個「標記」按鈕是按了沒反應的按鈕，那比位置變動更糟。
 
+搬上 Android 真正花時間的不是那 33 個套件（它們一行都沒改就編過了），
+是三個藏在 Ebiten 的 Android 那層裡的行為：gomobile 的原生層要自己餵
+`Context`、Activity 被重建一次就等於 app 結束、`Layout` 不能把收到的尺寸
+原樣傳回去。三條的成因與症狀都寫在
+[`docs/plan/android.md`](docs/plan/android.md)。
+
 ## 規劃中
 
-- [Android 版評估與規劃](docs/plan/android.md)——第一版**只做唯讀瀏覽**，
-  所以 `vfs.FS` 不用改介面，只要多一個 SAF 實作。
+- [Android 版評估與規劃](docs/plan/android.md)——第一版**只做唯讀瀏覽**。
+  私人 sideload 走「所有檔案存取權」，`vfs.OS` 直接可用；
+  SAF 是上架 Play 才需要的替代路徑。
 
 ## 文件
 

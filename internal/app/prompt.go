@@ -19,7 +19,7 @@ type prompt struct {
 	onDone func(string)
 
 	// 詢問模式(是 / 否 / 全部)
-	askAll  bool // 顯示「全部」這個選項
+	askAll   bool // 顯示「全部」這個選項
 	onAnswer func(yes, all bool)
 }
 

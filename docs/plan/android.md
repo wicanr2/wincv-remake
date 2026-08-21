@@ -14,8 +14,8 @@ WinCV Remake 目前跑 Linux / Windows / macOS。這份文件評估搬上 Androi
 |---|---|
 | `internal/...` 全部 33 個套件 | `GOOS=android GOARCH=arm64 CGO_ENABLED=0` **編得過** |
 | `cmd/celldump`(headless 全 app) | 同上,**編得過** |
-| `cmd/wincv`(Ebiten) | 編不過。`GOOS=android` 時 Ebiten 會 import `golang.org/x/mobile/app` → `mobileinit`,那些檔案需要 cgo,關掉 cgo 就被 build constraint 排除 |
-| Ebiten v2.6.6 的 Android 支援 | **有**。相依樹裡有 `golang.org/x/mobile v0.0.0-20230922142353-e2f452493d57` |
+| `cmd/wincv`(Ebiten) | 編不過。`GOOS=android` 時 Ebiten 會 import `github.com/ebitengine/gomobile/app` → `mobileinit`,那些檔案需要 cgo,關掉 cgo 就被 build constraint 排除 |
+| Ebiten v2.8.8 的 Android 支援 | **有**。相依樹裡有 `github.com/ebitengine/gomobile v0.0.0-20240911145611-4856209ac325` |
 
 ```bash
 docker run --rm -v $PWD:/src -w /src -e CGO_ENABLED=0 wincv-build:1 \
@@ -53,8 +53,13 @@ docker run --rm -v $PWD:/src -w /src -e CGO_ENABLED=0 wincv-build:1 \
 
 ### 二、Android 的檔案系統
 
-Android 10 起是 scoped storage:app 不能拿 `os.ReadDir("/sdcard")` 亂走,
-要透過 Storage Access Framework(SAF)由使用者授權目錄。
+Android 10 起是 scoped storage:app 預設不能拿 `os.ReadDir("/sdcard")` 亂走。
+
+**但這個專案是私人 sideload,不上架**,所以走的是「所有檔案存取權」
+(`MANAGE_EXTERNAL_STORAGE`)這條路:使用者在系統設定裡開一次,
+`vfs.OS` 就照常用,一行都不用改。模擬器上實測過 —— 授權後
+`/storage/emulated/0` 的目錄樹讀得出來。Storage Access Framework(SAF)
+是上架 Play 才必須的替代路徑,那時 `vfs.FS` 會多一個實作。
 
 好消息是 `vfs.FS` 介面只有三個方法:
 
@@ -88,8 +93,8 @@ type FS interface {
 | 項目 | 現況 | Android 要怎麼辦 |
 |---|---|---|
 | 字型 | 執行檔旁邊放 `cvga.fon`、`original/eten/STDFONT.15` | 那兩份是第三方版權物,不能打包進 APK。要做一次性的匯入流程,存進 app 私有目錄 |
-| `vfs.Drives()` | 讀 `/proc/mounts` + `/media` `/Volumes` | Android 上那些讀得到但沒有意義(scoped storage)。改成列 SAF 授權過的根目錄 |
-| `vfs.DiskUsage()` | `syscall.Statfs` | Android 是 Linux,statfs 可用;但 scoped storage 路徑上的數字未必是使用者預期的那顆儲存 |
+| `vfs.Drives()` | 讀 `/proc/mounts` + `/media` `/Volumes` | Android 上那些讀得到但沒有意義。改成列 `/storage` 底下實際掛上的儲存 |
+| `vfs.DiskUsage()` | `syscall.Statfs` | 已實測可用(狀態列顯示 `剩餘: 5,129MB / 5,939MB`)|
 | `launch.Open` / `Run` | `xdg-open` / 直接執行 | Android 不能任意執行程式。`Open` 對應到 Intent(`ACTION_VIEW` + MIME),`Run` 直接拿掉 |
 | 字級與倍率 | `Ctrl-+` / `Alt-+` | 手機螢幕密度差異大,啟動時依 DPI 選預設倍率;保留雙指縮放 |
 | 磁碟窗格 | 左側 10 欄 | 手機畫面窄,改成抽屜式(從左側滑出) |
@@ -99,9 +104,9 @@ type FS interface {
 **第一期:唯讀瀏覽器**(已定案 —— 使用者 2026-08-21 指示「唯讀即可」)
 
 只做「看」:目錄瀏覽、文字檢視、markdown、看圖、縮圖、壓縮檔瀏覽、
-16 進位、字典查詢。這一期不碰寫入,所以 `vfs.FS` 不用改介面,
-只要多一個 SAF 實作。前面實測過的「`internal/...` 全部編得過」
-涵蓋的正好就是這一期需要的全部邏輯。
+16 進位、字典查詢。這一期不碰寫入,所以 `vfs.FS` 不用改介面;
+配合「所有檔案存取權」連新實作都不用,`vfs.OS` 直接可用。
+前面實測過的「`internal/...` 全部編得過」涵蓋的正好就是這一期需要的全部邏輯。
 
 驗收:用 `cmd/celldump` 的同一批畫面在 Android 上截圖比對 ——
 渲染器是同一份,所以格點應該逐格相同。
@@ -146,20 +151,40 @@ Android Studio 專案。需要 Android NDK 與 gomobile,兩者在 Linux 上
 沿用專案既有的紀律:編譯一律走 docker,做成 `tools/build-android.sh`,
 與 `tools/build-all.sh` 並列。
 
-## 現況:APK 已經建得出來
+## 現況:在模擬器上跑起來了
 
 ```
-dist/wincv-android.apk   33.8 MB   minSdk 21 / targetSdk 34
+dist/wincv-android.apk   34 MB   minSdk 21 / targetSdk 34
   lib/arm64-v8a/libgojni.so     17.2 MB
   lib/armeabi-v7a/libgojni.so   16.2 MB
   lib/x86/libgojni.so           16.5 MB
   lib/x86_64/libgojni.so        17.8 MB
 ```
 
-`tools/build-android.sh` 產出,`tools/verify-apk.sh` 驗過:四個 ABI 的原生
-程式庫都在、launcher activity 是 `tw.lcy.wincv.MainActivity`、簽章有效。
+`tools/build-android.sh` 產出,`tools/verify-apk.sh` 驗格式與內容,
+`tools/run-android-emulator.sh` 驗行為。
 
-**還沒在真的裝置或模擬器上跑過。** 上面驗的是格式與內容,不是行為。
+實跑環境:Android 14 / API 34 / x86_64,Pixel 5 profile(1080×2340,440 dpi)。
+截圖 `docs/ui/android-run-5s.png`。實測到的:
+
+| 項目 | 結果 |
+|---|---|
+| 行程存活 | 啟動後 5 / 10 / 20 秒都在,沒有 panic |
+| 目錄瀏覽 | 路徑列 `/storage/emulated/0/*.*`,13 個項目,目錄用綠色、`<DIR>`、日期時間都對 |
+| 檔案系統權限 | 授予「所有檔案存取權」後讀得到共用儲存(不是退到 app 私有目錄)|
+| `vfs.DiskUsage()` | 狀態列 `剩餘: 5,129MB / 5,939MB`,`syscall.Statfs` 在 Android 上可用 |
+| 半形字模 | 用 `/system/fonts/DroidSansMono.ttf` 現場產,訊息列有講出來 |
+| CJK | 畫得出來(標記 / 剩餘 / 拷貝 / 移動 / 磁碟 / 預視)|
+| 觸控功能列 | 底部兩列都在,標籤隨模式換 |
+| 格點 | `外部 392x777 dp, 格 49x48, 倍率 1, 畫布 392x768 px` —— 畫布寬剛好等於外部寬,沒有溢出。格子 8×16,與原版量出來的一樣 |
+
+格點那一列的數字是程式自己印進 logcat 的(tag `GoLog`),不是從截圖上量的。
+截圖看不出「右邊那一欄是被螢幕切掉,還是這個欄寬本來就會截斷長檔名」——
+`docs/ui/android-grid-reference.png` 是桌面版在同一組格點下畫的同一個畫面,
+兩張的欄位邊界一致。
+
+**還沒實測的:觸控輸入本身。** 截圖證明「畫得出來、讀得到」,
+不證明「點下去會動」—— 那要送觸控事件再比對前後畫面。
 
 ## 建置環境
 
@@ -171,8 +196,9 @@ image 約 5.5 GB,tag 固定 `wincv-android:1`。
 
 組這個工具鏈踩到的三個坑:
 
-1. `gomobile@latest` 要 Go >= 1.25,但 ebiten v2.6.6 要配 Go 1.22。
-   把 gomobile / gobind 釘在 ebiten v2.6.6 自己相依的那一版。
+1. `gomobile@latest` 要的 Go 版本比 ebiten 相依的那一版新。
+   把 gomobile / gobind 釘在 ebiten 自己相依的那一版(`go.mod` 裡的
+   `github.com/ebitengine/gomobile`)。
 2. 釘了還是不夠 —— **`ebitenmobile bind` 內部會跑 `gomobile init`,
    而那一步寫死 `go install gobind@latest`**,繞不過釘選。
    解法是再裝一份新的 Go 放在 PATH 前面,舊的留給 ebitenmobile 自己
@@ -190,6 +216,61 @@ image 約 5.5 GB,tag 固定 `wincv-android:1`。
    同一份程式碼在兩種機器上會解出不同的位元組,而兩邊都不會報錯。
    改成固定寬度的 `uint32` / `uint16` 之後,對 acefile 的 269 個成員
    重驗過 CRC-32 全數通過。
+
+## 執行期的三個約束(Ebiten 的 Android view 決定的)
+
+這三條都不是選擇,是 `ebitenmobile` 產生的 Java 那一層寫死的行為。
+不照著做的症狀離原因都很遠,所以寫在這裡。
+
+**一、`go.Seq.setContext()` 要自己呼叫。** gomobile bind 產生的原生層需要一個
+Android `Context` 才能問系統拿東西,而這一步不會自動發生。沒做的話 Ebiten
+拿不到 `DisplayMetrics`,`deviceScale` 就是 0;`EbitenView.onLayout` 用
+「像素 ÷ deviceScale」算版面尺寸,得到 `+Inf`;Ebiten 再拿它乘上 0 去配置
+畫布,得到 `NaN`,轉成 int 是 `INT64_MIN`,最後死在「NewImage 的寬必須是
+正數」。整條鏈上沒有一步提到 Context。做法:`MainActivity.onCreate` 第一件事
+就 `Seq.setContext(getApplicationContext())`。
+
+**二、Activity 被重建一次就等於 app 結束。** `EbitenSurfaceView` 用一個
+**static** 旗標記「這個行程建過幾次 GL surface」,第二次就判定 context 遺失,
+`Log.e("Go", "The application was killed due to context loss")` 之後直接
+`Runtime.getRuntime().exit(0)`。轉向、螢幕密度、深色模式、語言都會觸發重建。
+做法:`configChanges` 把它們全部列進去,由 Activity 自己吃下來。
+v2.8.8 沒有別條路 —— `StrictContextRestoration` 這個選項在 `toUIRunOptions`
+裡從來沒被填進去(原始碼註解:"not used so far (#3098)"),從
+`mobile.SetGameWithOptions` 打不開。
+
+**三、`Layout` 不可以把收到的尺寸原樣傳回去。** Ebiten 規定它回正數,回不出來
+就 panic。輸入本身可能是壞的(見第一條),所以要先過濾 ——
+`internal/app.SaneLayout` 做這件事,`internal/app/layout_test.go` 用真的
+出現過的那組值盯著它。要注意這一步只管好 `Layout` 這個介面的契約:
+Ebiten 另外會拿**原始**的外部尺寸去配置畫布,那條路徑看不到回傳值。
+
+## 在模擬器上實跑
+
+```bash
+tools/build-android.sh                                    # 產 dist/wincv-android.apk
+APK=dist/wincv-android.apk tools/run-android-emulator.sh   # 裝進模擬器、截圖、收 logcat
+```
+
+產出在 `docs/ui/android-run-{5,10,20}s.png` 與 `docs/ui/android-logcat.txt`
+(log 不進版控)。腳本借用這台機器上**別的專案**建立的模擬器 image,
+只 `docker run --rm`,不 build / commit / tag / rmi,CPU 只拿 4 核。
+換自己的 image 設 `EMU_IMAGE` / `EMU_AVD`。
+
+兩件事寫進腳本本體而不是只寫在說明裡:
+
+- **結尾驗產物**。截圖或 logcat 缺一個就 `exit 1`。這一段最容易出的錯是
+  「容器裡的腳本根本沒跑,但 `docker run` 回 0」——
+  `-i` 沒帶、或背景行程把 heredoc 從 stdin 吃掉,兩種都長成這樣。
+  內層腳本因此掛成檔案跑,不走 stdin。
+- **裝完等 15 秒再啟動**。剛裝完的那幾秒系統在跑安裝廣播,
+  Activity 有機會被重建(見上面第二條)。不等的話量到的是模擬器的忙碌程度,
+  不是 app 的行為。行程真的沒起來會重試一次並印出來,不會靜靜地當成成功。
+
+另外:模擬器的 `/sdcard` 不讓 shell 使用者建檔(目錄建得出來、檔案回 EPERM,
+`adb push` 甚至會回報成功但檔案不在)。腳本因此先 `adb root` ——
+`google_apis` 的 image 可以,有 Play 商店的 image 不行,那時就只能瀏覽
+裝置本來就有的目錄。
 
 ## 字型:APK 裡沒有原版字型
 
@@ -211,7 +292,7 @@ Android 的系統字型在 `/system/fonts`,讀得到但不能改。優先挑等�
 | # | 假設 | 怎麼驗 |
 |---|---|---|
 | ~~N1~~ | ~~`ebitenmobile bind` 跑得起來~~ | **已驗證**,APK 建得出來也驗得過 |
-| N5 | app 在真的裝置上跑得起來(畫得出畫面、讀得到檔案) | sideload 到實機,或用模擬器 |
-| N2 | Ebiten 在 Android 上收得到軟鍵盤的字元事件 | 最小 app 叫出軟鍵盤,印出收到的事件 |
-| N3 | SAF 的目錄樹可以包成 `vfs.FS`(每次 ReadDir 都要 JNI 往返,效能未知) | 用一個幾千個檔案的目錄量 ReadDir 的耗時 |
-| N4 | 格點在手機 DPI 下讀得下去(8×16 的格子在 6 吋 400dpi 螢幕上很小) | 用 celldump 產同尺寸 PNG,在實機上看 |
+| ~~N5~~ | ~~app 跑得起來(畫得出畫面、讀得到檔案)~~ | **已驗證**,見上面的實測表。實機仍未試 |
+| N2 | Ebiten 在 Android 上收得到軟鍵盤的字元事件 | 最小 app 叫出軟鍵盤,印出收到的事件。**目前 `mobile/mobile.go` 的 `Update` 只讀觸控,完全沒讀鍵盤** |
+| N3 | SAF 的目錄樹可以包成 `vfs.FS`(每次 ReadDir 都要 JNI 往返,效能未知) | 用一個幾千個檔案的目錄量 ReadDir 的耗時。**只有上架 Play 才會用到** —— 私人 sideload 走「所有檔案存取權」,`vfs.OS` 已實測可用 |
+| N4 | 格點在手機 DPI 下讀得下去(8×16 的格子在 6 吋 400dpi 螢幕上很小) | 440 dpi 的模擬器上讀得下去(格子被放大到約 22×44 實體像素)。實機的可讀性與手指點擊精度仍未試 |

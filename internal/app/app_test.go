@@ -855,8 +855,8 @@ func typeIn(a *App, s string) {
 func TestEditFindOnly(t *testing.T) {
 	a := openEd(t, t.TempDir(), "a.txt", "one\ntwo\nthree two\n")
 	a.HandleKey(keys.Named(keys.F6))
-	typeIn(a, "two")  // 尋找
-	typeIn(a, "")     // 取代為:空 = 只尋找
+	typeIn(a, "two") // 尋找
+	typeIn(a, "")    // 取代為:空 = 只尋找
 	if a.Prompting() {
 		t.Fatal("只尋找不該再問確認")
 	}

@@ -35,7 +35,7 @@ func TestZoomClampsToRange(t *testing.T) {
 	}
 }
 
-// MaxZoom 沒設(只有一種字型可載)時,放大鍵不能把 Zoom 推到 1 —— 
+// MaxZoom 沒設(只有一種字型可載)時,放大鍵不能把 Zoom 推到 1 ——
 // 外層會拿它去索引字型陣列。
 func TestZoomWithSingleLevel(t *testing.T) {
 	a := New(vfs.OS{}, fixture(t))

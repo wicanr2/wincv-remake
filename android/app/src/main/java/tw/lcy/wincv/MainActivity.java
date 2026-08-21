@@ -5,6 +5,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 
+import go.Seq;
+
 import tw.lcy.wincv.mobile.EbitenView;
 import tw.lcy.wincv.mobile.Mobile;
 
@@ -20,6 +22,16 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // gomobile 產生的原生層要有 Context 才能問 Android 拿東西,而這一步
+        // 要由 app 自己做 —— 沒人做的話原生層的 context 是 NULL。
+        //
+        // 症狀離原因很遠:Ebiten 拿不到 DisplayMetrics,deviceScale 就是 0;
+        // EbitenView.onLayout 用「像素 ÷ deviceScale」算版面尺寸,除出來是
+        // +Inf;Ebiten 再用它乘上 0 去算畫布大小,得到 NaN,轉成 int 是
+        // INT64_MIN,最後死在「NewImage 的寬必須是正數」。
+        // 中間沒有任何一步提到 Context。
+        Seq.setContext(getApplicationContext());
 
         // Go 那一側猜不出自己讀得到哪裡 —— Android 10 起是 scoped storage,
         // 能讀什麼是由這一層的授權決定的,所以要明講。

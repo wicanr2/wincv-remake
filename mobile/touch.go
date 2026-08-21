@@ -12,11 +12,11 @@ import (
 // 手指還是鍵盤驅動的。這是 internal/keys 當初做成「與後端無關的表示」
 // 的回報 —— Android 版沒有動 app 的任何一行分派邏輯。
 type touchState struct {
-	active  bool
-	id      ebiten.TouchID
-	x0, y0  int // 按下的位置
-	lastY   int
-	moved   bool
+	active   bool
+	id       ebiten.TouchID
+	x0, y0   int // 按下的位置
+	lastY    int
+	moved    bool
 	scrolled int // 這一次拖曳已經送出幾列捲動
 }
 
