@@ -36,6 +36,9 @@ type State struct {
 	// Zoom 是字級索引,Scale 是放大倍率。
 	Zoom  int     `json:"zoom,omitempty"`
 	Scale float64 `json:"scale,omitempty"`
+	// MenuZoom 是選單那一層用第幾級字。-1(跟著內容)是預設,
+	// 而零值 0 是「第一級」—— 兩者不同,所以用指標分辨「沒存過」。
+	MenuZoom *int `json:"menuzoom,omitempty"`
 	// MenuBar 是選單列開著沒有。指標型別才分得出「舊檔沒存這一項」
 	// 與「使用者把它關掉了」—— 這一項的預設是開,零值會反過來。
 	MenuBar *bool `json:"menubar,omitempty"`
@@ -108,6 +111,9 @@ func (s State) SaveTo(path string) error {
 	}
 	return os.Rename(tmp, path)
 }
+
+// Int 把一個 int 包成指標,給 MenuZoom 那種「零值有意義」的欄位用。
+func Int(v int) *int { return &v }
 
 // Bool 把一個 bool 包成指標,給 MenuBar 那種「分得出沒設定」的欄位用。
 func Bool(v bool) *bool { return &v }

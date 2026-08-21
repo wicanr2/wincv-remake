@@ -8,6 +8,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
+	"image/draw"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -96,6 +98,8 @@ func main() {
 		noFB      = flag.Bool("no-fallback", false, "不要後備字型")
 		touch     = flag.Bool("touch", false, "顯示觸控功能列(Android 版介面草案)")
 		gopherURL = flag.String("gopher", "", "開一個 gopher 位址(會真的連外)")
+		menuFont  = flag.String("menu-font", "", "選單專用字型(TTF/TTC/OTF)")
+		menuSize  = flag.Int("menu-size", 0, "選單字高(像素)")
 	)
 	flag.Parse()
 
@@ -126,6 +130,7 @@ func main() {
 
 	s := cell.New(*cols, *rows)
 	var overlay []*render.Overlay
+	var theApp *app.App
 	if *edit != "" {
 		if err := drawEdit(s, *edit, *cfgDir); err != nil {
 			die(err)
@@ -137,11 +142,11 @@ func main() {
 		}
 		overlay = ov
 	} else if *appDir != "" {
-		ov, err := drawApp(s, *appDir, *cfgDir, *keyStr, r.CellW, r.CellH, *touch, *gopherURL)
+		ov, a, err := drawApp(s, *appDir, *cfgDir, *keyStr, r.CellW, r.CellH, *touch, *gopherURL)
 		if err != nil {
 			die(err)
 		}
-		overlay = ov
+		overlay, theApp = ov, a
 	} else if *dir != "" {
 		m, err := browserModel(*dir)
 		if err != nil {
@@ -153,6 +158,16 @@ func main() {
 	}
 
 	img := r.DrawWith(s, overlay...)
+	// 選單層是分開畫的(它可以用不同的字型與大小),在這裡疊回去。
+	mr := r
+	if *menuFont != "" {
+		if m, err := menuRasterizer(*menuFont, *menuSize, r.CellH); err != nil {
+			fmt.Fprintln(os.Stderr, "警告:選單字型用不了 —", err)
+		} else {
+			mr = m
+		}
+	}
+	img = withMenu(img, theApp, mr)
 
 	f, err := os.Create(*out)
 	if err != nil {
@@ -165,6 +180,54 @@ func main() {
 	w, h := r.Size(s.Cols, s.Rows)
 	fmt.Printf("%s  %dx%d px  (%dx%d 格,每格 %dx%d)\n",
 		*out, w, h, s.Cols, s.Rows, r.CellW, r.CellH)
+}
+
+// menuRasterizer 建一個用 TTF 的選單層光柵器。
+func menuRasterizer(path string, size, fallbackSize int) (*render.Rasterizer, error) {
+	if size <= 0 {
+		size = fallbackSize
+	}
+	half := size / 2
+	if half < 4 {
+		half = 4
+	}
+	f, err := ttf.Load(path, half, half*2, size)
+	if err != nil {
+		return nil, err
+	}
+	m := render.New(ttf.NewHalf(f, half, size), f)
+	m.MissingMark = true
+	if chain, _, _ := ttf.LoadChain(half, half*2, size); len(chain) > 0 {
+		m.Fallback = chain
+	}
+	return m, nil
+}
+
+// withMenu 把選單層疊在內容上面,內容整個往下移。
+//
+// 選單有自己的格點,所以這裡是**像素**層面的合成,不是格點層面的。
+func withMenu(content *image.RGBA, a *app.App, mr *render.Rasterizer) *image.RGBA {
+	if a == nil || !a.MenuBar || mr == nil {
+		return content
+	}
+	w := content.Rect.Dx()
+	cols, rows := w/mr.CellW, (content.Rect.Dy()+mr.CellH)/mr.CellH
+	layer := a.MenuLayer(cols, rows)
+	if layer.Bar == nil {
+		return content
+	}
+	bar := mr.Draw(layer.Bar)
+	out := image.NewRGBA(image.Rect(0, 0, w, content.Rect.Dy()+mr.CellH))
+	draw.Draw(out, image.Rect(0, 0, w, mr.CellH), bar, image.Point{}, draw.Src)
+	draw.Draw(out, image.Rect(0, mr.CellH, w, out.Rect.Dy()), content, image.Point{}, draw.Src)
+	if layer.Drop != nil {
+		// Draw 的緩衝區會被下一次呼叫重用,所以下拉要在 bar 用完之後才畫。
+		drop := mr.Draw(layer.Drop)
+		x := layer.DropX * mr.CellW
+		draw.Draw(out, image.Rect(x, mr.CellH,
+			x+drop.Rect.Dx(), mr.CellH+drop.Rect.Dy()), drop, image.Point{}, draw.Src)
+	}
+	return out
 }
 
 func cjkOrNil(f *eten.Font) render.CJKSource {
@@ -241,10 +304,10 @@ func die(err error) {
 //
 // 這條路徑和 cmd/wincv 走的是同一份 app 程式碼,只是沒有 Ebiten ——
 // 所以選單、對話框、模式切換都可以在沒有顯示器的地方檢查。
-func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool, gopherURL string) ([]*render.Overlay, error) {
+func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool, gopherURL string) ([]*render.Overlay, *app.App, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	a := app.New(vfs.OS{}, abs)
 	a.CellW, a.CellH = cw, ch
@@ -254,7 +317,7 @@ func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool,
 
 	ks, err := keys.ParseAll(keyStr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// 先畫一次,讓 app 知道畫面有幾列(翻頁與選單定位要用)
 	a.Draw(s)
@@ -280,7 +343,7 @@ func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool,
 		a.Draw(s)
 		settle()
 	}
-	return a.Draw(s), nil
+	return a.Draw(s), a, nil
 }
 
 // attachFallback 掛上後備字型。找不到就算了 —— 缺字會畫成空心框,

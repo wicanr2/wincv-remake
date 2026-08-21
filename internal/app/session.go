@@ -14,12 +14,13 @@ import (
 // 才走得到),存了反而會讓還原失敗。存它外面的那一層目錄就好。
 func (a *App) Snapshot() session.State {
 	st := session.State{
-		Dir:     a.Browser.Dir,
-		Cols:    a.thumbCols,
-		Rows:    a.rows,
-		Zoom:    a.Zoom,
-		Scale:   a.Scale,
-		MenuBar: session.Bool(a.MenuBar),
+		Dir:      a.Browser.Dir,
+		Cols:     a.thumbCols,
+		Rows:     a.rows,
+		Zoom:     a.Zoom,
+		Scale:    a.Scale,
+		MenuBar:  session.Bool(a.MenuBar),
+		MenuZoom: session.Int(a.MenuZoom),
 	}
 	if e := a.Browser.Current(); e != nil {
 		st.Cursor = e.Name
@@ -82,6 +83,9 @@ func (a *App) Restore(st session.State) {
 	}
 	if st.MenuBar != nil {
 		a.MenuBar = *st.MenuBar
+	}
+	if st.MenuZoom != nil && *st.MenuZoom >= -1 && *st.MenuZoom <= a.MaxZoom {
+		a.MenuZoom = *st.MenuZoom
 	}
 	if st.Cursor != "" {
 		a.focusOn(st.Cursor)

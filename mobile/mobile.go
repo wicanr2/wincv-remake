@@ -10,6 +10,7 @@ package mobile
 
 import (
 	"fmt"
+	"image"
 	"log"
 	"os"
 	"path/filepath"
@@ -65,14 +66,18 @@ type game struct {
 	rast   *render.Rasterizer
 	screen *cell.Screen
 	canvas *ebiten.Image
-	cols   int
-	rows   int
-	lastW  int // 最後一次合理的外部尺寸,用來擋掉壞的輸入
-	lastH  int
-	scale  float64
-	dirty  bool
-	touch  touchState
-	ready  bool
+	// [雷] 選單那兩層各自一個暫存,不能與內容共用也不能互相共用。
+	// Ebiten 的 DrawImage 是延遲執行的,共用的話後畫的那一層會在
+	// 前一層真的送出去之前把內容換掉,症狀是某一層整片變黑。
+	tex   [2]*ebiten.Image
+	cols  int
+	rows  int
+	lastW int // 最後一次合理的外部尺寸,用來擋掉壞的輸入
+	lastH int
+	scale float64
+	dirty bool
+	touch touchState
+	ready bool
 }
 
 // start 在第一次 Layout 時才做,因為那時候才知道螢幕多大,
@@ -235,6 +240,57 @@ func (g *game) cellPx() (int, int) {
 	return int(float64(g.rast.CellW) * g.scale), int(float64(g.rast.CellH) * g.scale)
 }
 
+// menuPx 是選單列在螢幕上佔的像素高。
+//
+// 手機上選單沿用內容的字型 —— 螢幕小,再放一份不同大小的字只會更擠。
+func (g *game) menuPx() int {
+	if !g.a.MenuBar || g.rast == nil {
+		return 0
+	}
+	return int(float64(g.rast.CellH) * g.scale)
+}
+
+// drawMenu 把選單層畫在最上面。
+func (g *game) drawMenu(dst *ebiten.Image) {
+	top := g.menuPx()
+	if top == 0 {
+		return
+	}
+	cw, ch := g.cellPx()
+	if cw <= 0 || ch <= 0 {
+		return
+	}
+	w, h := dst.Bounds().Dx(), dst.Bounds().Dy()
+	layer := g.a.MenuLayer(w/cw, h/ch)
+	if layer.Bar == nil {
+		return
+	}
+	g.blit(dst, 0, g.rast.Draw(layer.Bar), 0, 0)
+	if layer.Drop != nil {
+		// Rasterizer.Draw 的緩衝區會被重用,下拉要在選單列之後畫。
+		g.blit(dst, 1, g.rast.Draw(layer.Drop), layer.DropX*cw, ch)
+	}
+}
+
+func (g *game) blit(dst *ebiten.Image, slot int, img *image.RGBA, x, y int) {
+	if img == nil || img.Rect.Empty() || slot < 0 || slot >= len(g.tex) {
+		return
+	}
+	t := g.tex[slot]
+	if t == nil || t.Bounds().Dx() != img.Rect.Dx() || t.Bounds().Dy() != img.Rect.Dy() {
+		if t != nil {
+			t.Deallocate()
+		}
+		t = ebiten.NewImage(img.Rect.Dx(), img.Rect.Dy())
+		g.tex[slot] = t
+	}
+	t.WritePixels(img.Pix)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(g.scale, g.scale)
+	op.GeoM.Translate(float64(x), float64(y))
+	dst.DrawImage(t, op)
+}
+
 func (g *game) Draw(dst *ebiten.Image) {
 	if !g.ready || g.screen == nil {
 		return
@@ -251,5 +307,7 @@ func (g *game) Draw(dst *ebiten.Image) {
 	}
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(g.scale, g.scale)
+	op.GeoM.Translate(0, float64(g.menuPx()))
 	dst.DrawImage(g.canvas, op)
+	g.drawMenu(dst)
 }

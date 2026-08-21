@@ -91,17 +91,11 @@ func (t *touchState) tap(g *game, px, py int) []keys.Key {
 		}
 		return nil
 	}
-	// 最上面那一列是選單列。點它就展開 —— 手機上沒有 F9 可以按,
-	// 而觸控功能列上的「選單」鍵離手指的位置未必最近。
-	top := g.a.TopRows(g.rows)
-	if row < top {
-		return []keys.Key{keys.Named(keys.F9)}
-	}
 	// 內容區:第 0 列是路徑列,清單從第 1 列開始
-	if row < top+1 {
+	if row < 1 {
 		return nil
 	}
-	want := row - top - 1
+	want := row - 1
 	cur := g.a.ListCursorRow()
 	if cur < 0 {
 		return nil

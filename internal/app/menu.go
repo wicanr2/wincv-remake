@@ -140,7 +140,55 @@ func (a *App) setupMenuItems() []menuItem {
 		{label: fmt.Sprintf("放大倍率 +%.1f(現在 %.1f×)", ScaleStep, a.Scale), key: keys.AltCh('+')},
 		{label: fmt.Sprintf("放大倍率 -%.1f", ScaleStep), key: keys.AltCh('-')},
 		{label: "視窗大小…", sub: a.sizeMenuItems},
+		{sep: true},
+		{label: a.menuZoomLabel(), sub: a.menuFontItems},
 	}
+}
+
+// menuZoomLabel 說明選單現在用第幾級字。
+func (a *App) menuZoomLabel() string {
+	if a.MenuZoom < 0 {
+		return "選單字級…(跟著內容)"
+	}
+	return fmt.Sprintf("選單字級…(第 %d 級)", a.MenuZoom+1)
+}
+
+// menuFontItems 是「選單字級」子選單。
+//
+// 選單與內容各自選字級,不必動到對方 —— 這正是把選單那一層獨立出來
+// 光柵化換到的東西。
+func (a *App) menuFontItems() []menuItem {
+	out := []menuItem{{label: "跟著內容", run: func() bool {
+		return a.setMenuZoom(-1)
+	}}}
+	for i := 0; i <= a.MaxZoom; i++ {
+		n := i
+		out = append(out, menuItem{
+			label: fmt.Sprintf("第 %d 級", n+1),
+			run:   func() bool { return a.setMenuZoom(n) },
+		})
+	}
+	return out
+}
+
+// setMenuZoom 換選單那一層的字級。
+func (a *App) setMenuZoom(n int) bool {
+	if n < -1 {
+		n = -1
+	}
+	if n > a.MaxZoom {
+		n = a.MaxZoom
+	}
+	if n == a.MenuZoom {
+		return false
+	}
+	a.MenuZoom = n
+	if n < 0 {
+		a.Message = "選單字級跟著內容"
+	} else {
+		a.Message = fmt.Sprintf("選單字級 第 %d 級", n+1)
+	}
+	return true
 }
 
 func (a *App) helpMenuItems() []menuItem {
@@ -323,14 +371,11 @@ func (a *App) drawMenuBar(s *cell.Screen) {
 	}
 }
 
-// drawMenu 畫展開的下拉。座標系是各模式用的內層畫面,所以 y 從 0 開始
-// 就已經緊貼在選單列底下了。
-func (a *App) drawMenu(s *cell.Screen) {
+// menuBoxSize 算下拉要多大。maxCols / maxRows 是選單格點下整個畫面的大小。
+func (a *App) menuBoxSize(maxCols, maxRows int) (w, h int) {
 	m := &a.menu
-
 	// 寬度用**顯示格數**算,不是位元組數 —— 一個中文字是 3 個位元組
 	// 但只佔 2 格,用 len() 會把選單撐成一倍半寬。
-	w := 0
 	for _, it := range m.items {
 		l := cellWidth(it.label) + 4
 		if it.run == nil {
@@ -340,40 +385,49 @@ func (a *App) drawMenu(s *cell.Screen) {
 			w = l
 		}
 	}
-	if w > s.Cols-2 {
-		w = s.Cols - 2
+	if w > maxCols-2 {
+		w = maxCols - 2
 	}
-
-	// 頂層的下拉不畫標題:分類名已經在選單列上反白著,再寫一次
-	// 只是白佔一列。子選單要,不然不知道自己在哪一層。
+	if w < 8 {
+		w = 8
+	}
 	head := 0
 	if m.title != "" {
 		head = 1
 	}
-	// 底下留一列給狀態列,選單再高就自己捲。最後一列是捲動提示。
-	maxH := s.Rows - 1
+	// 底下留兩列給狀態列與呼吸空間,選單再高就自己捲。
+	// 最後一列是捲動提示。
+	maxH := maxRows - 2
 	if maxH < 3 {
-		maxH = s.Rows
+		maxH = maxRows
 	}
-	h := len(m.items) + head + 1
+	h = len(m.items) + head + 1
 	if h > maxH {
 		h = maxH
 	}
+	if h < 2 {
+		h = 2
+	}
 	m.rows = h - head - 1
 	m.scrollToCursor()
+	return w, h
+}
 
-	x0, y0 := m.x, 0
-	if x0+w > s.Cols {
-		x0 = s.Cols - w
-	}
-	if x0 < 0 {
-		x0 = 0
+// drawMenu 畫展開的下拉。s 就是下拉那一塊,左上角是 (0,0) ——
+// 它畫在自己的畫面上,因為選單可以用與內容不同的字型與大小,
+// 兩者的格點對不起來。
+func (a *App) drawMenu(s *cell.Screen) {
+	m := &a.menu
+	w, h := s.Cols, s.Rows
+	head := 0
+	if m.title != "" {
+		head = 1
 	}
 
-	s.Fill(x0, y0, w, h, ' ', cell.Black, cell.LtGray)
+	s.Fill(0, 0, w, h, ' ', cell.Black, cell.LtGray)
 	if head == 1 {
-		s.Fill(x0, y0, w, 1, ' ', cell.White, cell.Blue)
-		s.Print(x0+1, y0, " "+m.title+" ", cell.White, cell.Blue)
+		s.Fill(0, 0, w, 1, ' ', cell.White, cell.Blue)
+		s.Print(1, 0, " "+m.title+" ", cell.White, cell.Blue)
 	}
 
 	for row := 0; row < m.rows; row++ {
@@ -382,12 +436,12 @@ func (a *App) drawMenu(s *cell.Screen) {
 			break
 		}
 		it := m.items[i]
-		y := y0 + head + row
+		y := head + row
 		if it.sep {
 			// 分隔線用 '-':cvga 是 Big5 的半形字型,0x80 以上是
 			// 雙位元組字的前導位元組,沒有製表符號的字模,
 			// 拿 U+2500 來畫會是一片空白。
-			s.Fill(x0+2, y, w-4, 1, '-', cell.Gray, cell.LtGray)
+			s.Fill(2, y, w-4, 1, '-', cell.Gray, cell.LtGray)
 			continue
 		}
 		fg, bg := cell.Black, cell.LtGray
@@ -397,12 +451,12 @@ func (a *App) drawMenu(s *cell.Screen) {
 		kfg := cell.Blue
 		if i == m.cursor {
 			fg, bg, kfg = cell.White, cell.Blue, cell.LtCyan
-			s.Fill(x0, y, w, 1, ' ', fg, bg)
+			s.Fill(0, y, w, 1, ' ', fg, bg)
 		}
-		s.Print(x0+2, y, it.label, fg, bg)
+		s.Print(2, y, it.label, fg, bg)
 		if it.run == nil {
 			ks := it.key.String()
-			if px := x0 + w - 2 - len(ks); px > x0+2 {
+			if px := w - 2 - len(ks); px > 2 {
 				s.Print(px, y, ks, kfg, bg)
 			}
 		}
@@ -410,17 +464,54 @@ func (a *App) drawMenu(s *cell.Screen) {
 
 	// 還有沒顯示到的項目時給個提示,不然看起來像選單就這麼多。
 	if m.rows < len(m.items) {
-		y := y0 + h - 1
-		s.Fill(x0, y, w, 1, ' ', cell.Blue, cell.LtGray)
-		pos := fmt.Sprintf("%d/%d", m.cursor+1, len(m.items))
-		s.Print(x0+2, y, pos, cell.Blue, cell.LtGray)
+		y := h - 1
+		s.Fill(0, y, w, 1, ' ', cell.Blue, cell.LtGray)
+		s.Print(2, y, fmt.Sprintf("%d/%d", m.cursor+1, len(m.items)), cell.Blue, cell.LtGray)
 		if m.top > 0 {
-			s.Print(x0+w-4, y, "^", cell.Blue, cell.LtGray)
+			s.Print(w-4, y, "^", cell.Blue, cell.LtGray)
 		}
 		if m.top+m.rows < len(m.items) {
-			s.Print(x0+w-2, y, "v", cell.Blue, cell.LtGray)
+			s.Print(w-2, y, "v", cell.Blue, cell.LtGray)
 		}
 	}
+}
+
+// MenuLayer 是選單列與展開的下拉,各自畫在自己的畫面上。
+//
+// 分開交出去而不是畫進主畫面:選單可以用與內容**不同的字型與大小**,
+// 兩者的格點根本對不起來。外殼拿它們各自光柵化,再依像素座標疊上去。
+type MenuLayer struct {
+	// Bar 是最上面那一列。nil 表示選單列關著。
+	Bar *cell.Screen
+	// Drop 是展開的下拉。nil 表示沒展開。
+	Drop *cell.Screen
+	// DropX 是下拉左緣,以**選單格**為單位。
+	DropX int
+}
+
+// MenuLayer 依選單格點的大小畫出選單。cols / rows 是選單字型下
+// 整個視窗裝得下幾格幾列。
+func (a *App) MenuLayer(cols, rows int) MenuLayer {
+	if !a.MenuBar || cols < 8 || rows < 3 {
+		return MenuLayer{}
+	}
+	bar := cell.New(cols, 1)
+	a.drawMenuBar(bar)
+	l := MenuLayer{Bar: bar}
+	if a.menu.active {
+		w, h := a.menuBoxSize(cols, rows)
+		drop := cell.New(w, h)
+		a.drawMenu(drop)
+		x := a.menu.x
+		if x+w > cols {
+			x = cols - w
+		}
+		if x < 0 {
+			x = 0
+		}
+		l.Drop, l.DropX = drop, x
+	}
+	return l
 }
 
 // cellWidth 算一串字佔幾格。全形字兩格。

@@ -101,6 +101,13 @@ type App struct {
 	// MenuBar 開啟最上方那一列選單列(見 menu.go)。預設開著。
 	MenuBar bool
 
+	// MenuZoom 是選單那一層要用第幾個字級。-1 表示跟內容一樣。
+	//
+	// 與 Zoom 分開的理由:內容要的是「與原版逐像素對齊的點陣字」,
+	// 那是這個 remake 存在的理由之一;選單只是介面,在高解析度螢幕上
+	// 大一級反而好認。硬綁在一起就得二選一。
+	MenuZoom int
+
 	// ShowPreview 是 Alt-P 的狀態:畫面底部留一塊,顯示游標所在檔案的開頭。
 	ShowPreview bool
 	prev        preview
@@ -174,7 +181,7 @@ type layer struct {
 
 func New(fsys vfs.FS, dir string) *App {
 	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15,
-		Scale: 1, MenuBar: true}
+		Scale: 1, MenuBar: true, MenuZoom: -1}
 	a.Browser.NoteLoader = a.loadNotes
 	a.Browser.DiskStat = a.diskStat
 	a.Browser.ColorOf = fileColor
@@ -189,46 +196,25 @@ func (a *App) LoadSyntax(dir string) {
 	}
 }
 
-// TopRows 回傳畫面最上方被選單列佔掉幾列。
-//
-// 公開是因為觸控那一側要把「螢幕上的第幾列」換算成「清單的第幾筆」,
-// 而那個換算與這裡的版面必須是同一份真相 —— 兩邊各寫一次條件的話,
-// 差一列的錯誤會表現成「點 A 選到 B」,而不是任何一種當掉。
-func (a *App) TopRows(rows int) int {
-	if a.MenuBar && rows > MenuBarRows+2 {
-		return MenuBarRows
-	}
-	return 0
-}
-
 // Draw 依目前模式畫出畫面。回傳的 overlay 要交給
 // render.Rasterizer.DrawWith(s, ovs...)。
 //
 // 回傳的是一組而不是一個:markdown 一頁可以有好幾張圖。
 func (a *App) Draw(s *cell.Screen) []*render.Overlay {
-	// 選單列佔掉最上面一列,觸控功能列佔掉底下兩列。與其讓每個模式
-	// 各自知道「上下被佔了幾列」,不如先畫進一個矮的畫面再貼上去 ——
-	// 一次對所有模式成立,而且之後加新模式不必記得這件事。
-	top, bottom := a.TopRows(s.Rows), 0
-	if a.Touch && s.Rows > top+TouchRows+2 {
-		bottom = TouchRows
-	}
-	if top+bottom == 0 {
-		return a.drawModes(s)
-	}
-	inner := cell.New(s.Cols, s.Rows-top-bottom)
-	ov := a.drawModes(inner)
-	s.CopyFrom(inner, 0, top)
-	if top > 0 {
-		a.drawMenuBar(s)
-		// overlay 記的是像素座標。格點整個往下移了一列,圖片
-		// 不跟著移的話會蓋到選單列上,而且與它底下的文字錯開一列。
-		shiftOverlays(ov, top*a.CellH)
-	}
-	if bottom > 0 {
+	// 觸控功能列佔掉底部兩列。與其讓每個模式各自知道「底下被佔了幾列」,
+	// 不如先畫進一個矮兩列的畫面再貼上去 —— 一次對所有模式成立,
+	// 而且之後加新模式不必記得這件事。
+	//
+	// 選單列不在這裡:它可以用與內容不同的字型與大小,格點對不起來,
+	// 所以由外殼用 MenuLayer 拿去自己畫(見 menu.go)。
+	if a.Touch && s.Rows > TouchRows+2 {
+		inner := cell.New(s.Cols, s.Rows-TouchRows)
+		ov := a.drawModes(inner)
+		s.CopyFrom(inner, 0, 0)
 		a.drawTouchBar(s)
+		return ov
 	}
-	return ov
+	return a.drawModes(s)
 }
 
 func (a *App) drawModes(s *cell.Screen) []*render.Overlay {
@@ -268,9 +254,6 @@ func (a *App) drawModes(s *cell.Screen) []*render.Overlay {
 		if a.ShowPreview {
 			a.drawPreview(s)
 		}
-	}
-	if a.menu.active {
-		a.drawMenu(s)
 	}
 	if a.about {
 		a.drawAbout(s)

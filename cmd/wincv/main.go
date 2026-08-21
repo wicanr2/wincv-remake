@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
 	"math"
 	"os"
 	"path/filepath"
@@ -43,11 +44,30 @@ type game struct {
 	screen *cell.Screen
 	rast   *render.Rasterizer
 	canvas *ebiten.Image
-	dirty  bool
-	scale  float64
+	// tex 是把 CPU 端的格點圖搬上 GPU 用的暫存。
+	//
+	// [雷] 三層各一個,**不能共用**。Ebiten 的 DrawImage 是延遲執行的
+	// (指令排進佇列,幀結束才送出),而共用的話下一層會在前一層真的
+	// 畫出去之前就把那張圖的內容換掉、甚至 Deallocate 掉 ——
+	// 症狀是某一層整片變黑,而且沒有任何錯誤。
+	tex   [3]*ebiten.Image
+	dirty bool
+	scale float64
 
 	levels []level
 	zoom   int
+
+	// menuRast 是選單那一層的光柵器。選單可以用與內容不同的字型與
+	// 大小,所以它有自己的格點;nil 表示沿用內容的那一份。
+	menuRast *render.Rasterizer
+	// menuScale 是選單層的放大倍率。與內容分開 —— 兩者的「大小」
+	// 是兩件獨立的事,共用一個倍率就等於沒有分離。
+	menuScale float64
+	// menuFontPath 是使用者指定的選單字型;空的表示用點陣字。
+	menuFontPath string
+	menuFontSize int
+	// menuZoom 是選單層目前用第幾級點陣字,-1 表示跟內容一樣。
+	menuZoom int
 	// resume 是「記住位置」的開關,lastSt 是上次寫出去的那一份。
 	resume bool
 	lastSt session.State
@@ -84,7 +104,8 @@ func (g *game) resize(w, h int) {
 	if cw <= 0 || ch <= 0 {
 		return
 	}
-	cols, rows := w/cw, h/ch
+	// 選單列吃掉的是**像素**不是格 —— 它可以用完全不同的字型大小。
+	cols, rows := w/cw, (h-g.menuBarPx())/ch
 	if cols < 20 {
 		cols = 20
 	}
@@ -134,6 +155,13 @@ func (g *game) Update() error {
 		g.applySize(cols, rows)
 	}
 	// 選單裡的「視窗大小」只留下請求,真的去動視窗是這裡的事。
+	// 選單字級改了就重建那一層。
+	if g.app.MenuZoom != g.menuZoom {
+		g.menuZoom = g.app.MenuZoom
+		g.applyMenuZoom()
+		g.canvas = nil
+		g.dirty = true
+	}
 	if g.app.WantCols > 0 && g.app.WantRows > 0 {
 		g.applySize(g.app.WantCols, g.app.WantRows)
 		g.app.WantCols, g.app.WantRows = 0, 0
@@ -168,7 +196,7 @@ func (g *game) applySize(cols, rows int) {
 		return
 	}
 	cw, ch := g.cellPx()
-	w, h := cols*cw, rows*ch
+	w, h := cols*cw, rows*ch+g.menuBarPx()
 	ebiten.SetWindowSize(w, h)
 	g.resize(w, h)
 }
@@ -182,20 +210,153 @@ func (g *game) cellPx() (int, int) {
 		int(math.Ceil(float64(g.rast.CellH) * g.scale))
 }
 
+// setMenuFont 換選單那一層的字型。path 為空表示沿用內容的字型。
+//
+// 選單與內容分開的理由:兩者要的東西不一樣。內容要的是「與原版逐像素
+// 對齊的點陣字」,那是這個 remake 存在的理由之一;選單只是介面,
+// 在高解析度螢幕上用一份清楚的向量字型反而好認。硬綁在一起就得二選一。
+func (g *game) setMenuFont(path string, size int, mag float64) error {
+	g.menuScale = mag
+	if path == "" {
+		g.menuRast = nil
+		return nil
+	}
+	if size <= 0 {
+		size = g.rast.CellH
+	}
+	// 半形寬取字高的一半:等寬字型的常見比例,而選單是靠格點排的。
+	half := size / 2
+	if half < 4 {
+		half = 4
+	}
+	f, err := ttf.Load(path, half, half*2, size)
+	if err != nil {
+		g.menuRast = nil
+		return err
+	}
+	r := render.New(ttf.NewHalf(f, half, size), f)
+	r.MissingMark = true
+	// 選單的字也可能缺(中文標籤),同一條後備鏈接上去。
+	if chain, _, _ := ttf.LoadChain(half, half*2, size); len(chain) > 0 {
+		r.Fallback = chain
+	}
+	g.menuRast = r
+	return nil
+}
+
+// applyMenuZoom 依 app.MenuZoom 換選單那一層的點陣字級。
+//
+// 指定了 -menu-font 時不動:那是使用者明講要用某個字型檔,
+// 字級選單改的是「用哪一級點陣字」,兩者不該互相覆蓋。
+func (g *game) applyMenuZoom() {
+	if g.menuFontPath != "" {
+		return
+	}
+	n := g.menuZoom
+	if n < 0 || n >= len(g.levels) {
+		g.menuRast = nil
+		return
+	}
+	l := g.levels[n]
+	r := render.New(l.half, l.cjk)
+	r.Fallback = l.fb
+	r.MissingMark = true
+	g.menuRast = r
+}
+
+// menu 回傳選單層的光柵器、倍率,以及一格的螢幕像素。
+//
+// [雷] 倍率只在這裡算一次。原本 paint 那邊另外算了一次自己的 msc,
+// 兩邊對 menuScale 零值的處理不一樣 —— 結果是 GeoM.Scale(0, 0),
+// 選單層被縮成零,畫面上看起來像「選單列沒畫出來」而不是任何錯誤。
+func (g *game) menu() (r *render.Rasterizer, sc float64, cw, ch int) {
+	r, sc = g.menuRast, g.menuScale
+	if r == nil {
+		// 沒有指定選單字型時整層沿用內容的字型與倍率。
+		r, sc = g.rast, g.scale
+	}
+	if sc <= 0 {
+		sc = 1
+	}
+	return r, sc, int(math.Ceil(float64(r.CellW) * sc)),
+		int(math.Ceil(float64(r.CellH) * sc))
+}
+
+// menuBarPx 是選單列佔掉的螢幕像素高。關著時是 0。
+func (g *game) menuBarPx() int {
+	if !g.app.MenuBar {
+		return 0
+	}
+	_, _, _, ch := g.menu()
+	return ch
+}
+
 func (g *game) Draw(dst *ebiten.Image) {
-	if g.dirty || g.canvas == nil {
-		ov := g.app.Draw(g.screen)
-		img := g.rast.DrawWith(g.screen, ov...)
-		if g.canvas == nil ||
-			g.canvas.Bounds() != (image.Rectangle{Max: img.Rect.Max}) {
-			g.canvas = ebiten.NewImage(img.Rect.Dx(), img.Rect.Dy())
-		}
-		g.canvas.WritePixels(img.Pix)
+	// 尺寸取自 dst 而不是 ebiten.WindowSize():dst 就是 Layout 回報的
+	// 那塊邏輯螢幕,而 WindowSize 在還沒有視窗管理員的環境
+	// (Xvfb、剛啟動的那幾幀)回報的可能是別的數字 —— 對不上的話
+	// canvas 會比畫面小,而多出來的部分永遠是黑的。
+	w, h := dst.Bounds().Dx(), dst.Bounds().Dy()
+	if g.dirty || g.canvas == nil ||
+		g.canvas.Bounds().Dx() != w || g.canvas.Bounds().Dy() != h {
+		g.paint(w, h)
 		g.dirty = false
 	}
+	dst.DrawImage(g.canvas, &ebiten.DrawImageOptions{})
+}
+
+// paint 把內容層與選單層合成到 canvas 上。
+//
+// 兩層各自放大再貼,而不是合成完再一起放大:兩者的倍率是分開的,
+// 而且點陣字必須整格複製像素,先合成會讓其中一層被插值糊掉。
+func (g *game) paint(w, h int) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	if g.canvas == nil || g.canvas.Bounds().Dx() != w || g.canvas.Bounds().Dy() != h {
+		g.canvas = ebiten.NewImage(w, h)
+	}
+	g.canvas.Fill(color.Black)
+
+	top := g.menuBarPx()
+
+	ov := g.app.Draw(g.screen)
+	img := g.rast.DrawWith(g.screen, ov...)
+	g.blit(0, img, 0, top, g.scale)
+
+	if top > 0 {
+		mr, msc, mcw, mch := g.menu()
+		layer := g.app.MenuLayer(w/mcw, h/mch)
+		if layer.Bar != nil {
+			g.blit(1, mr.Draw(layer.Bar), 0, 0, msc)
+		}
+		if layer.Drop != nil {
+			// [雷] Rasterizer.Draw 的緩衝區會被下一次呼叫重用,
+			// 所以下拉一定要在選單列 blit 完之後才畫。
+			g.blit(2, mr.Draw(layer.Drop), layer.DropX*mcw, mch, msc)
+		}
+	}
+}
+
+// blit 把一張格點圖放大 sc 倍之後貼到 canvas 的 (x, y)。
+// slot 決定用哪一個暫存材質,見 tex 的說明。
+func (g *game) blit(slot int, img *image.RGBA, x, y int, sc float64) {
+	if img == nil || img.Rect.Empty() || slot < 0 || slot >= len(g.tex) {
+		return
+	}
+	t := g.tex[slot]
+	if t == nil || t.Bounds().Dx() != img.Rect.Dx() || t.Bounds().Dy() != img.Rect.Dy() {
+		if t != nil {
+			t.Deallocate()
+		}
+		t = ebiten.NewImage(img.Rect.Dx(), img.Rect.Dy())
+		g.tex[slot] = t
+	}
+	t.WritePixels(img.Pix)
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(g.scale, g.scale)
-	dst.DrawImage(g.canvas, op)
+	op.GeoM.Scale(sc, sc)
+	op.GeoM.Translate(float64(x), float64(y))
+	g.canvas.DrawImage(t, op)
 }
 
 // Layout 每幀被呼叫,參數是視窗的實際大小。回傳同樣的數字表示
@@ -219,6 +380,9 @@ func main() {
 		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
 		noResume = flag.Bool("no-resume", false, "不要回到上次的位置")
+		menuFont = flag.String("menu-font", "", "選單專用字型(TTF/TTC/OTF);留空沿用內容的點陣字")
+		menuSize = flag.Int("menu-size", 0, "選單字高(像素);配 -menu-font 用,留空取內容格高")
+		menuMag  = flag.Float64("menu-scale", 0, "選單的放大倍率;留空沿用內容的倍率")
 	)
 	flag.Parse()
 
@@ -272,12 +436,17 @@ func main() {
 	g.resize(*cols*cw, *rows*ch)
 
 	w, h := g.rast.Size(g.cols, g.rows)
-	ebiten.SetWindowSize(int(math.Ceil(float64(w)*g.scale)), int(math.Ceil(float64(h)*g.scale)))
+	ebiten.SetWindowSize(int(math.Ceil(float64(w)*g.scale)),
+		int(math.Ceil(float64(h)*g.scale))+g.menuBarPx())
 	ebiten.SetWindowTitle("WinCV")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	// 畫面只在有事情發生時重畫 —— 這是檔案管理程式,不是遊戲。
 	ebiten.SetScreenClearedEveryFrame(false)
 
+	g.menuFontPath, g.menuFontSize, g.menuZoom = *menuFont, *menuSize, -1
+	if err := g.setMenuFont(*menuFont, *menuSize, *menuMag); err != nil {
+		fmt.Fprintln(os.Stderr, "警告:選單字型用不了,沿用內容的字型 —", err)
+	}
 	a.Restore(st)
 	g.lastSt = a.Snapshot()
 
