@@ -97,6 +97,14 @@ type App struct {
 	// 載到了幾種字型)。app 這一層只管索引,實際換字型是視窗層的事。
 	Zoom, MaxZoom int
 
+	// Scale 是整數倍放大(把同一份字模每個像素複製 n×n)。
+	// 與 Zoom 是兩件事:Zoom 換的是點陣字本身,Scale 只是放大。
+	Scale int
+
+	// WantCols / WantRows 是「請視窗層把視窗調成這麼多格」的請求。
+	// 0 表示沒有請求。視窗層處理完要自己歸零。
+	WantCols, WantRows int
+
 	// rows 是最近一次繪製時內容區的列數,按鍵處理要用來算翻頁。
 	rows int
 	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
@@ -131,7 +139,7 @@ type layer struct {
 }
 
 func New(fsys vfs.FS, dir string) *App {
-	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15}
+	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15, Scale: 1}
 	a.Browser.NoteLoader = a.loadNotes
 	a.Browser.DiskStat = a.diskStat
 	a.Browser.ColorOf = fileColor
@@ -222,6 +230,17 @@ func (a *App) HandleKey(k keys.Key) bool {
 			return a.setZoom(a.Zoom - 1)
 		case '0':
 			return a.setZoom(0)
+		}
+	}
+	// 整數倍放大:Alt-+ / Alt-- / Alt-0。
+	if k.Alt && k.Code == keys.Rune {
+		switch k.R {
+		case '+', '=':
+			return a.setScale(a.Scale + 1)
+		case '-', '_':
+			return a.setScale(a.Scale - 1)
+		case '0':
+			return a.setScale(1)
 		}
 	}
 	switch k.Code {

@@ -62,6 +62,11 @@ func (g *game) setZoom(n int) {
 	g.app.CellW, g.app.CellH = g.rast.CellW, g.rast.CellH
 	g.canvas = nil
 	g.dirty = true
+	// 換字級要保住**格數**而不是視窗大小:使用者按放大字體想要的是
+	// 「字變大」,不是「同樣大的視窗裡剩下一半的內容」。
+	if g.cols > 0 && g.rows > 0 {
+		g.applySize(g.cols, g.rows)
+	}
 }
 
 // resize 依視窗像素大小算出裝得下幾欄幾列。
@@ -108,7 +113,34 @@ func (g *game) Update() error {
 	if g.app.Zoom != g.zoom {
 		g.setZoom(g.app.Zoom)
 	}
+	// 整數倍放大改變時,視窗的像素大小要跟著改,否則格數會少掉一半。
+	if g.app.Scale != g.scale && g.app.Scale >= app.MinScale && g.app.Scale <= app.MaxScale {
+		cols, rows := g.cols, g.rows
+		g.scale = g.app.Scale
+		g.canvas = nil
+		g.dirty = true
+		g.applySize(cols, rows)
+	}
+	// 選單裡的「視窗大小」只留下請求,真的去動視窗是這裡的事。
+	if g.app.WantCols > 0 && g.app.WantRows > 0 {
+		g.applySize(g.app.WantCols, g.app.WantRows)
+		g.app.WantCols, g.app.WantRows = 0, 0
+	}
 	return nil
+}
+
+// applySize 把視窗調成 cols×rows 格。
+//
+// 全螢幕時不動視窗 —— 那會把使用者踢出全螢幕,而他要的只是換個字級。
+func (g *game) applySize(cols, rows int) {
+	if ebiten.IsFullscreen() {
+		g.resize(ebiten.WindowSize())
+		return
+	}
+	w := cols * g.rast.CellW * g.scale
+	h := rows * g.rast.CellH * g.scale
+	ebiten.SetWindowSize(w, h)
+	g.resize(w, h)
 }
 
 func (g *game) Draw(dst *ebiten.Image) {
@@ -175,6 +207,13 @@ func main() {
 	}
 	a.Zoom = *zoom
 
+	if *scale < app.MinScale {
+		*scale = app.MinScale
+	}
+	if *scale > app.MaxScale {
+		*scale = app.MaxScale
+	}
+	a.Scale = *scale
 	g := &game{app: a, levels: levels, scale: *scale, zoom: -1, dirty: true}
 	g.setZoom(*zoom)
 	g.resize(*cols*g.rast.CellW*g.scale, *rows*g.rast.CellH*g.scale)

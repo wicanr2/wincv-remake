@@ -22,3 +22,6 @@ __pycache__/
 # docker build 掉在 repo 根目錄的執行檔
 /wincv
 /celldump
+
+# IDA 的工作目錄(資料庫十幾 MB,可由 tools/ida.sh 重建)
+/.ida/

@@ -18,7 +18,8 @@ type menuItem struct {
 	label string
 	key   keys.Key
 	sep   bool
-	run   func() bool // 沒有對應按鍵的功能(例如 MD5/SFV)用這個
+	run   func() bool     // 沒有對應按鍵的功能(例如 MD5/SFV)用這個
+	sub   func() []menuItem // 子選單。選中時換成它的內容,Esc 退回來
 }
 
 // menu 是 F1 叫出來的指令選單。
@@ -31,6 +32,12 @@ type menu struct {
 	cursor int
 	top    int // 項目比畫面高時,第一列顯示的是第幾項
 	rows   int // 最近一次繪製時裝得下幾項
+
+	// back 是子選單的返回點。只存一層 —— 選單是給人按的,
+	// 深到要記路徑就表示分類方式錯了。
+	back   []menuItem
+	backAt int
+	title  string
 }
 
 // Menuing 回傳現在是不是開著選單。
@@ -81,8 +88,10 @@ func (a *App) menuItems() []menuItem {
 		{label: "切換 中英文顯示", key: keys.Named(keys.F8)},
 		{label: "全螢幕", key: keys.Named(keys.F11)},
 		{label: "預視窗格", key: alt('P')},
+		{label: "磁碟窗格", key: alt('D')},
 		{label: "放大字體", key: keys.CtrlCh('+')},
 		{label: "縮小字體", key: keys.CtrlCh('-')},
+		{label: "視窗大小…", sub: a.sizeMenuItems},
 		{sep: true},
 		{label: "關於", run: a.openAbout},
 	}
@@ -125,6 +134,11 @@ func (a *App) menuKey(k keys.Key) bool {
 	case keys.PgDn:
 		return move(m.visible())
 	case keys.Esc, keys.F1:
+		if m.back != nil && k.Code == keys.Esc {
+			m.items, m.cursor, m.back, m.title = m.back, m.backAt, nil, ""
+			m.scrollToCursor()
+			return true
+		}
 		a.menu = menu{}
 		return true
 	case keys.Enter:
@@ -132,6 +146,11 @@ func (a *App) menuKey(k keys.Key) bool {
 			return false
 		}
 		it := m.items[m.cursor]
+		if it.sub != nil {
+			m.back, m.backAt, m.title = m.items, m.cursor, it.label
+			m.items, m.cursor, m.top = it.sub(), 0, 0
+			return true
+		}
 		a.menu = menu{}
 		a.Message = ""
 		if it.run != nil {

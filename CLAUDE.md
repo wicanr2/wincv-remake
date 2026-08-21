@@ -128,6 +128,27 @@ IDA 反組譯的對象是 **`WINCV.IMG`,不是 `wincv.exe`**。反 `wincv.exe` �
 以及 IDAPython 必須用 `ida-pro-9.4-idapython:py312-v1` 這個 tag(基底 image 是靜默失敗、
 exit code 不可信)。
 
+已經包成 `tools/ida.sh` + `tools/ida/*.py`:
+
+```bash
+tools/ida.sh load_wincv.py /work/out/load.json    # 建庫、種函式邊界、套名字
+```
+
+實測結果:種下 2392 個函式邊界後 IDA 認出 **3253 個函式**,套上 **6837 個名字**
+(1606 個 xt 落在 image 之外,那些是執行期才配的,跳過)。
+
+**這一段有三個會產生「自洽但錯」結果的坑,都踩過:**
+
+1. `set_segm_addressing(seg, bitness)` 的 bitness 是 **0=16 / 1=32 / 2=64**。
+   填 2 會把 32 位元的碼當 64 位元解,而反組譯**看起來仍然是合理的指令**
+   (只是暫存器變成 `rdi`/`rax`),不會有任何錯誤訊息。
+2. 腳本語法錯誤的症狀是**一行都沒跑**:零輸出、零訊息、沒有 traceback,
+   與「IDAPython 在這個環境不能用」長得一模一樣。所以 `tools/ida.sh`
+   會先 `ast.parse` 再燒一次 IDA,而每支腳本第一行就寫痕跡檔。
+3. **不要 grep 反組譯文字**去找 `[edi+X]`:名字套上去之後位移可能被符號化,
+   而且那是二手資料。用 `ida_ua.decode_insn` 讀運算元型別與基底暫存器。
+   (同一個查詢,grep 文字找到 1 處,解碼找到 8703 處。)
+
 ### 3.4 反編當 oracle,不照抄
 
 沿用 `~/.claude/knowledge-base/retro-cht/retro-game-remake/SKILL.md` 的母方法論:
@@ -422,12 +443,8 @@ tools/oracle-shot.sh original/ref-shots/view.png 18 "Down Down Return"
 
 動手用到哪一條,先驗那一條,驗完把它搬進 §1 並註明證據。
 
-| # | 假設 | 怎麼驗 |
-|---|---|---|
-| A1 | `EDI` 是 image base(而非 user area 指標) | 在 IDA 裡取幾個 `[edi+X]`,對照 X 是否落在 image 的資料區間 |
-| A2 | header record 的 `f2` 欄位是 vocabulary / hash link | 統計 `f2` 值的分布;看同名不同 vocabulary 的 word 是否 `f2` 不同 |
-| A3 | image header 0x04 是 magic / checksum | 改一個 byte 再跑,看 kernel 是否拒載 |
-| A4 | `VF-` / `EF-` / `VP-` 前綴對應 view-file / edit-file / view-picture | 反組譯任一個該前綴的 word,看它碰的資料與畫面 |
+**目前清單是空的** —— A1–A13 全部驗完,結論在 §1。新的假設寫進這裡,
+不要直接寫進 §1。
 
 ---
 

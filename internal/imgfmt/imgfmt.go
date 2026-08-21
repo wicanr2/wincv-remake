@@ -44,6 +44,9 @@ var Formats = []Format{
 	{[]string{".pbm", ".pgm", ".ppm", ".pnm"}, "PNM", true, "自寫"},
 	{[]string{".ico"}, "ICO", true, "自寫(挑最大的那張)"},
 	{[]string{".koa"}, "Koala", true, "自寫,C64 多色點陣"},
+	// SVG 原版沒有(2011 年還不流行),但 markdown 裡很常見,
+	// 而且它是向量的 —— 縮到格點大小不會糊。
+	{[]string{".svg"}, "SVG", true, "oksvg/rasterx(原版沒有,markdown 用得到)"},
 	// Photo CD 是 Huffman 編碼的 YCC,還帶多組解析度,而且找不到可以
 	// 產生測試檔的工具。沒有 oracle 的解碼器不寫。
 	{[]string{".pcd"}, "PhotoCD", false, "Kodak Photo CD,造不出測試資料"},
@@ -88,6 +91,9 @@ func Decode(name string, data []byte) (image.Image, string, error) {
 	case "ICO":
 		img, err := DecodeICO(data)
 		return img, "ICO", err
+	case "SVG":
+		img, err := DecodeSVG(data)
+		return img, f.Name, err
 	case "Koala":
 		img, err := DecodeKOA(data)
 		return img, "KOA", err
