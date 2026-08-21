@@ -14,6 +14,9 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 IMG=${ANDROID_IMG:-wincv-android:1}
 DIST=$REPO/dist
 JAVAPKG=tw.lcy.wincv
+# TAGS / APK_OUT 給 tools/build-full.sh 用:同一條流程,換 build tag 與輸出檔名。
+TAGS=${TAGS:-}
+APK_OUT=${APK_OUT:-$DIST/wincv-android.apk}
 
 mkdir -p "$DIST" "$REPO/android/app/libs"
 
@@ -38,6 +41,7 @@ DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
 echo "== 1/2 ebitenmobile bind =="
 $DOCKER "$IMG" ebitenmobile bind \
     -target android -androidapi 21 \
+    ${TAGS:+-tags "$TAGS"} \
     -javapkg "$JAVAPKG" \
     -o /src/android/app/libs/wincv.aar \
     ./mobile
@@ -50,8 +54,9 @@ $DOCKER -w /src/android "$IMG" gradle --no-daemon assembleRelease
 
 APK=$REPO/android/app/build/outputs/apk/release/app-release.apk
 [ -s "$APK" ] || { echo "APK 沒產出來" >&2; exit 1; }
-cp "$APK" "$DIST/wincv-android.apk"
-echo "   $(du -h "$DIST/wincv-android.apk" | cut -f1)  dist/wincv-android.apk"
+mkdir -p "$(dirname "$APK_OUT")"
+cp "$APK" "$APK_OUT"
+echo "   $(du -h "$APK_OUT" | cut -f1)  ${APK_OUT#"$REPO"/}"
 
 echo
 echo "驗收:tools/verify-apk.sh"

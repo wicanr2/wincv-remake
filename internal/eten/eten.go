@@ -122,23 +122,33 @@ func Load(stdPath, spcPath string, w, h int) (*Font, error) {
 	if err != nil {
 		return nil, fmt.Errorf("讀 STDFONT: %w", err)
 	}
+	var spc, supp []byte
+	if spcPath != "" {
+		if spc, err = os.ReadFile(spcPath); err != nil {
+			return nil, fmt.Errorf("讀 SPCFONT: %w", err)
+		}
+		// 找不到補充區不是錯 —— 那一區當缺字就好。
+		supp, _ = os.ReadFile(suppPathFor(spcPath))
+	}
+	return LoadBytes(std, spc, supp, w, h)
+}
+
+// LoadBytes 與 Load 相同,但字庫直接給位元組。
+//
+// 給的是打包進執行檔的字型用的(見 internal/bundled)—— 那時候沒有路徑可讀。
+// spc / supp 可以是 nil:沒有 spc 全形標點缺字,沒有 supp 符號補充區缺字。
+func LoadBytes(std, spc, supp []byte, w, h int) (*Font, error) {
 	f := &Font{std: std, W: w, H: h, stride: (w + 7) / 8 * h, b5: map[rune][2]byte{}}
 	if len(std)%f.stride != 0 {
 		return nil, fmt.Errorf("STDFONT 大小 %d 不是 stride %d 的整數倍", len(std), f.stride)
 	}
-	if spcPath != "" {
-		spc, err := os.ReadFile(spcPath)
-		if err != nil {
-			return nil, fmt.Errorf("讀 SPCFONT: %w", err)
-		}
-		f.spc = spc
-		if supp, err := os.ReadFile(suppPathFor(spcPath)); err == nil {
-			if len(supp)%f.stride == 0 && len(supp)/f.stride == suppCount {
-				f.supp = supp
-			} else {
-				return nil, fmt.Errorf("SPCFSUPP 有 %d 個字模,但 Big5 在 C6A1-C8FE 只定義 %d 個碼位",
-					len(supp)/f.stride, suppCount)
-			}
+	f.spc = spc
+	if len(supp) > 0 {
+		if len(supp)%f.stride == 0 && len(supp)/f.stride == suppCount {
+			f.supp = supp
+		} else {
+			return nil, fmt.Errorf("SPCFSUPP 有 %d 個字模,但 Big5 在 C6A1-C8FE 只定義 %d 個碼位",
+				len(supp)/f.stride, suppCount)
 		}
 	}
 	return f, nil

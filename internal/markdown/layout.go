@@ -9,10 +9,15 @@ import (
 
 // Piece 是排版後一列上的一段文字。
 type Piece struct {
-	Text string
-	FG   cell.Color
-	BG   cell.Color
+	Text  string
+	FG    cell.Color
+	BG    cell.Color
 	Under bool
+	// Href 是連結目標,只有 Link 樣式才有。
+	//
+	// 排版之前 Span 就帶著它了,但排版之後如果不一起帶下來,
+	// 畫面上看得到底線、卻沒有東西可以點 —— 上層拿不到目標。
+	Href string
 }
 
 // Pic 是一張要畫在格點上的圖。
@@ -119,7 +124,10 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 		case List:
 			ind := strings.Repeat("  ", b.Level)
 			mark := ind + "• "
-			if b.Ordered {
+			switch {
+			case b.Marker != "":
+				mark = ind + b.Marker
+			case b.Ordered:
 				mark = ind + itoa(b.Num) + ". "
 			}
 			pad := strings.Repeat(" ", len([]rune(mark)))
@@ -131,6 +139,19 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 				}
 				out = append(out, Line{Pieces: append(
 					[]Piece{{Text: m, FG: fg}}, styled(ln, t.Text, t)...)})
+			}
+		case Pre:
+			// 與 Code 的差別:不縮排、不套底色、用正文顏色。
+			//
+			// 給「本來就排好版、不能重新斷行」的內容用(gopher 的文字檔
+			// 常常是 70 欄的 ASCII art)。markdown 的解析器不會產生這種區塊,
+			// 它只從 layout 這一側被用到。
+			for _, ln := range b.Lines {
+				ln = expandTabs(ln)
+				if len([]rune(ln)) > cols {
+					ln = string([]rune(ln)[:cols])
+				}
+				out = append(out, Line{Pieces: []Piece{{Text: ln, FG: t.Text}}})
 			}
 		case Code:
 			for _, ln := range b.Lines {
@@ -312,7 +333,7 @@ func styled(sp []Span, base cell.Color, t Theme) []Piece {
 		case s.Style&Italic != 0:
 			fg = t.Quote
 		}
-		out = append(out, Piece{Text: s.Text, FG: fg, BG: bg, Under: under})
+		out = append(out, Piece{Text: s.Text, FG: fg, BG: bg, Under: under, Href: s.Href})
 	}
 	return out
 }

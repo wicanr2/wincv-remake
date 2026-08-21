@@ -26,6 +26,10 @@ const (
 	Rule
 	Image
 	Table
+	// Pre 是「保留原樣」的區塊:不重新斷行、不套程式碼樣式。
+	// markdown 的解析器不會產生它 —— 它是給其他來源(例如 gopher)
+	// 借用這套排版引擎時用的。
+	Pre
 )
 
 // Style 是行內樣式。可以疊加,所以用位元。
@@ -57,6 +61,10 @@ type Block struct {
 	// 清單
 	Ordered bool
 	Num     int
+	// Marker 蓋掉預設的項目符號(• 或編號)。markdown 的解析器不會設它 ——
+	// 它是給借用這套排版引擎的來源用的,例如 gopher 要在每一列前面
+	// 標出項目型別(「[目錄]」「[文字]」)。
+	Marker string
 	// 圖片
 	Src, Alt string
 	// 表格:第一列是表頭

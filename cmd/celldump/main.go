@@ -14,20 +14,21 @@ import (
 
 	"github.com/wicanr2/wincv-remake/internal/app"
 	"github.com/wicanr2/wincv-remake/internal/browser"
+	"github.com/wicanr2/wincv-remake/internal/bundled"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
-	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/keys"
-	"github.com/wicanr2/wincv-remake/internal/textenc"
-	"github.com/wicanr2/wincv-remake/internal/viewer"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/syntax"
+	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/ttf"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
+	"github.com/wicanr2/wincv-remake/internal/viewer"
 )
 
 // drawFile 依內容判斷要用看圖、文字檢視還是 16 進位檢視,
@@ -102,6 +103,12 @@ func main() {
 	}
 	cjk, err := eten.Load(*stdPath, *spcPath, half.PixWidth*2, half.PixHeight)
 	if err != nil {
+		if std := bundled.Get("STDFONT.15"); std != nil {
+			cjk, err = eten.LoadBytes(std, bundled.Get("SPCFONT.15"),
+				bundled.Get("SPCFSUPP.15"), half.PixWidth*2, half.PixHeight)
+		}
+	}
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "警告:載不到倚天字庫,全形字會留白 (%v)\n", err)
 	}
 
@@ -165,10 +172,13 @@ func cjkOrNil(f *eten.Font) render.CJKSource {
 	return f
 }
 
+// loadHalf 讀半形字型。磁碟優先,內嵌後備 —— 順序與 cmd/wincv 一致。
 func loadHalf(p string) (*fnt.Font, error) {
 	d, err := os.ReadFile(p)
 	if err != nil {
-		return nil, err
+		if d = bundled.Get(filepath.Base(p)); d == nil {
+			return nil, err
+		}
 	}
 	return fnt.Parse(d)
 }

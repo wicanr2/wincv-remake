@@ -15,6 +15,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/wicanr2/wincv-remake/internal/app"
+	"github.com/wicanr2/wincv-remake/internal/bundled"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
@@ -243,10 +244,12 @@ var fonNames = []string{"cvga.fon", "CVGA1018.FON", "cvga1224.FON"}
 func loadLevels(dir, stdPath, spcPath, fbPath string, noFB bool) []level {
 	var out []level
 	for _, name := range fonNames {
-		p := filepath.Join(dir, name)
-		d, err := os.ReadFile(p)
+		// 磁碟優先,內嵌是後備 —— 使用者放在執行檔旁邊的字型永遠贏。
+		d, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
-			continue
+			if d = bundled.Get(name); d == nil {
+				continue
+			}
 		}
 		half, err := fnt.Parse(d)
 		if err != nil {
@@ -257,7 +260,14 @@ func loadLevels(dir, stdPath, spcPath, fbPath string, noFB bool) []level {
 		l := level{name: name, half: half}
 
 		// 全形字:倚天只有 15 點那一份,其餘字級由它縮放。
-		if f, err := eten.Load(stdPath, spcPath, half.PixWidth*2, half.PixHeight); err == nil {
+		f, err := eten.Load(stdPath, spcPath, half.PixWidth*2, half.PixHeight)
+		if err != nil {
+			if std := bundled.Get("STDFONT.15"); std != nil {
+				f, err = eten.LoadBytes(std, bundled.Get("SPCFONT.15"),
+					bundled.Get("SPCFSUPP.15"), half.PixWidth*2, half.PixHeight)
+			}
+		}
+		if err == nil {
 			l.cjk = render.ScaleCJK(f, f.W, f.H, cw*2, ch)
 		} else if len(out) == 0 {
 			fmt.Fprintf(os.Stderr, "警告:載不到倚天字庫,全形字要靠後備字型 (%v)\n", err)

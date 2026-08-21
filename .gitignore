@@ -37,3 +37,6 @@ docs/ui/android-run-*.png
 docs/ui/android-logcat.txt
 docs/ui/android-crash.txt
 docs/ui/android-emulator.log
+
+# 內嵌字型的素材:第三方版權物,由 tools/build-full.sh 臨時放進來
+/internal/bundled/assets/

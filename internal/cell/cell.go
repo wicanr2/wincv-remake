@@ -237,6 +237,13 @@ func (s *Screen) Print(x, y int, str string, fg, bg Color) int {
 			if x+n+1 >= s.Cols {
 				break // 放不下全形字就不放,不要切一半
 			}
+			// [雷] 這裡的 y 一定要檢查。半形那一支有 inBounds,
+			// 全形這一支原本只檢查 x —— 於是同一個超出範圍的列,
+			// 印英數是安靜的空操作,印中文就寫爆 cells。
+			// 這種不對稱不會在測試裡現形,只會在真的畫面上崩潰。
+			if !s.inBounds(x+n, y) {
+				break
+			}
 			s.cells[y*s.Cols+x+n] = Cell{Ch: r, FG: fg, BG: bg, Wide: true}
 			s.cells[y*s.Cols+x+n+1] = Cell{Ch: r, FG: fg, BG: bg, Cont: true}
 			n += 2

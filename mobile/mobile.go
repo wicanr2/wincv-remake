@@ -19,6 +19,7 @@ import (
 	emobile "github.com/hajimehoshi/ebiten/v2/mobile"
 
 	"github.com/wicanr2/wincv-remake/internal/app"
+	"github.com/wicanr2/wincv-remake/internal/bundled"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
@@ -141,6 +142,20 @@ func loadFonts(dir string, w, h int) (render.HalfSource, render.CJKSource, strin
 				return f, cjk, ""
 			}
 			return f, nil, "找到 cvga.fon,但沒有倚天字庫,全形字會用系統字型"
+		}
+	}
+
+	// 內嵌字型(-tags fonts 建出來的版本才有)。磁碟上放了就用磁碟的,
+	// 這裡是後備 —— 順序與桌面版一致。
+	if d := bundled.Get("cvga.fon"); d != nil {
+		if f, err := fnt.Parse(d); err == nil {
+			cjk, err := eten.LoadBytes(bundled.Get("STDFONT.15"),
+				bundled.Get("SPCFONT.15"), bundled.Get("SPCFSUPP.15"),
+				f.PixWidth*2, f.PixHeight)
+			if err == nil {
+				return f, cjk, ""
+			}
+			return f, nil, "內嵌的倚天字庫載不起來,全形字會用系統字型"
 		}
 	}
 	half, path, errs := ttf.LoadHalf(8, 15)
