@@ -369,11 +369,14 @@ func loadFallback(path string, cw, ch int) render.CJKSource {
 		return f
 	}
 	chain, _, errs := ttf.LoadChain(cw, cw*2, ch)
+	if len(chain) > 0 {
+		// 個別字型載不起來(x/image 讀不了某些 TTC)在有其他字型
+		// 頂上時只是雜訊。一條都沒載到才是使用者需要知道的事。
+		return chain
+	}
 	for _, e := range errs {
 		fmt.Fprintf(os.Stderr, "警告:字型載不起來 %v\n", e)
 	}
-	if len(chain) == 0 {
-		return nil
-	}
-	return chain
+	fmt.Fprintln(os.Stderr, "警告:"+ttf.MissingHint())
+	return nil
 }

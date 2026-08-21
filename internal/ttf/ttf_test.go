@@ -81,3 +81,51 @@ func inkRows(g *fnt.Glyph) (top, bot int) {
 	}
 	return
 }
+
+// 同一個路徑不能載兩次 —— 寫死清單與目錄掃描一定會撞在一起,
+// 而第二次載進來一個新字都補不到,只是多吃一份記憶體。
+func TestCandidatesDeduped(t *testing.T) {
+	chain, used, _ := LoadChain(8, 16, 16)
+	seen := map[string]bool{}
+	for _, p := range used {
+		if seen[p] {
+			t.Errorf("%s 載了兩次", p)
+		}
+		seen[p] = true
+	}
+	if len(chain) != len(used) {
+		t.Errorf("鏈長 %d 但路徑有 %d 個", len(chain), len(used))
+	}
+}
+
+// 同家族的不同字重涵蓋的字完全一樣,不該各載一份。
+func TestSkipsOtherWeights(t *testing.T) {
+	for _, base := range []string{
+		"notosanscjkbold.ttc", "notosanscjkblack.ttc", "dejavusansmonoitalic.ttf",
+		"unifontsample.otf", "notoserifcjkextralight.ttc",
+	} {
+		if !otherWeight(base) {
+			t.Errorf("%s 應該被跳過", base)
+		}
+	}
+	for _, base := range []string{
+		"notosanscjkregular.ttc", "dejavusansmono.ttf", "unifont.otf",
+	} {
+		if otherWeight(base) {
+			t.Errorf("%s 不該被跳過", base)
+		}
+	}
+}
+
+// 掃描要有上限:字型目錄裡有好幾百個檔,每一個都載進來要花數秒。
+func TestScanIsCapped(t *testing.T) {
+	if n := len(scanned()); n > scanCap {
+		t.Fatalf("掃出 %d 個,上限是 %d", n, scanCap)
+	}
+}
+
+func TestMissingHintSaysSomething(t *testing.T) {
+	if MissingHint() == "" {
+		t.Fatal("缺字時沒有給任何建議")
+	}
+}
