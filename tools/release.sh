@@ -49,31 +49,35 @@ done
 
 ( cd "$OUT" && sha256sum * > SHA256SUMS )
 
+echo
+echo "== 打包 =="
+"$REPO/tools/package.sh"
+
+# MANIFEST 描述的是**發布出去的東西**,所以要在打包之後才產生 ——
+# 列裸執行檔的檔名會讓下載的人對不上 release 頁面上的 zip。
 cat > "$OUT/MANIFEST.txt" <<EOF
 WinCV Remake — 產物對照表
 
 commit   $COMMIT
 建置日期 $(date -u +%Y-%m-%d)（UTC）
 
-$(cd "$OUT" && ls -la --time-style=+ wincv-* | awk '{printf "  %-32s %s\n", $NF, $5}')
+$(cd "$OUT" && ls -la --time-style=+ ./*.zip 2>/dev/null | grep -v -- "-full" | awk '{printf "  %-46s %12s\n", substr($NF, 3), $5}')
 
-檔案                        平台
-  wincv-linux-amd64           Linux x86-64
-  wincv-windows-amd64.exe     Windows x86-64
-  wincv-darwin-universal      macOS（arm64 + x86_64 universal）
-  wincv-android.apk           Android（arm64-v8a / armeabi-v7a / x86 / x86_64，minSdk 21）
+檔案                                             平台
+  wincv-remake-*-linux-amd64.zip                 Linux x86-64
+  wincv-remake-*-windows-amd64.zip               Windows x86-64
+  wincv-remake-*-macos-universal.zip             macOS（arm64 + x86_64 universal）
+  wincv-remake-*-android.zip                     Android（四種 ABI，minSdk 21）
 
-四個產物都不含原版的字型與資料檔——那些是第三方版權物，由使用者自備。
-校驗：sha256sum -c SHA256SUMS
+每個 zip 解開是一個目錄，裡面是執行檔加上 LICENSE、NOTICE 與 README.txt。
 
-發布用的是同目錄的 zip(tools/package.sh 產生)：授權與說明跟著產物走，
-而且解壓之後執行位元還在——瀏覽器下載裸執行檔會把它掉掉。
+這四個產物**不含**原版的字型與資料檔——那些是第三方版權物，由使用者自備。
+沒有它們也跑得起來：半形字改用系統的等寬字型現場產，尺寸照原版的
+8×15 / 10×18 / 12×24，版面與按鍵行為完全一樣，只有字形不同。
+
+校驗：sha256sum -c SHA256SUMS-zip
 EOF
 
 echo
-echo "== 打包 =="
-"$REPO/tools/package.sh"
-
-echo
 echo "dist-all/（commit $SHORT）:"
-ls -la --time-style=+ "$OUT" | tail -n +2 | awk '{printf "  %-32s %10s\n", $NF, $5}'
+ls -la --time-style=+ "$OUT" | tail -n +2 | awk '{printf "  %-46s %12s\n", $NF, $5}'
