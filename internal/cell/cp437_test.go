@@ -46,3 +46,30 @@ func TestFromCP437Unknown(t *testing.T) {
 		}
 	}
 }
+
+// 反查(字碼 → rune)對 ASCII 也要成立。
+//
+// [雷] 表裡 0x20-0x7E 沒有一個一個列出來,而漏掉的話 CP437[0x6D] 是 0
+// 不是 'm' —— 用字碼查字模的那一側(系統 TrueType 產的半形字模走這條)
+// 會認為每一個英數字都沒有字,然後整批退到後備的比例字型。
+func TestCP437CoversASCII(t *testing.T) {
+	for b := 0x20; b <= 0x7E; b++ {
+		if got := CP437[b]; got != rune(b) {
+			t.Fatalf("CP437[0x%02X] = %q,想要 %q", b, got, rune(b))
+		}
+	}
+	// 兩個方向要對得起來。
+	for b := 0; b < 256; b++ {
+		r := CP437[byte(b)]
+		if r == 0 {
+			continue
+		}
+		if back, ok := FromCP437(r); !ok || back != byte(b) {
+			// 重複對應的字碼(例如 0x1A '→' 與別處)以先填的為準,
+			// 只有 ASCII 區要求嚴格往返。
+			if b >= 0x20 && b <= 0x7E {
+				t.Errorf("0x%02X → %q → 0x%02X(ok=%v)", b, r, back, ok)
+			}
+		}
+	}
+}

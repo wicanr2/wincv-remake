@@ -57,6 +57,19 @@ func Load(path string, halfW, fullW, h int) (*Font, error) {
 
 // loadFrom 是 Load 與 LoadBytes 共用的那一段。
 func loadFrom(data []byte, halfW, fullW, h int) (*Font, error) {
+	return build(data, halfW, fullW, h, false)
+}
+
+// build 建一份字型。fitHalf 為真時把字級縮到「半形字塞得進 halfW」。
+//
+// 為什麼需要縮:字級是用**格高**設的(em = h),而一個字佔多寬是字型
+// 自己決定的。DejaVu Sans Mono 在 15 px em 下一格是 9 px,塞進 8 px 的
+// 格子右邊就被切掉 1 px —— m 少一豎會看成 n,W 少一撇會看成 V。
+// 那不是「有點醜」,是**讀到錯的字**。
+//
+// 只有拿來當半形來源時才縮。同一份字型當全形來源時格子有兩倍寬,
+// 漢字的 advance 剛好是 1 em,本來就塞得下;跟著縮只會讓中文平白變小。
+func build(data []byte, halfW, fullW, h int, fitHalf bool) (*Font, error) {
 	col, err := opentype.ParseCollection(data)
 	if err != nil {
 		return nil, fmt.Errorf("認不得的字型: %w", err)
@@ -72,13 +85,37 @@ func loadFrom(data []byte, halfW, fullW, h int) (*Font, error) {
 	// 直接拿來當基線會把字推出格子下緣。照 ascent+descent 等比縮回來
 	// 也不對 —— 那會把字縮得比周圍的點陣字小一大截。
 	// 這裡用 CJK 慣用的基線比例:字身頂端對齊格頂,基線在 0.88 em 處。
+	size := float64(h)
 	face, err := opentype.NewFace(sf, &opentype.FaceOptions{
-		Size: float64(h), DPI: 72, Hinting: font.HintingFull,
+		Size: size, DPI: 72, Hinting: font.HintingFull,
 	})
 	if err != nil {
 		return nil, err
 	}
-	asc := (h*88 + 50) / 100
+	if fitHalf {
+		// 量 M 的 advance:等寬字型每個字一樣寬,比例字型的 M 是最寬的
+		// 那一批,兩種情況拿它當基準都對。收斂得很快,三次夠了。
+		for i := 0; i < 3; i++ {
+			adv, ok := face.GlyphAdvance('M')
+			if !ok || adv.Ceil() <= halfW || adv.Ceil() <= 0 {
+				break
+			}
+			size = size * float64(halfW) / float64(adv.Ceil())
+			face.Close()
+			face, err = opentype.NewFace(sf, &opentype.FaceOptions{
+				Size: size, DPI: 72, Hinting: font.HintingFull,
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	// 基線。縮過字級的話字身比格子矮,把它垂直置中 ——
+	// 照格高算基線會把縮小後的字壓在格子底部,與旁邊沒縮的字對不齊。
+	asc := int(float64(h)-size)/2 + int(size*0.88+0.5)
+	if asc > h {
+		asc = h
+	}
 	return &Font{
 		face: face, halfW: halfW, fullW: fullW, h: h,
 		ascent: asc,
@@ -403,6 +440,39 @@ func LoadChain(halfW, fullW, h int) (Chain, []string, []error) {
 	return chain, used, errs
 }
 
+// FindMono 先在等寬字型裡找,找不到才退回一般的候選。
+//
+// 半形字模一格只有 8 像素寬。比例字型的 m 與 i 差三倍寬,硬塞進同一格
+// 會把 m 擠成一團、i 旁邊空一大片 —— 整頁看起來像沒對齊。等寬字型
+// 本來就是照固定寬度設計的,同樣的格子塞進去該有的筆畫都還在。
+func FindMono(halfW, fullW, h int) (*Font, string, []error) {
+	var errs []error
+	seen := map[string]bool{}
+	for _, p := range Candidates() {
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		base := strings.ToLower(filepath.Base(p))
+		if !strings.Contains(strings.ReplaceAll(base, "-", ""), "mono") &&
+			!strings.Contains(base, "consola") && !strings.Contains(base, "menlo") &&
+			!strings.Contains(base, "courier") && !strings.Contains(base, "cutive") {
+			continue
+		}
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		f, err := Load(p, halfW, fullW, h)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		return f, p, errs
+	}
+	f, path, more := FindAndLoad(halfW, fullW, h)
+	return f, path, append(errs, more...)
+}
+
 // FindAndLoad 依序試 Candidates,回第一個成功的。
 //
 // 第三個回傳值是「檔案在、但載不起來」的原因清單。**不要把它丟掉** ——
@@ -434,4 +504,41 @@ func FindAndLoad(halfW, fullW, h int) (*Font, string, []error) {
 // 給打包進執行檔的字型用:那時候沒有檔案路徑可以給 Load。
 func LoadBytes(data []byte, halfW, fullW, h int) (*Font, error) {
 	return loadFrom(data, halfW, fullW, h)
+}
+
+// LoadHalfFit 讀一份字型當半形來源,字級縮到一個字塞得進 w 像素寬。
+//
+// 與 Load 分開的理由見 build:同一份字型當全形來源時不該跟著縮。
+func LoadHalfFit(path string, w, h int) (*HalfFont, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	f, err := build(data, w, w*2, h, true)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return NewHalf(f, w, h), nil
+}
+
+// LoadHalfFitBytes 同 LoadHalfFit,但字型來自記憶體。
+func LoadHalfFitBytes(data []byte, w, h int) (*HalfFont, error) {
+	f, err := build(data, w, w*2, h, true)
+	if err != nil {
+		return nil, err
+	}
+	return NewHalf(f, w, h), nil
+}
+
+// FindMonoHalf 找一份等寬字型當半形來源,字級縮到塞得下。
+func FindMonoHalf(w, h int) (*HalfFont, string, []error) {
+	_, path, errs := FindMono(w, w*2, h)
+	if path == "" {
+		return nil, "", errs
+	}
+	hf, err := LoadHalfFit(path, w, h)
+	if err != nil {
+		return nil, "", append(errs, err)
+	}
+	return hf, path, errs
 }

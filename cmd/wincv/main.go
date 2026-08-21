@@ -34,7 +34,7 @@ import (
 // (24 點的漢字在倚天光碟裡是 ETUNPACK 壓縮的,還解不開)。
 type level struct {
 	name string
-	half *fnt.Font
+	half render.HalfSource
 	cjk  render.CJKSource
 	fb   render.CJKSource
 }
@@ -411,7 +411,18 @@ func main() {
 
 	levels := loadLevels(cfgDir, *stdPath, *spcPath, *fbFont, *noFB)
 	if len(levels) == 0 {
-		die(fmt.Errorf("一個半形字型都載不到(找過 %s)", cfgDir))
+		// 沒有原版的 .FON 就用系統字型現場產一份。畫面不是原版的點陣字,
+		// 但版面、欄位與按鍵完全一樣 —— 這比「跑不起來」有用得多。
+		levels = ttfLevels(*stdPath, *spcPath, *fbFont, *noFB)
+		if len(levels) > 0 {
+			fmt.Fprintf(os.Stderr,
+				"提示:沒有原版的點陣字型(找過 %s),改用系統字型。\n"+
+					"      要與原版逐像素相同的畫面,用 -half 指定 cvga.fon。\n", cfgDir)
+		}
+	}
+	if len(levels) == 0 {
+		die(fmt.Errorf("一個半形字型都載不到:%s 底下沒有原版的 .FON,"+
+			"系統上也找不到可用的 TrueType。\n%s", cfgDir, ttf.MissingHint()))
 	}
 	a.MaxZoom = len(levels) - 1
 	if *zoom > a.MaxZoom {
@@ -504,24 +515,77 @@ func loadLevels(dir, stdPath, spcPath, fbPath string, noFB bool) []level {
 		}
 		cw, ch := half.PixWidth, half.PixHeight+render.LineGap
 		l := level{name: name, half: half}
-
-		// 全形字:倚天只有 15 點那一份,其餘字級由它縮放。
-		f, err := eten.Load(stdPath, spcPath, half.PixWidth*2, half.PixHeight)
-		if err != nil {
-			if std := bundled.Get("STDFONT.15"); std != nil {
-				f, err = eten.LoadBytes(std, bundled.Get("SPCFONT.15"),
-					bundled.Get("SPCFSUPP.15"), half.PixWidth*2, half.PixHeight)
-			}
-		}
-		if err == nil {
+		if f, err := loadEten(stdPath, spcPath, half.PixWidth*2, half.PixHeight); err == nil {
 			l.cjk = render.ScaleCJK(f, f.W, f.H, cw*2, ch)
 		} else if len(out) == 0 {
-			fmt.Fprintf(os.Stderr, "警告:載不到倚天字庫,全形字要靠後備字型 (%v)\n", err)
+			fmt.Fprintf(os.Stderr, "提示:沒有倚天字庫,全形字改用後備字型 (%v)\n", err)
 		}
 		if !noFB {
 			l.fb = loadFallback(fbPath, cw, ch)
 		}
 		out = append(out, l)
+	}
+	return out
+}
+
+// loadEten 讀倚天字庫:磁碟優先,內嵌是後備。
+func loadEten(stdPath, spcPath string, w, h int) (*eten.Font, error) {
+	f, err := eten.Load(stdPath, spcPath, w, h)
+	if err == nil {
+		return f, nil
+	}
+	if std := bundled.Get("STDFONT.15"); std != nil {
+		return eten.LoadBytes(std, bundled.Get("SPCFONT.15"),
+			bundled.Get("SPCFSUPP.15"), w, h)
+	}
+	return nil, err
+}
+
+// ttfSizes 是原版隨附的三種半形點陣字型的尺寸。
+//
+// 沒有那三個 .FON 時照同樣的尺寸從系統字型現場產一份 —— 尺寸一樣,
+// 版面、欄位對齊、按鍵行為就完全一樣,只有字形不同。
+var ttfSizes = []struct {
+	name string
+	w, h int
+}{{"8x15", 8, 15}, {"10x18", 10, 18}, {"12x24", 12, 24}}
+
+// ttfLevels 用系統字型現場產出三個字級,當作沒有原版 .FON 時的退路。
+//
+// 為什麼需要:原版的 cvga.fon 是第三方版權物,不能隨產物散布,所以
+// 對外的版本解開之後那三個檔一定不在。以前這種情況直接結束程式,
+// 而「少一個字型檔」與「這個程式跑不起來」是完全不同的嚴重程度 ——
+// Android 版早就是這樣做的(那邊根本沒有可讀的程式目錄),桌面版
+// 只是沒接上。
+func ttfLevels(stdPath, spcPath, fbPath string, noFB bool) []level {
+	var out []level
+	var lastErrs []error
+	for _, s := range ttfSizes {
+		// 半形優先用等寬字型,而且字級要縮到塞得進格子(見 ttf.FindMono
+		// 與 ttf.build)。全形用同一份字型但不縮 —— 那邊格子有兩倍寬。
+		hf, path, errs := ttf.FindMonoHalf(s.w, s.h)
+		if hf == nil {
+			lastErrs = errs
+			continue
+		}
+		cw, ch := s.w, s.h+render.LineGap
+		l := level{name: "系統字型 " + s.name, half: hf}
+		if f, err := ttf.Load(path, s.w, s.w*2, s.h); err == nil {
+			l.cjk = f
+		}
+		// 倚天字庫有的話仍然優先:那才是與原版對齊的全形字形。
+		if e, err := loadEten(stdPath, spcPath, s.w*2, s.h); err == nil {
+			l.cjk = render.ScaleCJK(e, e.W, e.H, cw*2, ch)
+		}
+		if !noFB {
+			if fb := loadFallback(fbPath, cw, ch); fb != nil {
+				l.fb = fb
+			}
+		}
+		out = append(out, l)
+	}
+	for _, e := range lastErrs {
+		fmt.Fprintf(os.Stderr, "警告:字型載不起來 %v\n", e)
 	}
 	return out
 }

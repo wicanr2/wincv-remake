@@ -35,6 +35,19 @@ var CP437 = [256]rune{
 var cp437rev map[rune]byte
 
 func init() {
+	// [雷] 0x20-0x7E 與 ASCII 相同,上面的表沒有一個一個列出來 ——
+	// 但那讓 CP437[0x6D] 是 0 而不是 'm',於是任何**反查**(字碼 → rune)
+	// 的呼叫端都會認為「這個字碼沒有字」。
+	//
+	// 這條路徑一直沒被踩到,是因為桌面版總是有原版的 .FON(那邊是
+	// 用字碼直接查字模,不必反查)。改用系統 TrueType 產半形字模之後
+	// 才走反查,症狀是**每一個英數字都退到後備的比例字型**——
+	// 而比例字型的 m 塞不進 8 px 的格子,右邊那一豎被裁掉之後看成 n。
+	// 「cmd」顯示為「cnd」,不是缺字,是畫出了看起來像字的別的字。
+	for b := 0x20; b <= 0x7E; b++ {
+		CP437[b] = rune(b)
+	}
+
 	cp437rev = make(map[rune]byte, 256)
 	for b := 0x20; b <= 0x7E; b++ {
 		cp437rev[rune(b)] = byte(b)
@@ -61,10 +74,10 @@ func FromCP437(r rune) (byte, bool) {
 // 常用的方框與區塊字元。直接寫在原始碼裡的 rune 字面值容易在編輯器裡
 // 被誤認或被自動格式化改掉,取個名字比較安全。
 const (
-	ArrowUp    = '▲'
-	ArrowDown  = '▼'
-	Shade      = '░'
-	Block      = '█'
-	HLine      = '─'
-	VLine      = '│'
+	ArrowUp   = '▲'
+	ArrowDown = '▼'
+	Shade     = '░'
+	Block     = '█'
+	HLine     = '─'
+	VLine     = '│'
 )
