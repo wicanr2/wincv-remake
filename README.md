@@ -1,13 +1,48 @@
 # WinCV Remake
 
+## 完成了什麼
+
+2004 年 8 月，有人在部落格上寫 CView 是「以前 DOS 時代最喜歡的一套軟體」，
+看圖「超快」，文章的最後一句是：「真希望他能開發 Linux 版~~」。
+
+原版停在 2011 年 11 月 24 日。它是 32 位元 Windows 執行檔，解壓縮與看圖靠一批
+Windows DLL——`unrar.dll`、`unlha32.dll`、`CAB32.DLL`、`FreeImage.dll`。
+那些依賴綁死在一個平台上，沒有人保證它們在下一版 Windows 上還載得起來。
+
+留著執行檔不等於留著這支軟體。要保住的是行為：排序規則、欄位怎麼對齊、
+編碼怎麼判讀、按哪個鍵會發生什麼事。這些只有重新實作一次才會留下來。
+
+所以逆向的對象不是 52 KB 的 `wincv.exe`（那只是 Forth kernel，沒有應用邏輯），
+而是 1.52 MB 的 `WINCV.IMG`：3663 個 word、9497 筆符號、29 個具名顏色的 RGB
+一個一個從 word body 裡取出來。檔案清單每一欄的顏色是把兩邊的截圖切成同一套
+格點、逐格量出來的——指示欄是一整條深藍而且游標經過也不變、日期固定綠色、
+長檔名欄帶底線。照終端機慣例猜，沒有一項會猜對。
+
+12 種壓縮格式全部支援，其中 LZH、`.Z`、CAB、ARJ、ARC、ACE 六種是自寫的，
+每一種都對照參考實作逐檔驗過 sha256——p7zip 675 個成員、ncompress、cabextract、
+arj 3.10、arc 5.21、acefile 269 個成員。沒有 oracle 可比對的格式就不寫解碼器：
+一個沒驗過的解碼器會安靜地解出看起來有內容、實際上是錯的檔案。
+
+現在它跑在 Linux、Windows、macOS 和 Android 上。2004 年那句「真希望他能開發
+Linux 版」，隔了二十二年有了回應。
+
+說這是台灣軟體的文藝復興，太重了——這只是一支軟體。但它當年是很多人每天在用的
+東西，而它本來會消失在一個沒人裝得起 32 位元 Windows 的年代。現在不會了。
+
+> Remake by 王俊又 —— 為保存台灣中文軟體盡一份心力
+
+---
+
 把 1999–2011 年的台灣共享軟體 **WinCV 0.52（CView for Windows）** 逆向，
-用 Go + Ebiten 重寫成 Linux / Windows / macOS 三個平台都能跑的版本，
+用 Go + Ebiten 重寫成 Linux / Windows / macOS / Android 都能跑的版本，
 介面與原版點陣像素對齊。原作者是 Lcc Wizard（林健總），原站 `cview.com.tw`。
 
 WinCV 是一支在同一個畫面裡做完很多事的中文工具：瀏覽目錄、看文字檔、看圖與縮圖、
 把壓縮檔當目錄走進去、編輯文字、看 HEX、在 Big5 / GB / SJIS / KOR / Unicode 之間轉碼、
 查英漢字典與 KK 音標、算 MD5 與 SFV。它的最後一次更新停在 2011 年 11 月 24 日
 （`whatsnew.txt` 的最後一筆），之後沒有 Linux 版，也沒有 macOS 版。
+
+下載：[v0.52-remake](https://github.com/wicanr2/wincv-remake/releases/tag/v0.52-remake)
 
 這個 repo 是私人使用，不對外散布，原版素材與由它衍生的資料檔都不進版控。
 
