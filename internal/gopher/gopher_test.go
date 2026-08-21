@@ -127,11 +127,15 @@ func TestMenuBlocks(t *testing.T) {
 	if len(blocks) != 7 {
 		t.Fatalf("%d 個區塊,期望 7", len(blocks))
 	}
-	// 全部都是 List —— 排版引擎在連續的 List 之間不插空行,選單要單倍行距。
+	// 連結是 List(排版引擎在連續的 List 之間不插空行,選單要單倍行距),
+	// 資訊列是 Pre(原樣輸出,不加項目符號 —— 那是站台自己排的版面)。
 	for i, b := range blocks {
-		if b.Kind != markdown.List {
-			t.Fatalf("第 %d 個區塊是 %v,不是 List", i, b.Kind)
+		if b.Kind != markdown.List && b.Kind != markdown.Pre {
+			t.Fatalf("第 %d 個區塊是 %v", i, b.Kind)
 		}
+	}
+	if blocks[0].Kind != markdown.Pre || blocks[0].Lines[0] != "Welcome to the test server" {
+		t.Fatalf("資訊列應該是原樣的 Pre,得到 %+v", blocks[0])
 	}
 	if got := blocks[2].Marker; got != "[目錄] " {
 		t.Errorf("目錄的標籤是 %q", got)
@@ -140,9 +144,9 @@ func TestMenuBlocks(t *testing.T) {
 		sp.Href != "gopher://example.org/1/docs" {
 		t.Errorf("連結不對: %+v", sp)
 	}
-	// 資訊列不給 Href,也不給型別標籤 —— 不該長得像可以點的東西。
-	if sp := blocks[0].Spans[0]; sp.Href != "" || sp.Style&markdown.Link != 0 {
-		t.Errorf("資訊列不該是連結: %+v", sp)
+	// 資訊列不給 Href 也不給標籤 —— 不該長得像可以點的東西。
+	if len(blocks[0].Spans) != 0 || blocks[0].Marker != "" {
+		t.Errorf("資訊列不該有 span 或標籤: %+v", blocks[0])
 	}
 }
 

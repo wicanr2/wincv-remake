@@ -62,10 +62,11 @@ func MenuBlocks(items []Item) []markdown.Block {
 	out := make([]markdown.Block, 0, len(items))
 	for _, it := range items {
 		if !it.IsLink() {
-			// 資訊列常常拿來排版(空行、置中的橫線),原樣留著。
+			// 資訊列用 Pre:原樣輸出,不加項目符號也不縮排。
+			// 那是站台作者自己排的版面(橫線、置中的標題、ASCII banner),
+			// 前面多任何一個字元都會把它推歪。
 			out = append(out, markdown.Block{
-				Kind: markdown.List, Marker: "  ",
-				Spans: []markdown.Span{{Text: it.Display}},
+				Kind: markdown.Pre, Lines: []string{it.Display},
 			})
 			continue
 		}

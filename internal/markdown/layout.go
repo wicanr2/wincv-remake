@@ -89,8 +89,11 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 	blank := func() { out = append(out, Line{}) }
 
 	for bi, b := range blocks {
-		if bi > 0 && b.Kind != List {
+		if bi > 0 && b.Kind != List && b.Kind != Pre {
 			// 清單項目之間不空行,其餘區塊之間空一行。
+			//
+			// Pre 也不空行:那是「呼叫端已經排好版」的意思,
+			// 排版引擎再自己加空白就是在猜它的意圖。
 			if prev := blocks[bi-1]; !(prev.Kind == List && b.Kind == List) {
 				blank()
 			}
