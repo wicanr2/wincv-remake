@@ -39,7 +39,7 @@ type Config struct {
 	// **設定檔裡沒有這一項**,但 image 的符號表有 COMMENTSTATE、
 	// END-COMMENT$、"CHECK-END-COMMENT,表示原版有跨行註解的狀態機。
 	// 既然沒有設定可讀,推測它是依語言寫死的;這裡在 LineComment 為
-	// "//" 時預設用 C 家族的 /* */。**這一條還沒查證**(CLAUDE.md 假設 A12)。
+	// "//" 時預設用 C 家族的 /* */。**這一條還沒查證**(CLAUDE.md §9 的 A14)。
 	BlockStart, BlockEnd string
 
 	// Keywords 是關鍵字 → 顏色。原版的比對不分大小寫的語言(如 Pascal)

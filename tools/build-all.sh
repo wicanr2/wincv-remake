@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 三平台打包。產物一律放 dist/。
+# 桌面三平台打包。產物一律放 dist/。Android 在 tools/build-android.sh。
 #
 #   linux/amd64    wincv-build:1 原生編
 #   windows/amd64  同一個 image 的 mingw-w64 交叉編

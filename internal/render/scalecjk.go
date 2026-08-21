@@ -11,7 +11,7 @@ import "github.com/wicanr2/wincv-remake/internal/fnt"
 //
 // 用最近鄰:點陣字放大要保持邊緣硬,做插值會糊成一團,那比鋸齒難看得多。
 type scaledCJK struct {
-	src  CJKSource
+	src    CJKSource
 	sw, sh int
 	w, h   int
 }

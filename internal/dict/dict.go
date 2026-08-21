@@ -13,7 +13,7 @@
 // 原版另有 .idx 索引檔(兩層首字母表 + 位移表)。這裡不用它:
 // 最大的一份 .dat 也只有 5.6 MB,載進來自己建索引更單純,
 // 而且不必依賴一個還沒完全逆向的格式。.idx 的已知結構記在
-// docs/formats/dict-idx.md。
+// docs/formats/dict-dat.md 的「`.idx` 索引」一節。
 package dict
 
 import (

@@ -446,8 +446,11 @@ tools/oracle-shot.sh original/ref-shots/view.png 18 "Down Down Return"
 
 動手用到哪一條,先驗那一條,驗完把它搬進 §1 並註明證據。
 
-**目前清單是空的** —— A1–A13 全部驗完,結論在 §1。新的假設寫進這裡,
-不要直接寫進 §1。
+A1–A13 全部驗完,結論在 §1。新的假設寫進這裡,不要直接寫進 §1。
+
+| # | 假設 | 怎麼驗 |
+|---|---|---|
+| A14 | 跨行註解的起訖標記是**依語言寫死在程式裡**的。`keyword_*.cfg` 沒有這一項,但 image 的符號表有 `COMMENTSTATE`、`END-COMMENT$`、`"CHECK-END-COMMENT`,表示原版有跨行註解的狀態機。remake 目前在 `LineComment` 是 `//` 時預設 C 家族的 `/* */`(`internal/syntax`) | 進 IDA 看那三個 word 的呼叫端怎麼取得標記;或在原版各開一個含跨行註解的 `.c` / `.pas` / `.asm`,看上色範圍到哪裡 |
 
 ---
 

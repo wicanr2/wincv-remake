@@ -22,7 +22,7 @@ func TestScaleCJKPassesThroughSameSize(t *testing.T) {
 	}
 }
 
-// 放大要保持邊緣硬(最近鄰),而且四個角要對得上 —— 
+// 放大要保持邊緣硬(最近鄰),而且四個角要對得上 ——
 // 角落錯位在真的字上看起來只是「有點糊」,很難用眼睛抓。
 func TestScaleCJKNearestNeighbour(t *testing.T) {
 	g := &fnt.Glyph{W: 2, H: 2, Bits: []bool{true, false, false, true}}
@@ -45,7 +45,7 @@ func TestScaleCJKNearestNeighbour(t *testing.T) {
 	}
 }
 
-// 來源沒有這個字時要一路回 nil,不能生出一個空白字模 —— 
+// 來源沒有這個字時要一路回 nil,不能生出一個空白字模 ——
 // 空白字模會讓上層的缺字標記(MissingMark)失效。
 func TestScaleCJKMissingStaysMissing(t *testing.T) {
 	if got := ScaleCJK(oneGlyph{nil}, 16, 15, 24, 24).Glyph('X'); got != nil {

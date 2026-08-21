@@ -16,8 +16,10 @@ DIR-* 那幾個,不在清單上。
   tools/palette.py -all [WINCV.IMG]   掃出全部有名字的色彩 word
 輸出可以直接貼進 internal/render/raster.go 的 DefaultPalette。
 
-[雷] LTGRAY 在 image 裡定義了兩次(#C0C0C0 與 #C5C5C5)。這支程式取
-先找到的那一個;哪一個才是語法上色用的還沒實測,見 CLAUDE.md §9 的 A13。
+[雷] LTGRAY 在 image 裡定義了兩次(#C0C0C0 與 #C5C5C5),兩個都活著。
+這支程式取先找到的那一個(#C0C0C0,檔案清單用的)。語法上色走的是
+名稱查詢,拿到的是後定義的 #C5C5C5 —— 那一路由 cell.ByName 處理,
+證據見 internal/cell/cell.go 的說明。
 """
 import struct
 import sys

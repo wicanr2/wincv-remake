@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 靜態驗收 dist/ 的三平台產物。
+# 靜態驗收 dist/ 的桌面三平台產物。APK 由 tools/verify-apk.sh 驗。
 #
 # 「在我的機器上好好的」是跨平台打包最貴的 bug(rulebook/82)。
 # 沒有 Mac 也沒有 Windows 機器時,至少要把這些能靜態驗的項目驗掉:

@@ -21,8 +21,10 @@ var aboutLines = []struct {
 	{"重製   王俊又", cell.LtYellow},
 	{"       為保存台灣中文軟體盡一份心力", cell.LtYellow},
 	{"", cell.LtGray},
-	{"Go + Ebiten   Linux / Windows / macOS", cell.Gray},
-	{"半形字型取自原版 cvga.fon,全形字用倚天點陣字", cell.Gray},
+	{"Go + Ebiten", cell.Gray},
+	{"Linux / Windows / macOS / Android", cell.Gray},
+	{"半形 cvga.fon + 全形倚天點陣字", cell.Gray},
+	{"Android 沒有這兩份,改用系統字型", cell.Gray},
 	{"", cell.LtGray},
 	{"按任意鍵關閉", cell.DkGray},
 }

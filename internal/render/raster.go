@@ -1,8 +1,9 @@
 // Package render 把 cell.Screen 畫成像素。
 //
-// 這一檔是純 CPU 光柵器,不 import Ebiten:同一份程式碼可以在沒有顯示器的
+// 這一整包是純 CPU 光柵器,不 import Ebiten:同一份程式碼可以在沒有顯示器的
 // 環境下產生 PNG,驗收(與原版截圖做格點比對)因此不需要開視窗。
-// Ebiten 的部分在 game.go,只負責把這裡產出的像素貼上去。
+// Ebiten 那一層在 cmd/wincv(桌面)與 mobile(Android),
+// 兩邊都只負責把這裡產出的像素貼上去。
 package render
 
 import (
@@ -23,12 +24,11 @@ import (
 // 前 29 個是 keyword_*.cfg 用的具名顏色,後 14 個是 image 裡另外定義的
 // (檔案清單的副檔名配色用 DIR-* 那幾個)。
 //
-// [雷] `LTGRAY` 在 image 裡**定義了兩次**:0x1dc40 是 #C0C0C0、
-// 0x50210 是 #C5C5C5。這裡取 #C0C0C0,因為原版檔案清單量到的就是它
-// (docs/ui/oracle-ext.png)。keyword_java.cfg 與 keyword_csharp.cfg
-// 也用得到 ltgray,那一路走的是哪一個還沒實測 —— 見 CLAUDE.md §9 的 A13。
-// 兩個定義都活著:狀態列量到的是 #C5C5C5(cell.LtGray2),
-// 檔案清單量到的是 #C0C0C0(cell.LtGray)。
+// [雷] `LTGRAY` 在 image 裡**定義了兩次**,而且兩個都活著:
+// 0x1dc40 是 #C0C0C0,0x50210 是 #C5C5C5。走「編譯期綁定」的那一路
+// (檔案清單)拿到舊的 #C0C0C0,走「名稱查詢」的那一路(keyword_*.cfg
+// 與狀態列)拿到後定義的 #C5C5C5。這個槽位放 #C0C0C0,名稱查詢的那一路
+// 由 cell.ByName 對到 cell.LtGray2 —— 兩者的實測證據都在那邊。
 //
 // 用 tools/palette.py 可以重新抽一次(需要 original/app/WINCV.IMG)。
 var DefaultPalette = [cell.NumColors]color.RGBA{
@@ -102,7 +102,7 @@ type CJKSource interface {
 // Rasterizer 把 Screen 畫進一張 RGBA。
 type Rasterizer struct {
 	Half    HalfSource // 半形字模來源(原版的 cvga / cvga1018 / cvga1224,或系統字型現場產的)
-	CJK     CJKSource // 全形字型來源,可為 nil
+	CJK     CJKSource  // 全形字型來源,可為 nil
 	Palette [cell.NumColors]color.RGBA
 
 	// Fallback 補點陣字庫沒有的字。倚天是用 Big5 索引的,Big5 以外的
@@ -122,7 +122,7 @@ type Rasterizer struct {
 	// 顏色不取自格子的 FG:那條線是**框線**不是字,而它所在的那一列
 	// 同時要用自己的顏色印字(狀態列是黃字)。兩者綁在一起就得二選一。
 	RuleHi, RuleShadow cell.Color
-	buf          *image.RGBA
+	buf                *image.RGBA
 }
 
 // LineGap 是格子高度比半形字身多出來的像素列。

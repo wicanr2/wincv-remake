@@ -12,7 +12,7 @@ WinCV Remake 目前跑 Linux / Windows / macOS。這份文件評估搬上 Androi
 
 | 項目 | 結果 |
 |---|---|
-| `internal/...` 全部 33 個套件 | `GOOS=android GOARCH=arm64 CGO_ENABLED=0` **編得過** |
+| `internal/...` 底下每一個套件 | `GOOS=android GOARCH=arm64 CGO_ENABLED=0` **編得過** |
 | `cmd/celldump`(headless 全 app) | 同上,**編得過** |
 | `cmd/wincv`(Ebiten) | 編不過。`GOOS=android` 時 Ebiten 會 import `github.com/ebitengine/gomobile/app` → `mobileinit`,那些檔案需要 cgo,關掉 cgo 就被 build constraint 排除 |
 | Ebiten v2.8.8 的 Android 支援 | **有**。相依樹裡有 `github.com/ebitengine/gomobile v0.0.0-20240911145611-4856209ac325` |

@@ -12,12 +12,11 @@ import (
 // 手指還是鍵盤驅動的。這是 internal/keys 當初做成「與後端無關的表示」
 // 的回報 —— Android 版沒有動 app 的任何一行分派邏輯。
 type touchState struct {
-	active   bool
-	id       ebiten.TouchID
-	x0, y0   int // 按下的位置
-	lastY    int
-	moved    bool
-	scrolled int // 這一次拖曳已經送出幾列捲動
+	active bool
+	id     ebiten.TouchID
+	x0, y0 int // 按下的位置
+	lastY  int
+	moved  bool
 }
 
 // dragCells 是「拖曳幾格算捲一列」。
@@ -38,7 +37,7 @@ func (t *touchState) keys(g *game) []keys.Key {
 		x, y := ebiten.TouchPosition(ids[0])
 		t.active, t.id = true, ids[0]
 		t.x0, t.y0, t.lastY = x, y, y
-		t.moved, t.scrolled = false, 0
+		t.moved = false
 		return nil
 	}
 

@@ -2,7 +2,8 @@
 # 產 Android 的 AAR 與 APK。
 #
 # 兩步:
-#   1. ebitenmobile bind  → mobile 套件包成 AAR(含 arm64/arm/x86_64 的 .so)
+#   1. ebitenmobile bind  → mobile 套件包成 AAR
+#      (四個 ABI:arm64-v8a / armeabi-v7a / x86 / x86_64)
 #   2. gradle assembleRelease → APK(debug 簽章,私人 sideload 用)
 #
 # [HARD] 這台機器有其他客戶專案的 image 與 android 工具鏈。
