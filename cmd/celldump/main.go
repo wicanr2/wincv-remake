@@ -32,7 +32,7 @@ import (
 
 // drawFile 依內容判斷要用看圖、文字檢視還是 16 進位檢視,
 // 與 app 層的規則一致。
-func drawFile(s *cell.Screen, name string, cw, ch int) (*render.Overlay, error) {
+func drawFile(s *cell.Screen, name string, cw, ch int) ([]*render.Overlay, error) {
 	data, err := os.ReadFile(name)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func drawFile(s *cell.Screen, name string, cw, ch int) (*render.Overlay, error) 
 	if imgfmt.IsImage(base) {
 		m, err := imgview.Load(base, data)
 		if err == nil {
-			return m.Draw(s, cw, ch), nil
+			return []*render.Overlay{m.Draw(s, cw, ch)}, nil
 		}
 		hexview.Load(base, data).Draw(s)
 		return nil, nil
@@ -105,7 +105,7 @@ func main() {
 	}
 
 	s := cell.New(*cols, *rows)
-	var overlay *render.Overlay
+	var overlay []*render.Overlay
 	if *edit != "" {
 		if err := drawEdit(s, *edit, *cfgDir); err != nil {
 			die(err)
@@ -137,7 +137,7 @@ func main() {
 	if !*noFB {
 		attachFallback(r, *fbFont, half.PixWidth, half.PixHeight)
 	}
-	img := r.DrawWith(s, overlay)
+	img := r.DrawWith(s, overlay...)
 
 	f, err := os.Create(*out)
 	if err != nil {
@@ -223,7 +223,7 @@ func die(err error) {
 //
 // 這條路徑和 cmd/wincv 走的是同一份 app 程式碼,只是沒有 Ebiten ——
 // 所以選單、對話框、模式切換都可以在沒有顯示器的地方檢查。
-func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int) (*render.Overlay, error) {
+func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int) ([]*render.Overlay, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err

@@ -164,11 +164,14 @@ type Overlay struct {
 
 // Draw 把 s 畫成一張 RGBA。回傳的緩衝區會被下一次呼叫重用。
 func (r *Rasterizer) Draw(s *cell.Screen) *image.RGBA {
-	return r.DrawWith(s, nil)
+	return r.DrawWith(s)
 }
 
-// DrawWith 畫格點,再把 overlay 疊上去。
-func (r *Rasterizer) DrawWith(s *cell.Screen, ov *Overlay) *image.RGBA {
+// DrawWith 畫格點,再把 overlay 依序疊上去。
+//
+// 收多個而不是一個:markdown 一頁可以有好幾張圖,每張各佔自己的格位。
+// nil 的項目直接跳過,呼叫端不必先過濾。
+func (r *Rasterizer) DrawWith(s *cell.Screen, ovs ...*Overlay) *image.RGBA {
 	w, h := r.Size(s.Cols, s.Rows)
 	if r.buf == nil || r.buf.Rect.Dx() != w || r.buf.Rect.Dy() != h {
 		r.buf = image.NewRGBA(image.Rect(0, 0, w, h))
@@ -187,8 +190,10 @@ func (r *Rasterizer) DrawWith(s *cell.Screen, ov *Overlay) *image.RGBA {
 			r.drawGlyph(s, x, y)
 		}
 	}
-	if ov != nil && ov.Img != nil {
-		r.blit(ov)
+	for _, ov := range ovs {
+		if ov != nil && ov.Img != nil {
+			r.blit(ov)
+		}
 	}
 	return r.buf
 }

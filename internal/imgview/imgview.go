@@ -54,6 +54,17 @@ func Load(name string, data []byte) (*Model, error) {
 	}, nil
 }
 
+// FromImage 用一張已經解好的圖建 Model。
+//
+// markdown 內嵌的圖已經在排版時解過了,再解一次只是浪費 ——
+// 而且有些來源(壓縮檔成員)第二次未必拿得到同一份位元組。
+func FromImage(name, kind string, img image.Image, size int64) *Model {
+	return &Model{
+		Name: name, Kind: kind, Img: img,
+		Fit: true, Size: size, Theme: DefaultTheme(),
+	}
+}
+
 // PanBy 平移(只在 1:1 模式有意義)。
 func (m *Model) PanBy(dx, dy int) {
 	if m.Fit {

@@ -146,7 +146,7 @@ func (g *game) applySize(cols, rows int) {
 func (g *game) Draw(dst *ebiten.Image) {
 	if g.dirty || g.canvas == nil {
 		ov := g.app.Draw(g.screen)
-		img := g.rast.DrawWith(g.screen, ov)
+		img := g.rast.DrawWith(g.screen, ov...)
 		if g.canvas == nil ||
 			g.canvas.Bounds() != (image.Rectangle{Max: img.Rect.Max}) {
 			g.canvas = ebiten.NewImage(img.Rect.Dx(), img.Rect.Dy())

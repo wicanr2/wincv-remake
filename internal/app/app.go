@@ -41,6 +41,7 @@ const (
 	ModeEdit
 	ModeThumbs
 	ModeFind
+	ModeMarkdown
 )
 
 // MaxViewBytes 是檢視器一次讀進來的上限。
@@ -115,6 +116,11 @@ type App struct {
 	menu menu
 	// about 是「關於」畫面,見 about.go。
 	about bool
+	// md 是 markdown 檢視模式,見 mdview.go。
+	md mdView
+	// mdReturn 記著「看圖是從 markdown 進來的」,Esc 要退回 markdown
+	// 而不是退回檔案清單。
+	mdReturn bool
 	// editFind 是編輯器 F6 的尋找/取代狀態,見 editfind.go。
 	editFind findState
 	// findKindPending / convertPending 是「選單那一步」的暫存狀態:
@@ -154,17 +160,21 @@ func (a *App) LoadSyntax(dir string) {
 	}
 }
 
-// Draw 依目前模式畫出畫面。回傳的 overlay 不為 nil 時,
-// 呼叫端要把它交給 render.Rasterizer.DrawWith。
-func (a *App) Draw(s *cell.Screen) *render.Overlay {
-	var ov *render.Overlay
+// Draw 依目前模式畫出畫面。回傳的 overlay 要交給
+// render.Rasterizer.DrawWith(s, ovs...)。
+//
+// 回傳的是一組而不是一個:markdown 一頁可以有好幾張圖。
+func (a *App) Draw(s *cell.Screen) []*render.Overlay {
+	var ov []*render.Overlay
 	switch a.Mode {
+	case ModeMarkdown:
+		ov = a.drawMarkdown(s)
 	case ModeViewer:
 		a.rows = a.Viewer.Draw(s)
 	case ModeHex:
 		a.rows = a.Hex.Draw(s)
 	case ModeImage:
-		ov = a.Image.Draw(s, a.CellW, a.CellH)
+		ov = []*render.Overlay{a.Image.Draw(s, a.CellW, a.CellH)}
 		a.rows = s.Rows - 1
 	case ModeEdit:
 		a.rows = a.Editor.Draw(s)
@@ -172,7 +182,7 @@ func (a *App) Draw(s *cell.Screen) *render.Overlay {
 			a.drawDict(s)
 		}
 	case ModeThumbs:
-		ov = a.Thumbs.Draw(s, a.CellW, a.CellH)
+		ov = []*render.Overlay{a.Thumbs.Draw(s, a.CellW, a.CellH)}
 		a.rows = s.Rows - 1
 		a.thumbCols = s.Cols
 	case ModeFind:
@@ -254,6 +264,8 @@ func (a *App) HandleKey(k keys.Key) bool {
 		return a.toggleFullscreen()
 	}
 	switch a.Mode {
+	case ModeMarkdown:
+		return a.markdownKey(k)
 	case ModeViewer:
 		return a.viewerKey(k)
 	case ModeHex:
@@ -576,6 +588,12 @@ func (a *App) openViewer(name string) bool {
 		a.Message = err.Error()
 		return true
 	}
+	// markdown 走排版模式:標題、清單、表格照結構畫,圖片直接嵌在文件裡。
+	// 要看原始碼按 E 進編輯器。
+	if IsMarkdown(name) {
+		a.openMarkdown(name, data)
+		return true
+	}
 	// 判成二進位就直接開 16 進位檢視 —— 原版 0.5 版起就是這個行為
 	// (「按 enter 看檔時自動將可能為執行檔的檔案以 16 進位方式看檔」)。
 	m := viewer.Load(name, data, textenc.Unknown)
@@ -652,6 +670,12 @@ func (a *App) imageKey(k keys.Key) bool {
 	case keys.Backspace:
 		return a.stepImage(-1)
 	case keys.Esc:
+		// 從 markdown 進來的就退回 markdown,不是退回檔案清單。
+		if a.mdReturn {
+			a.mdReturn = false
+			a.Mode = ModeMarkdown
+			return true
+		}
 		a.Mode = ModeBrowser
 		return true
 	case keys.Up:

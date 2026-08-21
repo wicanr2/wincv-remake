@@ -105,9 +105,13 @@ func Parse(src string) []Block {
 		}
 
 		// setext 標題:下一行整行是 === 或 ---
+		//
+		// 這一段要放在水平線之後、段落之前:`---` 單獨出現(前面是空行)
+		// 是水平線,接在一行文字後面才是二級標題。判斷的時機決定了語意 ——
+		// 這裡是在處理**那行文字**時往下看,所以走到這裡就表示前面有文字。
 		if i+1 < len(lines) {
 			nx := strings.TrimSpace(lines[i+1])
-			if len(nx) >= 2 && (allOf(nx, '=') || allOf(nx, '-')) && !isRule(nx) {
+			if len(nx) >= 2 && (allOf(nx, '=') || allOf(nx, '-')) {
 				lvl := 1
 				if nx[0] == '-' {
 					lvl = 2
