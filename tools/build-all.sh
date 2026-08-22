@@ -19,6 +19,13 @@ DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
         -v $REPO:/src -w /src
         -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod"
 
+# 公開版也嵌原版的 .FON 與倚天字庫:解開就是與原版逐像素對齊的畫面,
+# 不必自己準備。授權與出處見 NOTICE。
+# 完整版(tools/build-full.sh)另外多嵌一組 Unicode 後備。
+"$REPO/tools/embed-fonts.sh" base
+cleanup() { "$REPO/tools/embed-fonts.sh" clean; }
+trap cleanup EXIT
+
 mkdir -p "$DIST"
 
 # 每一步都要確認產物真的生出來。
@@ -36,14 +43,14 @@ expect() {
 
 echo "=== linux/amd64 ==="
 $DOCKER "$BUILD_IMG" sh -c '
-    CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o /src/dist/wincv-linux-amd64 ./cmd/wincv'
+    CGO_ENABLED=1 go build -tags fonts -trimpath -ldflags "-s -w" -o /src/dist/wincv-linux-amd64 ./cmd/wincv'
 expect wincv-linux-amd64
 
 echo "=== windows/amd64 ==="
 # -H windowsgui 讓它不要開一個主控台視窗。
 $DOCKER "$BUILD_IMG" sh -c '
     CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
-    go build -trimpath -ldflags "-s -w -H windowsgui" -o /src/dist/wincv-windows-amd64.exe ./cmd/wincv'
+    go build -tags fonts -trimpath -ldflags "-s -w -H windowsgui" -o /src/dist/wincv-windows-amd64.exe ./cmd/wincv'
 expect wincv-windows-amd64.exe
 
 echo "=== darwin universal ==="
@@ -57,7 +64,7 @@ $DOCKER "$OSX_IMG" bash -c "
     build() {   # \$1=GOARCH  \$2=工具鏈前綴
         CGO_ENABLED=1 GOOS=darwin GOARCH=\$1 \
             CC=\$2-apple-\$T-clang CXX=\$2-apple-\$T-clang++ \
-            go build -trimpath -ldflags '-s -w' -o /src/dist/wincv-darwin-\$1 ./cmd/wincv
+            go build -tags fonts -trimpath -ldflags '-s -w' -o /src/dist/wincv-darwin-\$1 ./cmd/wincv
     }
     build arm64 arm64
     build amd64 x86_64

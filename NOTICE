@@ -55,15 +55,37 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## 字型與資料檔:不打包進任何產物
+## 字型:隨產物散布
 
-- **倚天中文系統的點陣字庫**(`STDFONT.15` / `SPCFONT.15` / `STD.24x` 等)。
-  由使用者自備,`tools/setup-eten.sh` 從使用者自己的來源抽。
-- **原版隨附的字型與字典資料**(`cvga.fon`、`CVGA1018.FON`、`cvga1224.FON`、
-  `eng.txt.*`、`kk.txt.*`、`chi.txt.*`、`origin-verb.txt.*`、`keyword_*.cfg` 等)。
-  由使用者自備,`tools/setup-wine-oracle.sh` 從原版安裝檔解出。
+發布的執行檔**內嵌**下面這些字型,好讓使用者解開就有與原版逐像素對齊的
+畫面。它們的權利仍在原權利人手上,BSD 2-Clause 不涵蓋它們。
 
-`dist/`、`dist-all/` 與 release 附件裡的四個產物**都不含**上面這些。
+- **原版隨附的半形點陣字型**:`cvga.fon`、`CVGA1018.FON`、`cvga1224.FON`。
+  著作權屬於原作者 Lcc Wizard(見上)。原版安裝檔 `wincv052a.exe` 本來就在
+  這個 repo 裡,這幾份字模由 `tools/setup-wine-oracle.sh` 從它解出。
+- **倚天中文系統的全形點陣字庫**:`STDFONT.15`、`SPCFONT.15`、`SPCFSUPP.15`。
+  出自**倚天中文系統 3.53**(倚天資訊股份有限公司,1990 年代)。
+  由 `tools/setup-eten.sh` 從倚天原版光碟抽出。
+
+  為什麼是倚天:原版的全形中文是交給 Windows GDI 用系統字型畫的
+  (image 內指名「新細明體」),也就是說「原版的中文字形」本來就隨每個人的
+  Windows 而異,不是單一答案。重製版需要一個確定的來源,而倚天的
+  16×15 與原版的半形 8×15 是同一個年代、同一套格點規格的東西。
+
+- **Noto Sans CJK 與幾份 Noto 語系子集**(完整版才有,檔名 `fb-*`):
+  SIL Open Font License 1.1,可自由散布。補倚天沒有的字 ——
+  簡體、日文假名、韓文、西里爾、阿拉伯、泰文與各種符號。
+
+**權利人若希望調整任何與這些字型有關的處置,請開一個 issue。**
+
+沒有這些字型時程式仍然跑得起來:半形改用系統的等寬字型現場產,尺寸照
+原版的 8×15 / 10×18 / 12×24,版面與按鍵行為完全一樣,只有字形不同。
+
+## 資料檔:不打包
+
+原版隨附的字典與設定資料(`eng.txt.*`、`kk.txt.*`、`chi.txt.*`、
+`origin-verb.txt.*`、`keyword_*.cfg` 等)**不進任何產物**,由使用者自備 ——
+`tools/setup-wine-oracle.sh` 從原版安裝檔解出。
 
 ## 測試資料:`testdata/`
 

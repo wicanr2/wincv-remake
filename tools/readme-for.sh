@@ -32,17 +32,18 @@ $RUN
 字型
 ----
 
-這份產物**不含字型**。原版的 cvga.fon 與倚天字庫是第三方版權物,
-不能隨產物散布。沒有它們也跑得起來(半形字改用系統字型現場產),
-但要與原版逐像素相同的畫面就要自己準備:
+原版的半形點陣字型與倚天的全形字庫已經嵌在執行檔裡,**不必自己準備**,
+解開就是與原版對齊的畫面。那些字型的權利仍在原權利人手上,見 NOTICE。
 
-  -half      原版的 cvga.fon(8×15)
-  -eten-std  倚天 STDFONT.15(漢字)
-  -eten-spc  倚天 SPCFONT.15(全形標點)
+要換成自己的字型就用這幾個參數:
 
-中文缺字的話裝一份涵蓋廣的字型就好(Debian/Ubuntu: fonts-noto-cjk、
-Fedora: google-noto-sans-cjk-fonts、Arch: noto-fonts-cjk)。
-Windows 與 macOS 內建的通常夠用。
+  -half      半形點陣字型(原版的 cvga.fon 是 8x15)
+  -eten-std  全形漢字(倚天 STDFONT.15)
+  -eten-spc  全形標點(倚天 SPCFONT.15)
+
+Big5 以外的字(簡體、日文、韓文、符號)靠系統字型補。缺字的話裝一份
+涵蓋廣的就好(Debian/Ubuntu: fonts-noto-cjk、Fedora: google-noto-sans-cjk-fonts、
+Arch: noto-fonts-cjk)。Windows 與 macOS 內建的通常夠用。
 
 授權
 ----

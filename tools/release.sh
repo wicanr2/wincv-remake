@@ -29,7 +29,11 @@ if [ "$BUILD" = 1 ]; then
     echo "== 桌面三平台 =="
     "$REPO/tools/build-all.sh"
     echo "== Android =="
-    "$REPO/tools/build-android.sh"
+    # build-all.sh 已經把 base 素材放好並註冊了清理;Android 這一支
+    # 跑在同一輪裡,直接沿用,只要把 build tag 帶進去。
+    "$REPO/tools/embed-fonts.sh" base
+    TAGS=fonts "$REPO/tools/build-android.sh"
+    "$REPO/tools/embed-fonts.sh" clean
 fi
 
 rm -rf "$OUT"; mkdir -p "$OUT"
