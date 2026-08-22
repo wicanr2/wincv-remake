@@ -55,7 +55,7 @@ done
 
 echo
 echo "== 打包 =="
-"$REPO/tools/package.sh"
+"$REPO/tools/package.sh" public
 
 # MANIFEST 描述的是**發布出去的東西**,所以要在打包之後才產生 ——
 # 列裸執行檔的檔名會讓下載的人對不上 release 頁面上的 zip。

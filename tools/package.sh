@@ -13,6 +13,9 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 OUT=$REPO/dist-all
 TAG=${TAG:-$(cd "$REPO" && git describe --tags --abbrev=0 2>/dev/null || echo v0.52-remake)}
+# public / full / all。分開的理由:公開版的 zip 一旦上傳,再打包一次會
+# 因為時間戳不同而換掉 sha256,與 release 上那份對不起來。
+WHAT=${1:-all}
 
 command -v zip >/dev/null || { echo "需要 zip 指令" >&2; exit 1; }
 
@@ -33,9 +36,15 @@ FULL=(
 )
 
 cd "$OUT"
-rm -f ./*.zip SHA256SUMS-zip
 
-for entry in "${PLATFORMS[@]}"; do
+if [ "$WHAT" != full ]; then
+    rm -f ./wincv-remake-*[!l].zip SHA256SUMS-zip
+fi
+if [ "$WHAT" = full ]; then
+    rm -f ./*-full.zip SHA256SUMS-zip-full
+fi
+
+[ "$WHAT" = full ] || for entry in "${PLATFORMS[@]}"; do
     src=${entry%%:*}; rest=${entry#*:}
     exe=${rest%%:*}; plat=${rest#*:}
     [ -s "$src" ] || { echo "缺少 $src" >&2; exit 1; }
@@ -69,7 +78,7 @@ done
 # 它沒有字型也跑得起來(半形改用系統字型現場產,見 cmd/wincv 的
 # ttfLevels),只是畫面不是原版的點陣字。
 fulln=0
-for entry in "${FULL[@]}"; do
+[ "$WHAT" = public ] || for entry in "${FULL[@]}"; do
     src=${entry%%:*}; rest=${entry#*:}
     exe=${rest%%:*}; plat=${rest#*:}
     [ -s "$src" ] || continue
@@ -85,11 +94,11 @@ for entry in "${FULL[@]}"; do
 這一份是完整版
 --------------
 
-字型已經嵌在執行檔裡,解開就是與原版逐像素對齊的畫面,不必自己準備。
-嵌的是原版的 cvga.fon / CVGA1018.FON / cvga1224.FON、倚天的
-STDFONT.15 / SPCFONT.15 / SPCFSUPP.15,以及幾份 Noto 的 Unicode 後備。
+與同一個 release 的公開版差別只有一件事:多嵌了一組 Noto 的 Unicode
+後備字型(SIL Open Font License),所以簡體、日文假名、韓文、西里爾、
+阿拉伯、泰文與各種符號都不必靠系統字型也畫得出來。
 
-前兩組是第三方版權物。**這一份不要轉給別人。**
+原版的半形 .FON 與倚天的全形字庫兩邊都有,畫面完全一樣。
 EOF
     } > "$dir/README.txt"
     [ "$plat" = "windows-amd64" ] && sed -i 's/$/\r/' "$dir/README.txt"
@@ -101,9 +110,15 @@ EOF
     fulln=$((fulln + 1))
 done
 
-sha256sum ./*.zip > SHA256SUMS-zip
-echo
-echo "校驗:cd dist-all && sha256sum -c SHA256SUMS-zip"
+# 兩份校驗檔分開:SHA256SUMS-zip 是要上傳的那一份,只列公開版。
+if [ "$WHAT" != full ]; then
+    sha256sum $(ls ./wincv-remake-*.zip | grep -v -- "-full") > SHA256SUMS-zip
+    echo
+    echo "校驗:cd dist-all && sha256sum -c SHA256SUMS-zip"
+fi
 if [ "$fulln" -gt 0 ]; then
-    echo "注意:$fulln 個 -full.zip 嵌著第三方版權的字型,只留本機,不要上傳。"
+    sha256sum ./*-full.zip > SHA256SUMS-zip-full
+    echo "校驗(完整版):cd dist-all && sha256sum -c SHA256SUMS-zip-full"
+    echo "注意:$fulln 個 -full.zip 只留本機。完整版與公開版嵌的字型相同,"
+    echo "      差別是完整版多一組 Noto 的 Unicode 後備(SIL OFL)。"
 fi
