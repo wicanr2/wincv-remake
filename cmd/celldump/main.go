@@ -107,11 +107,14 @@ func main() {
 	if err != nil {
 		die(err)
 	}
-	cjk, err := eten.Load(*stdPath, *spcPath, half.PixWidth*2, half.PixHeight)
+	// eten.Load 的 w、h 是**字庫自己**的點陣尺寸(見 eten.NativeW),
+	// 不是要畫多大 —— 目標大小交給 render.ScaleCJK。-half 指到
+	// CVGA1018.FON 這種別的字級時,兩者就不再相等了。
+	cjk, err := eten.Load(*stdPath, *spcPath, eten.NativeW, eten.NativeH)
 	if err != nil {
 		if std := bundled.Get("STDFONT.15"); std != nil {
 			cjk, err = eten.LoadBytes(std, bundled.Get("SPCFONT.15"),
-				bundled.Get("SPCFSUPP.15"), half.PixWidth*2, half.PixHeight)
+				bundled.Get("SPCFSUPP.15"), eten.NativeW, eten.NativeH)
 		}
 	}
 	if err != nil {
@@ -122,7 +125,12 @@ func main() {
 	// 而不是字身高(PixHeight)。兩者差一個 LineGap,用錯的話每列偏 1 px,
 	// 到第 40 列就累積成兩列半 —— 而單一張圖鋪滿整個畫面時看不出來,
 	// 要到 markdown 一頁好幾張圖才會現形。
-	r := render.New(half, cjkOrNil(cjk))
+	cjkSrc := cjkOrNil(cjk)
+	if cjk != nil {
+		cjkSrc = render.ScaleCJK(cjk, cjk.W, cjk.H,
+			half.PixWidth*2, half.PixHeight+render.LineGap)
+	}
+	r := render.New(half, cjkSrc)
 	r.MissingMark = true
 	if !*noFB {
 		attachFallback(r, *fbFont, half.PixWidth, half.PixHeight)

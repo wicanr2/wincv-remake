@@ -56,6 +56,18 @@ var (
 
 const nCommon = 5401
 
+// NativeW / NativeH 是 `.15` 這一組字庫的點陣尺寸。
+//
+// Load / LoadBytes 的 w、h 指的是**字庫本身**的尺寸(要靠 stride 把
+// 位元組切成一個一個字模),不是「想畫多大」—— 要別的大小是
+// render.ScaleCJK 的事。傳成目標格子大小的症狀是那個字級整批沒有中文,
+// 而且不會有訊息:呼叫端通常只在第一個字級印警告,而第一個字級的
+// 格子剛好就是 16×15,所以只有它會過。
+const (
+	NativeW = 16
+	NativeH = 15
+)
+
 // 補充符號區的界線。
 var (
 	baseC6A1 = rawIndex(0xC6, 0xA1)

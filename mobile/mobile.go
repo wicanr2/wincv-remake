@@ -135,6 +135,15 @@ func pickRoot() string {
 	return "/"
 }
 
+// scaleTo 把倚天的 16×15 字模拉成半形字級對應的全形格子。
+//
+// 倚天只有 15 點那一組,而半形有三個字級;字庫載進來的尺寸永遠是原生的
+// 16×15(見 eten.NativeW),要畫多大是這裡的事。
+func scaleTo(cjk *eten.Font, half *fnt.Font) render.CJKSource {
+	return render.ScaleCJK(cjk, cjk.W, cjk.H,
+		half.PixWidth*2, half.PixHeight+render.LineGap)
+}
+
 // loadFonts 決定半形與全形字模從哪來。
 //
 // 優先用使用者匯入的原版字型(點陣像素對齊);沒有就拿系統字型現場產。
@@ -148,9 +157,9 @@ func loadFonts(dir string, w, h int) (render.HalfSource, render.CJKSource, strin
 			cjk, _ := eten.Load(
 				filepath.Join(fontDir, "STDFONT.15"),
 				filepath.Join(fontDir, "SPCFONT.15"),
-				f.PixWidth*2, f.PixHeight)
+				eten.NativeW, eten.NativeH)
 			if cjk != nil {
-				return f, cjk, ""
+				return f, scaleTo(cjk, f), ""
 			}
 			return f, nil, "找到 cvga.fon,但沒有倚天字庫,全形字會用系統字型"
 		}
@@ -162,9 +171,9 @@ func loadFonts(dir string, w, h int) (render.HalfSource, render.CJKSource, strin
 		if f, err := fnt.Parse(d); err == nil {
 			cjk, err := eten.LoadBytes(bundled.Get("STDFONT.15"),
 				bundled.Get("SPCFONT.15"), bundled.Get("SPCFSUPP.15"),
-				f.PixWidth*2, f.PixHeight)
+				eten.NativeW, eten.NativeH)
 			if err == nil {
-				return f, cjk, ""
+				return f, scaleTo(cjk, f), ""
 			}
 			return f, nil, "內嵌的倚天字庫載不起來,全形字會用系統字型"
 		}
