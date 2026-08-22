@@ -56,6 +56,11 @@ type game struct {
 
 	levels []level
 	zoom   int
+	// rasts 是各字級的光柵器(懶建),effIdx / effScale 是
+	// pickLevel 挑出來的「實際用哪一級、還要再放大幾倍」。
+	rasts    []*render.Rasterizer
+	effIdx   int
+	effScale float64
 
 	// menuRast 是選單那一層的光柵器。選單可以用與內容不同的字型與
 	// 大小,所以它有自己的格點;nil 表示沿用內容的那一份。
@@ -81,11 +86,7 @@ func (g *game) setZoom(n int) {
 		return
 	}
 	g.zoom = n
-	l := g.levels[n]
-	g.rast = render.New(l.half, l.cjk)
-	g.rast.Fallback = l.fb
-	g.rast.MissingMark = true
-	g.app.CellW, g.app.CellH = g.rast.CellW, g.rast.CellH
+	g.applyLevel()
 	g.canvas = nil
 	g.dirty = true
 	// 換字級要保住**格數**而不是視窗大小:使用者按放大字體想要的是
@@ -93,6 +94,93 @@ func (g *game) setZoom(n int) {
 	if g.cols > 0 && g.rows > 0 {
 		g.applySize(g.cols, g.rows)
 	}
+}
+
+// rastFor 取第 i 個字級的光柵器,建過就留著。
+//
+// 留著是必要的:pickLevel 每次都要問各字級的格子多大,而建一個
+// 光柵器要解字型、配緩衝區。每幀重建會讓捲動變成幻燈片。
+func (g *game) rastFor(i int) *render.Rasterizer {
+	if i < 0 || i >= len(g.levels) {
+		return nil
+	}
+	if g.rasts == nil {
+		g.rasts = make([]*render.Rasterizer, len(g.levels))
+	}
+	if g.rasts[i] == nil {
+		l := g.levels[i]
+		r := render.New(l.half, l.cjk)
+		r.Fallback = l.fb
+		r.MissingMark = true
+		g.rasts[i] = r
+	}
+	return g.rasts[i]
+}
+
+// pickLevel 依「使用者選的字級 + 想要的倍率」決定**實際**用哪一個字級,
+// 以及還要再放大幾倍。
+//
+// 為什麼要挑:原版隨附三種點陣字(8×15 / 10×18 / 12×24),它們之間的
+// 比例正好是 1.19 與 1.56。也就是說「放大 1.2 倍」可以用**原生的
+// 10×18 字模**達成,而不是把 8×15 的字模拉大 1.2 倍 —— 前者每一個
+// 像素都是當年設計出來的,後者必然有一列被複製兩次、一列沒有,
+// 於是同一個字的直筆有的 1 px 有的 2 px。
+//
+// 只往**大**的字級找。往小找等於把字縮小再放大,那比直接放大更糊。
+func (g *game) pickLevel() (int, float64) {
+	base := g.rastFor(g.zoom)
+	if base == nil || base.CellH <= 0 {
+		return g.zoom, g.scale
+	}
+	target := float64(base.CellH) * g.scale
+
+	bestIdx, bestRest := g.zoom, g.scale
+	bestErr := math.Abs(g.scale - math.Round(g.scale))
+	for i := g.zoom + 1; i < len(g.levels); i++ {
+		r := g.rastFor(i)
+		if r == nil || r.CellH <= 0 {
+			continue
+		}
+		rest := target / float64(r.CellH)
+		// 再大的字級就超過使用者要的尺寸了 —— 那等於縮小,不做。
+		if rest < 1-scaleSnap {
+			break
+		}
+		if e := math.Abs(rest - math.Round(rest)); e < bestErr {
+			bestIdx, bestRest, bestErr = i, rest, e
+		}
+	}
+	// 差一點點就當剛好。1.02 倍與 1.00 倍的尺寸差不到一個像素,
+	// 但前者會讓某一列的像素變成雙倍粗 —— 看得出來的是後者那件事。
+	if math.Abs(bestRest-math.Round(bestRest)) <= scaleSnap {
+		bestRest = math.Round(bestRest)
+	}
+	if bestRest < 1 {
+		bestRest = 1
+	}
+	return bestIdx, bestRest
+}
+
+// scaleSnap 是「差這麼多就當剛好」的容差。
+//
+// 5% 是尺寸上看不出來、但銳利度上差很多的那個區間:8×16 的格子
+// 放大 1.19 倍與 1.20 倍只差 0.16 個像素,而前者可以整格換成
+// 原生的 10×18 字模。
+const scaleSnap = 0.05
+
+// applyLevel 依 pickLevel 的結果換掉目前在用的光柵器。
+func (g *game) applyLevel() {
+	idx, rest := g.pickLevel()
+	r := g.rastFor(idx)
+	if r == nil {
+		return
+	}
+	if g.rast != r || g.effScale != rest {
+		g.canvas = nil
+		g.dirty = true
+	}
+	g.rast, g.effIdx, g.effScale = r, idx, rest
+	g.app.CellW, g.app.CellH = r.CellW, r.CellH
 }
 
 // resize 依視窗像素大小算出裝得下幾欄幾列。
@@ -150,8 +238,9 @@ func (g *game) Update() error {
 	if g.app.Scale != g.scale && g.app.Scale >= app.MinScale && g.app.Scale <= app.MaxScale {
 		cols, rows := g.cols, g.rows
 		g.scale = g.app.Scale
-		g.canvas = nil
-		g.dirty = true
+		// 換倍率時重挑字級:1.2 倍用原生的 10×18 字模比把 8×15
+		// 拉大 1.2 倍銳利得多(見 pickLevel)。
+		g.applyLevel()
 		g.applySize(cols, rows)
 	}
 	// 選單裡的「視窗大小」只留下請求,真的去動視窗是這裡的事。
@@ -206,8 +295,8 @@ func (g *game) applySize(cols, rows int) {
 // 無條件進位:1.1 倍時 8×15 的格子是 8.8×16.5 px,取小的那邊會讓
 // 最後一列/欄被視窗切掉一半。寧可視窗底部多幾個像素的黑邊。
 func (g *game) cellPx() (int, int) {
-	return int(math.Ceil(float64(g.rast.CellW) * g.scale)),
-		int(math.Ceil(float64(g.rast.CellH) * g.scale))
+	return int(math.Ceil(float64(g.rast.CellW) * g.effScale)),
+		int(math.Ceil(float64(g.rast.CellH) * g.effScale))
 }
 
 // setMenuFont 換選單那一層的字型。path 為空表示沿用內容的字型。
@@ -273,7 +362,7 @@ func (g *game) menu() (r *render.Rasterizer, sc float64, cw, ch int) {
 	r, sc = g.menuRast, g.menuScale
 	if r == nil {
 		// 沒有指定選單字型時整層沿用內容的字型與倍率。
-		r, sc = g.rast, g.scale
+		r, sc = g.rast, g.effScale
 	}
 	if sc <= 0 {
 		sc = 1
@@ -322,7 +411,7 @@ func (g *game) paint(w, h int) {
 
 	ov := g.app.Draw(g.screen)
 	img := g.rast.DrawWith(g.screen, ov...)
-	g.blit(0, img, 0, top, g.scale)
+	g.blit(0, img, 0, top, g.effScale)
 
 	if top > 0 {
 		mr, msc, mcw, mch := g.menu()
@@ -441,14 +530,14 @@ func main() {
 		*cols, *rows = st.Cols, st.Rows
 	}
 	g := &game{app: a, levels: levels, scale: *scale, zoom: -1, dirty: true,
-		resume: !*noResume}
+		resume: !*noResume, effScale: *scale}
 	g.setZoom(*zoom)
 	cw, ch := g.cellPx()
 	g.resize(*cols*cw, *rows*ch)
 
 	w, h := g.rast.Size(g.cols, g.rows)
-	ebiten.SetWindowSize(int(math.Ceil(float64(w)*g.scale)),
-		int(math.Ceil(float64(h)*g.scale))+g.menuBarPx())
+	ebiten.SetWindowSize(int(math.Ceil(float64(w)*g.effScale)),
+		int(math.Ceil(float64(h)*g.effScale))+g.menuBarPx())
 	ebiten.SetWindowTitle("WinCV")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	// 畫面只在有事情發生時重畫 —— 這是檔案管理程式,不是遊戲。
