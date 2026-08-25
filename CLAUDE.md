@@ -322,6 +322,11 @@ remake 需要自備一套,選倚天(ETEN 3.53),依據見
 實作在 `internal/eten`,Big5 分區索引公式照 kb(已實測驗證)。
 `internal/render.CJKSource` 是介面,要換字形來源不動上層。
 
+**只有 8×15 那一級用倚天。** 其餘字級(10×18、12×24)的全形格不是倚天的
+原生尺寸,最近鄰縮放會整片鋸齒,所以 `internal/fontset.Compose` 改問
+向量字型(後備鏈,`fnt.Glyph.Alpha` 帶覆蓋率混色),倚天縮放只當後備。
+`-bitmap-cjk` 可以關掉。
+
 **[雷] 一定要一起載 `SPCFONT.15`。** `STDFONT.15` 從 A440「一」起,不含 A140–A3BF 的
 全形標點;只載 STDFONT 的話 `，。！？「」（）《》` 會整批變缺字。
 `internal/eten` 的 `TestPunctuationFromSpc` 就是擋這個。

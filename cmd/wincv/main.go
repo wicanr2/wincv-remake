@@ -465,6 +465,7 @@ func main() {
 		zoom     = flag.Int("zoom", 0, "字級:0=8x15 1=10x18 2=12x24")
 		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
+		bitmapCJ = flag.Bool("bitmap-cjk", false, "所有字級的全形字都用倚天字模縮放(不用向量字型反鋸齒)")
 		noResume = flag.Bool("no-resume", false, "不要回到上次的位置")
 		menuFont = flag.String("menu-font", "", "選單專用字型(TTF/TTC/OTF);留空沿用內容的點陣字")
 		menuSize = flag.Int("menu-size", 0, "選單字高(像素);配 -menu-font 用,留空取內容格高")
@@ -495,6 +496,7 @@ func main() {
 	a.LoadSyntax(cfgDir)
 	a.DictDir = cfgDir
 
+	fontset.BitmapCJK = *bitmapCJ
 	levels := fontset.Load(cfgDir, *stdPath, *spcPath, *fbFont, *noFB)
 	if len(levels) == 0 {
 		// 沒有原版的 .FON 就用系統字型現場產一份。畫面不是原版的點陣字,

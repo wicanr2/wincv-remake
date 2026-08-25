@@ -37,6 +37,18 @@ type Font struct {
 	ascent int
 	mu     sync.Mutex
 	cache  map[rune]*fnt.Glyph
+	// AA 開著時字模帶覆蓋率(fnt.Glyph.Alpha)而不是用門檻切成 1-bit。
+	// 要在第一次取字之前設好 —— 字模有快取。
+	AA bool
+}
+
+// SetAA 設定整條鏈的反鋸齒。
+func (c Chain) SetAA(on bool) {
+	for _, f := range c {
+		if f != nil {
+			f.AA = on
+		}
+	}
 }
 
 // Load 讀入字型並建立指定尺寸的 face。
@@ -148,6 +160,9 @@ func (f *Font) render(r rune) *fnt.Glyph {
 		return nil
 	}
 	g := &fnt.Glyph{W: w, H: f.h, Bits: make([]bool, w*f.h)}
+	if f.AA {
+		g.Alpha = make([]uint8, w*f.h)
+	}
 	alpha, _ := mask.(*image.Alpha)
 	if alpha == nil {
 		return nil
@@ -165,8 +180,14 @@ func (f *Font) render(r rune) *fnt.Glyph {
 			}
 			// 一半以上不透明才算有筆畫。門檻放低會讓細筆畫糊掉,
 			// 放高會讓整個字變瘦。
-			if alpha.AlphaAt(sx, sy).A >= 0x80 {
+			a := alpha.AlphaAt(sx, sy).A
+			if g.Alpha != nil {
+				g.Alpha[y*w+x] = a
+			}
+			if a >= 0x80 {
 				g.Bits[y*w+x] = true
+			}
+			if a > 0 {
 				ink = true
 			}
 		}

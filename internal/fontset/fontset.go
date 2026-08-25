@@ -21,6 +21,37 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/ttf"
 )
 
+// BitmapCJK 為 true 時所有字級的全形字都用倚天字模縮放(舊行為)。
+// 預設 false:倚天原生尺寸以外的字級改用向量字型反鋸齒,倚天當後備。
+var BitmapCJK bool
+
+// Compose 決定一個字級的全形來源與後備。
+//
+// 倚天只有 16×15 那一份字模,其餘字級的漢字只能從它縮放 —— 而非整數倍
+// 的最近鄰縮放會讓筆畫有的一格有的兩格,放大之後整片鋸齒。原版的做法
+// 其實是把全形字交給 Windows 用系統字型畫(image 裡指名「新細明體」),
+// 所以大字級改問向量字型並不是背離原版,反而更接近它。
+//
+// 規則:格子正好是倚天的原生尺寸 → 用倚天(逐像素對齊);否則向量字型
+// (反鋸齒)優先,倚天縮放當後備 —— 一台什麼字型都沒裝的機器仍然
+// 有中文可看,只是鋸齒。
+func Compose(cw, ch int, et *eten.Font, fb render.CJKSource) (cjk, fbOut render.CJKSource) {
+	var scaled render.CJKSource
+	if et != nil {
+		scaled = render.ScaleCJK(et, et.W, et.H, cw*2, ch)
+	}
+	native := et != nil && cw*2 == et.W && ch-render.LineGap == et.H
+	if native || BitmapCJK || fb == nil {
+		return scaled, fb
+	}
+	if c, ok := fb.(ttf.Chain); ok {
+		c.SetAA(true)
+	} else if f, ok := fb.(*ttf.Font); ok {
+		f.AA = true
+	}
+	return render.Sources{fb, scaled}, fb
+}
+
 // Level 是一個字級:一種半形點陣字型,加上配合它的全形來源。
 //
 // 原版隨附三種尺寸的 `.FON`(8x15 / 10x18 / 12x24),放大縮小字體就是
@@ -55,17 +86,18 @@ func Load(dir, stdPath, spcPath, fbPath string, noFB bool) []Level {
 		}
 		cw, ch := half.PixWidth, half.PixHeight+render.LineGap
 		l := Level{Name: name, Half: half}
-		if f, err := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH); err == nil {
-			l.CJK = render.ScaleCJK(f, f.W, f.H, cw*2, ch)
-		} else {
+		et, err := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH)
+		if err != nil {
 			// 每一個字級都要報。只報第一個的話,「只有某幾個字級沒有中文」
 			// 這種狀況會完全沒有訊息 —— 而使用者要按到那一級才看得到。
 			fmt.Fprintf(os.Stderr, "提示:%s 這一級沒有倚天字庫,全形字改用後備字型 (%v)\n",
 				name, err)
 		}
+		var fb render.CJKSource
 		if !noFB {
-			l.FB = Fallback(fbPath, cw, ch)
+			fb = Fallback(fbPath, cw, ch)
 		}
+		l.CJK, l.FB = Compose(cw, ch, et, fb)
 		out = append(out, l)
 	}
 	return out
@@ -113,18 +145,19 @@ func FromTTF(stdPath, spcPath, fbPath string, noFB bool) []Level {
 		}
 		cw, ch := s.w, s.h+render.LineGap
 		l := Level{Name: "系統字型 " + s.name, Half: hf}
-		if f, err := ttf.Load(path, s.w, s.w*2, s.h); err == nil {
-			l.CJK = f
-		}
-		// 倚天字庫有的話仍然優先:那才是與原版對齊的全形字形。
-		if e, err := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH); err == nil {
-			l.CJK = render.ScaleCJK(e, e.W, e.H, cw*2, ch)
-		}
+		var fb render.CJKSource
 		if !noFB {
-			if fb := Fallback(fbPath, cw, ch); fb != nil {
-				l.FB = fb
+			fb = Fallback(fbPath, cw, ch)
+		}
+		if fb == nil {
+			// 沒有後備鏈時至少用同一份系統字型畫全形。
+			if f, err := ttf.Load(path, s.w, s.w*2, s.h); err == nil {
+				fb = f
 			}
 		}
+		// 倚天字庫有的話,原生尺寸那一級仍然優先:那才是與原版對齊的字形。
+		et, _ := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH)
+		l.CJK, l.FB = Compose(cw, ch, et, fb)
 		out = append(out, l)
 	}
 	for _, e := range lastErrs {

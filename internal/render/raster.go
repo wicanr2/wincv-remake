@@ -362,19 +362,33 @@ func (r *Rasterizer) drawGlyph(s *cell.Screen, cx, cy int) {
 	for y := 0; y < g.H && y < r.CellH; y++ {
 		row := r.buf.PixOffset(px, py+y)
 		for x := 0; x < g.W; x++ {
-			if !g.At(x, y) {
+			a := g.Cov(x, y)
+			if a == 0 {
 				continue
 			}
 			o := row + x*4
 			if o < 0 || o+3 >= len(r.buf.Pix) {
 				continue
 			}
-			r.buf.Pix[o+0] = fg.R
-			r.buf.Pix[o+1] = fg.G
-			r.buf.Pix[o+2] = fg.B
+			if a == 255 {
+				r.buf.Pix[o+0] = fg.R
+				r.buf.Pix[o+1] = fg.G
+				r.buf.Pix[o+2] = fg.B
+			} else {
+				// 反鋸齒:前景依覆蓋率蓋在已經鋪好的底色上。
+				p := r.buf.Pix[o : o+3 : o+3]
+				p[0] = blend(p[0], fg.R, a)
+				p[1] = blend(p[1], fg.G, a)
+				p[2] = blend(p[2], fg.B, a)
+			}
 			r.buf.Pix[o+3] = 0xFF
 		}
 	}
+}
+
+// blend 把 fg 以 a/255 的比例蓋在 bg 上。
+func blend(bg, fg, a uint8) uint8 {
+	return uint8((int(bg)*(255-int(a)) + int(fg)*int(a) + 127) / 255)
 }
 
 // hline 畫一條水平線。

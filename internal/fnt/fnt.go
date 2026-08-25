@@ -33,6 +33,24 @@ func (f *Font) Size() (w, h int) { return f.PixWidth, f.PixHeight }
 type Glyph struct {
 	W, H int
 	Bits []bool // len == W*H,true 表示前景
+	// Alpha 是每個像素的覆蓋率(0–255),有的話畫的時候用它混色,
+	// 沒有(nil)就是純 1-bit 的點陣字。向量字型在大字級時用這個
+	// 做反鋸齒;點陣字永遠是 nil —— 它的邊緣本來就該是硬的。
+	Alpha []uint8
+}
+
+// Cov 回傳 (x, y) 的覆蓋率。1-bit 字模回 0 或 255。
+func (g *Glyph) Cov(x, y int) uint8 {
+	if x < 0 || y < 0 || x >= g.W || y >= g.H {
+		return 0
+	}
+	if g.Alpha != nil {
+		return g.Alpha[y*g.W+x]
+	}
+	if g.Bits[y*g.W+x] {
+		return 255
+	}
+	return 0
 }
 
 func (g *Glyph) At(x, y int) bool {

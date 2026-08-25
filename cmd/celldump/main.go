@@ -22,6 +22,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
+	"github.com/wicanr2/wincv-remake/internal/fontset"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
@@ -96,6 +97,7 @@ func main() {
 		keyStr    = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
 		fbFont    = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB      = flag.Bool("no-fallback", false, "不要後備字型")
+		bitmapCJ  = flag.Bool("bitmap-cjk", false, "所有字級的全形字都用倚天字模縮放")
 		touch     = flag.Bool("touch", false, "顯示觸控功能列(Android 版介面草案)")
 		gopherURL = flag.String("gopher", "", "開一個 gopher 位址(會真的連外)")
 		menuFont  = flag.String("menu-font", "", "選單專用字型(TTF/TTC/OTF)")
@@ -125,16 +127,15 @@ func main() {
 	// 而不是字身高(PixHeight)。兩者差一個 LineGap,用錯的話每列偏 1 px,
 	// 到第 40 列就累積成兩列半 —— 而單一張圖鋪滿整個畫面時看不出來,
 	// 要到 markdown 一頁好幾張圖才會現形。
-	cjkSrc := cjkOrNil(cjk)
-	if cjk != nil {
-		cjkSrc = render.ScaleCJK(cjk, cjk.W, cjk.H,
-			half.PixWidth*2, half.PixHeight+render.LineGap)
+	var fb render.CJKSource
+	if !*noFB {
+		fb = loadFallback(*fbFont, half.PixWidth, half.PixHeight)
 	}
+	fontset.BitmapCJK = *bitmapCJ
+	cjkSrc, fb := fontset.Compose(half.PixWidth, half.PixHeight+render.LineGap, cjk, fb)
 	r := render.New(half, cjkSrc)
 	r.MissingMark = true
-	if !*noFB {
-		attachFallback(r, *fbFont, half.PixWidth, half.PixHeight)
-	}
+	r.Fallback = fb
 
 	s := cell.New(*cols, *rows)
 	var overlay []*render.Overlay
@@ -356,26 +357,25 @@ func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool,
 
 // attachFallback 掛上後備字型。找不到就算了 —— 缺字會畫成空心框,
 // 不會安靜地變成空白。
-func attachFallback(r *render.Rasterizer, path string, cw, ch int) {
+func loadFallback(path string, cw, ch int) render.CJKSource {
 	if path != "" {
 		f, err := ttf.Load(path, cw, cw*2, ch)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "警告:載不到後備字型 %s (%v)\n", path, err)
-			return
+			return nil
 		}
-		r.Fallback = f
-		return
+		return f
 	}
 	chain, used, errs := ttf.LoadChain(cw, cw*2, ch)
 	for _, e := range errs {
 		fmt.Fprintf(os.Stderr, "警告:字型載不起來 %v\n", e)
 	}
-	if len(chain) > 0 {
-		r.Fallback = chain
-		if os.Getenv("WINCV_VERBOSE") != "" {
-			fmt.Fprintf(os.Stderr, "後備字型:%v\n", used)
-		}
-	} else {
+	if len(chain) == 0 {
 		fmt.Fprintln(os.Stderr, "警告:找不到後備字型,倚天字庫以外的字會畫成空框")
+		return nil
 	}
+	if os.Getenv("WINCV_VERBOSE") != "" {
+		fmt.Fprintf(os.Stderr, "後備字型:%v\n", used)
+	}
+	return chain
 }
