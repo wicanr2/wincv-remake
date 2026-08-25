@@ -21,6 +21,7 @@ import (
 // 移游標、雙擊開啟。網頁的連結是例外:單擊就跟過去,那是瀏覽器教會
 // 所有人的手感,要求雙擊反而怪。
 func (a *App) Click(col, row int, double bool) bool {
+	defer a.rememberPos()
 	// 下拉開著時點到內容區:收起來,這一下就到此為止。
 	// 點在選單外面的意思是「不要選單了」,不是「順便做那件事」。
 	if a.menu.active {

@@ -20,8 +20,12 @@ var helpText string
 // 借用既有的 markdown 檢視器而不是另寫一個畫面:說明書要的東西
 // (標題階層、清單、表格、程式碼樣式)那邊都已經有了,而且使用者
 // 在看 .md 檔時學到的按鍵在這裡照樣通。
+// helpName 是說明在文件模式裡用的「檔名」。它不是檔案:session 還原與
+// 逐檔位置記憶都要認得它,才不會拿它去 stat 或記進位置表。
+const helpName = "使用說明"
+
 func (a *App) openHelp() bool {
-	a.md = mdView{name: "使用說明", blocks: markdown.Parse(helpText)}
+	a.md = mdView{name: helpName, blocks: markdown.Parse(helpText)}
 	a.Mode = ModeMarkdown
 	a.mdReturn = false
 	return true

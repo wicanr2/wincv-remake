@@ -43,10 +43,47 @@ type State struct {
 	// 與「使用者把它關掉了」—— 這一項的預設是開,零值會反過來。
 	MenuBar *bool `json:"menubar,omitempty"`
 
+	// Positions 是「每個檔案上次看到哪」:鍵是完整路徑。原版 0.5x 起
+	// 有這個功能(「自動記錄上次看檔、編輯位置,下次看或編同一檔時自動
+	// 回到上次的位置」)。上限見 MaxPositions,滿了丟最久沒用的。
+	Positions map[string]DocPos `json:"positions,omitempty"`
 	// NameW 是檔案清單主檔名欄的寬度,0 表示預設。
 	NameW int `json:"namew,omitempty"`
 	// URL 是關掉時瀏覽模式停在哪一頁。空的表示沒在瀏覽。
 	URL string `json:"url,omitempty"`
+}
+
+// DocPos 是一份文件的位置。Top 是捲到第幾列;Line / Col 只有編輯器用
+// (游標所在),看檔模式留 0。At 是最後一次用的時間(Unix 秒),淘汰用。
+type DocPos struct {
+	Top  int   `json:"top"`
+	Line int   `json:"line,omitempty"`
+	Col  int   `json:"col,omitempty"`
+	At   int64 `json:"at"`
+}
+
+// MaxPositions 是逐檔位置表的上限。500 份文件夠用好幾年,而 JSON 仍然
+// 只有幾十 KB;無上限的話這個檔會跟著使用者看過的每一個檔案一直長。
+const MaxPositions = 500
+
+// Remember 記下一份文件的位置,滿了就丟最久沒用的。
+func (s *State) Remember(key string, p DocPos) {
+	if key == "" {
+		return
+	}
+	if s.Positions == nil {
+		s.Positions = map[string]DocPos{}
+	}
+	s.Positions[key] = p
+	for len(s.Positions) > MaxPositions {
+		oldest, oldAt := "", int64(0)
+		for k, v := range s.Positions {
+			if oldest == "" || v.At < oldAt {
+				oldest, oldAt = k, v.At
+			}
+		}
+		delete(s.Positions, oldest)
+	}
 }
 
 // Path 是狀態檔的位置。

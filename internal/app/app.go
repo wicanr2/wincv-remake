@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wicanr2/wincv-remake/internal/archive"
 	"github.com/wicanr2/wincv-remake/internal/browser"
@@ -26,6 +27,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/pdfdoc"
 	"github.com/wicanr2/wincv-remake/internal/render"
+	"github.com/wicanr2/wincv-remake/internal/session"
 	"github.com/wicanr2/wincv-remake/internal/syntax"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/thumbs"
@@ -128,6 +130,11 @@ type App struct {
 	rows int
 	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
 	thumbCols int
+	// positions 是逐檔的位置記憶(見 session.DocPos):開檔時查、
+	// 每次按鍵之後寫。存在 App 上而不是每次去讀檔,Snapshot 時一起帶出去。
+	positions map[string]session.DocPos
+	// now 是拿時間用的,測試可以換掉。
+	now func() int64
 	// screenCols / screenRows 是最近一次 Draw 拿到的整個畫面大小
 	//(含觸控功能列)。Click 要靠它們知道點到的是不是功能列。
 	screenCols, screenRows int
@@ -274,6 +281,91 @@ func (a *App) drawModes(s *cell.Screen) []*render.Overlay {
 
 // HandleKey 分派一次按鍵。回傳是否有東西改變(需要重畫)。
 func (a *App) HandleKey(k keys.Key) bool {
+	changed := a.handleKey(k)
+	a.rememberPos()
+	return changed
+}
+
+// docKey 是現在開著的文件在位置表裡的鍵(完整路徑),沒開文件回空字串。
+func (a *App) docKey() string {
+	var name string
+	switch a.Mode {
+	case ModeViewer:
+		if a.Viewer != nil {
+			name = a.Viewer.Name
+		}
+	case ModeHex:
+		if a.Hex != nil {
+			name = a.Hex.Name
+		}
+	case ModeEdit:
+		if a.Editor != nil {
+			name = a.Editor.Name
+		}
+	case ModeMarkdown:
+		name = a.md.name
+	}
+	if name == "" || name == helpName {
+		return ""
+	}
+	return filepath.Join(a.Browser.Dir, name)
+}
+
+// rememberPos 把現在開著的文件的位置記進表裡。
+//
+// 每次按鍵之後都做:寫一個 map 很便宜,而「離開時才記」會漏掉被 kill
+// 的那一次 —— 使用者失去的正是他讀到一半的那個位置。
+func (a *App) rememberPos() {
+	key := a.docKey()
+	if key == "" {
+		return
+	}
+	p := session.DocPos{At: a.unix()}
+	switch a.Mode {
+	case ModeViewer:
+		p.Top = a.Viewer.Top
+	case ModeHex:
+		p.Top = a.Hex.Top
+	case ModeEdit:
+		p.Top, p.Line, p.Col = a.Editor.Top, a.Editor.Cur.Line, a.Editor.Cur.Col
+	case ModeMarkdown:
+		p.Top = a.md.top
+	}
+	if a.positions == nil {
+		a.positions = map[string]session.DocPos{}
+	}
+	st := session.State{Positions: a.positions}
+	st.Remember(key, p)
+	a.positions = st.Positions
+}
+
+// recallPos 開檔之後把上次的位置套回去。檔案內容可能變了,一律夾邊界。
+func (a *App) recallPos() {
+	p, ok := a.positions[a.docKey()]
+	if !ok {
+		return
+	}
+	switch a.Mode {
+	case ModeViewer:
+		a.Viewer.Top = clampTop(p.Top, len(a.Viewer.Lines))
+	case ModeHex:
+		a.Hex.Top = clampTop(p.Top, len(a.Hex.Data)/16+1)
+	case ModeEdit:
+		a.Editor.Top = clampTop(p.Top, len(a.Editor.Lines))
+		a.Editor.MoveTo(editor.Pos{Line: p.Line, Col: p.Col})
+	case ModeMarkdown:
+		a.md.top = clampTop(p.Top, len(a.md.blocks)*4)
+	}
+}
+
+func (a *App) unix() int64 {
+	if a.now != nil {
+		return a.now()
+	}
+	return time.Now().Unix()
+}
+
+func (a *App) handleKey(k keys.Key) bool {
 	if a.prompt.active {
 		// 這兩個是「先選一種再問細節」的兩段式流程,
 		// 第一段不走一般的輸入列處理。
@@ -720,6 +812,7 @@ func (a *App) openViewer(name string) bool {
 	a.viewRaw = textenc.Decode(data, m.Enc)
 	a.Viewer = m
 	a.Mode = ModeViewer
+	a.recallPos()
 	return true
 }
 
@@ -843,6 +936,7 @@ func (a *App) openHex(name string, data []byte) {
 	a.Hex = hexview.Load(name, data)
 	a.viewData = data
 	a.Mode = ModeHex
+	a.recallPos()
 }
 
 // --- 檔案操作 -------------------------------------------------------------
@@ -1207,6 +1301,7 @@ func (a *App) openEditor() bool {
 	}
 	a.Editor = editor.Load(e.Name, data, textenc.Unknown, a.Syntax.For(e.Name))
 	a.Mode = ModeEdit
+	a.recallPos()
 	return true
 }
 

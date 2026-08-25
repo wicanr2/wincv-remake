@@ -24,6 +24,8 @@ func (a *App) Snapshot() session.State {
 		MenuBar:  session.Bool(a.MenuBar),
 		MenuZoom: session.Int(a.MenuZoom),
 	}
+	a.rememberPos()
+	st.Positions = a.positions
 	if e := a.Browser.Current(); e != nil {
 		st.Cursor = e.Name
 	}
@@ -59,7 +61,7 @@ func (a *App) Snapshot() session.State {
 		st.Mode, st.URL = "browse", a.bv.url
 	}
 	// 說明是內嵌的,不是檔案 —— 還原時會找不到那個「檔名」。
-	if st.File == "使用說明" {
+	if st.File == helpName {
 		st.Mode, st.File, st.Top = "", "", 0
 	}
 	return st
@@ -91,6 +93,9 @@ func (a *App) Restore(st session.State) {
 	}
 	if st.MenuZoom != nil && *st.MenuZoom >= -1 && *st.MenuZoom <= a.MaxZoom {
 		a.MenuZoom = *st.MenuZoom
+	}
+	if len(st.Positions) > 0 {
+		a.positions = st.Positions
 	}
 	if st.Cursor != "" {
 		a.focusOn(st.Cursor)

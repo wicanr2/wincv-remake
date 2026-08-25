@@ -52,6 +52,7 @@ func (a *App) openMarkdown(name string, data []byte) {
 		dir:    a.Browser.Dir,
 	}
 	a.Mode = ModeMarkdown
+	a.recallPos()
 }
 
 // mdImage 讀取 markdown 裡引到的圖。
