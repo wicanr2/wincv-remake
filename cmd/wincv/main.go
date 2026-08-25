@@ -18,6 +18,7 @@ import (
 
 	"github.com/wicanr2/wincv-remake/internal/app"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/ebikeys"
 	"github.com/wicanr2/wincv-remake/internal/fontset"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/session"
@@ -206,7 +207,7 @@ func (g *game) Update() error {
 	g.saveState()
 	// 編輯器要收字元事件才打得出 shift 後的符號與中文。
 	// 編輯器與輸入列都要收字元事件。
-	for _, k := range translate(g.app.Mode == app.ModeEdit || g.app.Prompting()) {
+	for _, k := range ebikeys.Translate(g.app.Mode == app.ModeEdit || g.app.Prompting()) {
 		if g.app.HandleKey(k) {
 			g.dirty = true
 		}

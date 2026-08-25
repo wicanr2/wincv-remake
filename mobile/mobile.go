@@ -22,6 +22,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/app"
 	"github.com/wicanr2/wincv-remake/internal/bundled"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/ebikeys"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
 	"github.com/wicanr2/wincv-remake/internal/render"
@@ -238,6 +239,13 @@ func (g *game) Update() error {
 		return nil
 	}
 	for _, k := range g.touch.keys(g) {
+		if g.a.HandleKey(k) {
+			g.dirty = true
+		}
+	}
+	// 實體鍵盤(dock、藍牙):與桌面同一套翻譯,含修飾鍵與自動重複。
+	// 沒接鍵盤時這裡什麼都收不到,不影響觸控。
+	for _, k := range ebikeys.Translate(g.a.Mode == app.ModeEdit || g.a.Prompting()) {
 		if g.a.HandleKey(k) {
 			g.dirty = true
 		}

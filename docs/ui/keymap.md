@@ -63,8 +63,10 @@ remake 的實作狀態(打勾表示已接上,空白表示鍵有定義但功能�
 | ✅ | `F1` 使用說明(重製版自己的,見上方說明) |
 | ✅ | `Alt-P` 預視窗格(底部 8 列,顯示游標所在檔案的開頭) |
 
-`cmd/celldump -touch` 會多畫一條觸控功能列(Android 版的介面草案,
-見 `docs/plan/android.md`)。桌面版的視窗不開這條列。
+`cmd/celldump -touch` 會多畫三列觸控功能列(Android 版用的:一列隨模式
+換的動作 + 兩列固定的按鍵 HUD,方向鍵十字、Esc / Enter 在兩端;
+見 `docs/plan/android.md`)。桌面版的視窗不開這條列。Android 接上實體
+鍵盤時按鍵與桌面版相同。
 
 markdown 檢視模式(開 `.md` / `.markdown` 自動進入):
 

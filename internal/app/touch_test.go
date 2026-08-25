@@ -21,13 +21,17 @@ func touchApp(t *testing.T) (*App, *cell.Screen) {
 func TestTouchBarDoesNotCoverContent(t *testing.T) {
 	a, s := touchApp(t)
 	a.Draw(s)
-	bar := rowText(s, s.Rows-2)
-	nav := rowText(s, s.Rows-1)
+	bar := rowText(s, s.Rows-3)
+	hud1 := rowText(s, s.Rows-2)
+	hud2 := rowText(s, s.Rows-1)
 	if !strings.Contains(bar, "選單") {
 		t.Errorf("動作列不見了: %q", bar)
 	}
-	if !strings.Contains(nav, "上層") {
-		t.Errorf("導覽列不見了: %q", nav)
+	if !strings.Contains(hud1, "Esc") || !strings.Contains(hud1, "Enter") {
+		t.Errorf("HUD 第一列少了 Esc / Enter: %q", hud1)
+	}
+	if !strings.Contains(hud2, "◀") || !strings.Contains(hud2, "▶") {
+		t.Errorf("HUD 第二列少了左右鍵: %q", hud2)
 	}
 	// 檔案清單要還在,而且完整落在觸控列之上。
 	// (清單把主檔名與副檔名分欄,所以找 "a.txt" 找不到 —— 找 "txt"。)
@@ -57,7 +61,7 @@ func TestTouchBarDoesNotCoverContent(t *testing.T) {
 func TestTouchBarFollowsMode(t *testing.T) {
 	a, s := touchApp(t)
 	a.Draw(s)
-	if got := rowText(s, s.Rows-2); !strings.Contains(got, "拷貝") {
+	if got := rowText(s, s.Rows-TouchRows); !strings.Contains(got, "拷貝") {
 		t.Errorf("瀏覽模式的功能列 = %q", got)
 	}
 	// 進文字檢視
@@ -72,15 +76,15 @@ func TestTouchBarFollowsMode(t *testing.T) {
 	if a.Mode != ModeViewer {
 		t.Fatalf("mode = %v", a.Mode)
 	}
-	if got := rowText(s, s.Rows-2); strings.Contains(got, "拷貝") {
+	if got := rowText(s, s.Rows-TouchRows); strings.Contains(got, "拷貝") {
 		t.Errorf("檢視模式還在顯示瀏覽的動作: %q", got)
 	}
-	// 讀文件時不該出現按了沒反應的「標記 / 開啟」
-	if got := rowText(s, s.Rows-1); strings.Contains(got, "標記") {
-		t.Errorf("檢視模式的導覽列還有「標記」: %q", got)
+	// 讀文件時不該出現按了沒反應的「標記」;HUD 是真的鍵,每個模式都在。
+	if got := rowText(s, s.Rows-TouchRows); strings.Contains(got, "標記") {
+		t.Errorf("檢視模式的動作列還有「標記」: %q", got)
 	}
-	if got := rowText(s, s.Rows-1); !strings.Contains(got, "返回") {
-		t.Errorf("檢視模式的導覽列少了「返回」: %q", got)
+	if got := rowText(s, s.Rows-2); !strings.Contains(got, "Esc") {
+		t.Errorf("檢視模式的 HUD 少了 Esc: %q", got)
 	}
 }
 
@@ -135,9 +139,34 @@ func TestTouchHitTestMatchesDrawing(t *testing.T) {
 				t.Errorf("%d 欄:第 %d 格是死區", cols, x)
 				break
 			}
-			if _, ok := a.TouchKeyAt(x, 1, cols); !ok {
-				t.Errorf("%d 欄:導覽列第 %d 格是死區", cols, x)
-				break
+			for r := 1; r <= 2; r++ {
+				if _, ok := a.TouchKeyAt(x, r, cols); !ok {
+					t.Errorf("%d 欄:HUD 第 %d 列第 %d 格是死區", cols, r, x)
+				}
+			}
+		}
+	}
+}
+
+// HUD 兩列:每一格的中心點回查要得到畫在那裡的那顆鍵。
+func TestTouchHUDHitTest(t *testing.T) {
+	for _, cols := range []int{30, 44, 60, 93} {
+		a := New(vfs.OS{}, fixture(t))
+		a.Touch = true
+		s := cell.New(cols, 20)
+		a.Draw(s)
+		for r, nav := range a.touchNav() {
+			y := s.Rows - TouchRows + 1 + r
+			for i, n := range nav {
+				w := cols / len(nav)
+				mid := i*w + w/2
+				got, ok := a.TouchKeyAt(mid, r+1, cols)
+				if !ok || got != n.key {
+					t.Errorf("%d 欄:HUD 第 %d 列「%s」的位置得到 %v", cols, r+1, n.label, got)
+				}
+				if !strings.Contains(rowText(s, y), n.label) {
+					t.Errorf("%d 欄:第 %d 列畫面上沒有「%s」→ %q", cols, y, n.label, rowText(s, y))
+				}
 			}
 		}
 	}

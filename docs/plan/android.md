@@ -139,8 +139,21 @@ tools/go.sh run ./cmd/celldump -app <目錄> -cols 44 -rows 62 -touch -o out.png
   那是把桌面介面硬搬過來,不是移植。
 - **修飾鍵不放上來**。`Alt-X` 在觸控上沒有等價物,
   該做的是把動作本身放進功能列,不是模擬一個 Alt 鍵。
-- 導覽列的**格位**固定、標籤隨模式換。位置固定是為了讓拇指記得住,
-  但讀文件時擺一個「標記」按鈕是按了沒反應的按鈕,那比位置變動更糟。
+- 底下兩列是**按鍵 HUD**,每個模式都一樣:
+
+  ```
+  Esc  | PgUp | ▲ | PgDn | Enter
+  Home | ◀    | ▼ | ▶    | End
+  ```
+
+  方向鍵排成十字,Esc / Enter 用不同顏色放在兩端。HUD 只放真的鍵,
+  所以不會有「這個模式下按了沒反應」的按鈕;模式相關的動作(標記、拷貝、
+  尋找……)在最上面那一列。三列合計 `TouchRows = 3`。
+- **實體鍵盤**(dock、藍牙)與桌面走同一份翻譯(`internal/ebikeys`):
+  Ebiten 在 Android 把 `KeyEvent` 送成同一套 `ebiten.Key`(`mobile/
+  ebitenmobileview/input_android.go`),所以修飾鍵、自動重複、打字模式
+  的分工全部一樣。沒接鍵盤時那條路徑什麼都收不到,不影響觸控。
+  **這一條只在模擬器上驗過編譯,沒有真機接 dock 的實測。**
 
 ## 建置路線
 
