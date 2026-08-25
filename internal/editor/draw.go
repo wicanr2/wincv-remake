@@ -49,6 +49,20 @@ func (m *Model) ColToScreen(line []rune, col int) int {
 	return x
 }
 
+// ScreenToCol 是 ColToScreen 的反向:畫面上第 x 格(已加回 Left)落在
+// 第幾個 rune 上。全形字佔兩格,點到後半格也算那個字;超出行尾就是行尾。
+func (m *Model) ScreenToCol(line []rune, x int) int {
+	sx := 0
+	for i, r := range line {
+		w := m.dispWidth(r, sx)
+		if x < sx+w {
+			return i
+		}
+		sx += w
+	}
+	return len(line)
+}
+
 // commentStateAt 回傳第 ln 行**開始**時是不是在跨行註解裡。
 //
 // 跨行註解的狀態要從檔頭累積,所以整份算一次並快取起來;

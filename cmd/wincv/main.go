@@ -44,6 +44,10 @@ type game struct {
 	zoom   int
 	// rasts 是各字級的光柵器(懶建),effIdx / effScale 是
 	// pickLevel 挑出來的「實際用哪一級、還要再放大幾倍」。
+	// mouse 是滑鼠狀態,dropRect 是最近一次畫出來的下拉框佔的像素
+	// (空的表示沒展開)。點擊要知道下拉貼在哪,而那只有 paint 知道。
+	mouse    mouse
+	dropRect image.Rectangle
 	rasts    []*render.Rasterizer
 	effIdx   int
 	effScale float64
@@ -206,6 +210,9 @@ func (g *game) Update() error {
 		if g.app.HandleKey(k) {
 			g.dirty = true
 		}
+	}
+	if g.handleMouse() {
+		g.dirty = true
 	}
 	// 有還沒完成的網路取回時要一直重繪。app 那一層不會自己叫重繪,
 	// 而結果是非同步回來的 —— 不這樣做的話畫面會永遠停在「連線中」。
@@ -399,6 +406,7 @@ func (g *game) paint(w, h int) {
 	img := g.rast.DrawWith(g.screen, ov...)
 	g.blit(0, img, 0, top, g.effScale)
 
+	g.dropRect = image.Rectangle{}
 	if top > 0 {
 		mr, msc, mcw, mch := g.menu()
 		layer := g.app.MenuLayer(w/mcw, h/mch)
@@ -408,7 +416,9 @@ func (g *game) paint(w, h int) {
 		if layer.Drop != nil {
 			// [雷] Rasterizer.Draw 的緩衝區會被下一次呼叫重用,
 			// 所以下拉一定要在選單列 blit 完之後才畫。
-			g.blit(2, mr.Draw(layer.Drop), layer.DropX*mcw, mch, msc)
+			x := layer.DropX * mcw
+			g.blit(2, mr.Draw(layer.Drop), x, mch, msc)
+			g.dropRect = image.Rect(x, mch, x+layer.Drop.Cols*mcw, mch+layer.Drop.Rows*mch)
 		}
 	}
 }

@@ -128,6 +128,9 @@ type App struct {
 	rows int
 	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
 	thumbCols int
+	// screenCols / screenRows 是最近一次 Draw 拿到的整個畫面大小
+	//(含觸控功能列)。Click 要靠它們知道點到的是不是功能列。
+	screenCols, screenRows int
 	// prompt 是畫面底部的輸入列,見 prompt.go。
 	prompt prompt
 	// menu 是選單列與它的下拉,見 menu.go。
@@ -201,6 +204,7 @@ func (a *App) LoadSyntax(dir string) {
 //
 // 回傳的是一組而不是一個:markdown 一頁可以有好幾張圖。
 func (a *App) Draw(s *cell.Screen) []*render.Overlay {
+	a.screenCols, a.screenRows = s.Cols, s.Rows
 	// 觸控功能列佔掉底部兩列。與其讓每個模式各自知道「底下被佔了幾列」,
 	// 不如先畫進一個矮兩列的畫面再貼上去 —— 一次對所有模式成立,
 	// 而且之後加新模式不必記得這件事。
