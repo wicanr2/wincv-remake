@@ -14,6 +14,9 @@ type mouse struct {
 	lastCell image.Point
 	lastZone int
 	wheel    float64
+	// 拖曳:按著左鍵時記住上一次換算出來的欄位,移過一格就送一次。
+	dragging bool
+	dragCol  int
 }
 
 const doubleClick = 400 * time.Millisecond
@@ -51,6 +54,23 @@ func (g *game) handleMouse() bool {
 		default:
 			changed = g.app.Click(col, row, double)
 		}
+	}
+	// 橫向拖曳:按著左鍵在內容區左右移動,每過一格送一次 Drag。
+	// 只有內容區算,選單列與下拉上拖不做事。
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		px, py := ebiten.CursorPosition()
+		zone, col, _ := g.hitTest(px, py)
+		if !g.mouse.dragging {
+			g.mouse.dragging, g.mouse.dragCol = true, col
+			if zone != zoneContent {
+				g.mouse.dragCol = -1
+			}
+		} else if g.mouse.dragCol >= 0 && zone == zoneContent && col != g.mouse.dragCol {
+			changed = g.app.Drag(col-g.mouse.dragCol) || changed
+			g.mouse.dragCol = col
+		}
+	} else {
+		g.mouse.dragging = false
 	}
 	// 滾輪:累積到一格才送。觸控板會送很多小數。
 	if _, dy := ebiten.Wheel(); dy != 0 {

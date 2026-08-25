@@ -411,6 +411,15 @@ func (a *App) browserKey(k keys.Key) bool {
 		return true
 	}
 
+	// Ctrl-← / Ctrl-→ 調主檔名欄的寬度(滑鼠橫向拖曳也是)。
+	if k.Ctrl && (k.Code == keys.Left || k.Code == keys.Right) {
+		d := 1
+		if k.Code == keys.Left {
+			d = -1
+		}
+		return b.ResizeName(d)
+	}
+
 	switch k.Code {
 	case keys.Up:
 		b.MoveBy(-1, rows)

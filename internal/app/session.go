@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/browser"
 	"os"
 	"path/filepath"
 
@@ -18,6 +19,7 @@ func (a *App) Snapshot() session.State {
 		Cols:     a.thumbCols,
 		Rows:     a.rows,
 		Zoom:     a.Zoom,
+		NameW:    a.Browser.NameW,
 		Scale:    a.Scale,
 		MenuBar:  session.Bool(a.MenuBar),
 		MenuZoom: session.Int(a.MenuZoom),
@@ -77,6 +79,9 @@ func (a *App) Restore(st session.State) {
 	}
 	if st.Zoom > 0 && st.Zoom <= a.MaxZoom {
 		a.Zoom = st.Zoom
+	}
+	if st.NameW >= browser.MinNameW && st.NameW <= browser.MaxNameW {
+		a.Browser.NameW = st.NameW
 	}
 	if st.Scale >= MinScale && st.Scale <= MaxScale {
 		a.Scale = st.Scale

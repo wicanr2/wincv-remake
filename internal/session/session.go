@@ -43,6 +43,8 @@ type State struct {
 	// 與「使用者把它關掉了」—— 這一項的預設是開,零值會反過來。
 	MenuBar *bool `json:"menubar,omitempty"`
 
+	// NameW 是檔案清單主檔名欄的寬度,0 表示預設。
+	NameW int `json:"namew,omitempty"`
 	// URL 是關掉時瀏覽模式停在哪一頁。空的表示沒在瀏覽。
 	URL string `json:"url,omitempty"`
 }

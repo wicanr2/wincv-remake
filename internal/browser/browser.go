@@ -17,7 +17,7 @@ import (
 
 // 欄位寬度(以半形格為單位)。取自原版畫面的欄位對齊。
 const (
-	colBase = 8  // 主檔名
+	colBase = 8  // 主檔名(預設;可調,見 Model.NameW)
 	colExt  = 3  // 副檔名
 	colSize = 11 // 大小,靠右
 	colDate = 8  // MM-DD-YY
@@ -71,11 +71,11 @@ func DefaultTheme() Theme {
 		MaskFG: cell.LtGreen, CountFG: cell.LtGray2,
 		MarkStatFG: cell.LtYellow, TotalFG: cell.White,
 		DirFG: cell.DirGreen, FileFG: cell.LtGray,
-		DateFG: cell.LtGreen,
-		LinkFG: cell.LtGray,
-		MarkFG: cell.Yellow,
+		DateFG:    cell.LtGreen,
+		LinkFG:    cell.LtGray,
+		MarkFG:    cell.Yellow,
 		MarkColBG: cell.Blue,
-		CursorFG: cell.White, CursorBG: cell.Red,
+		CursorFG:  cell.White, CursorBG: cell.Red,
 		StatusFG: cell.LtYellow, StatusBG: cell.Blue,
 		StatusDiskFG: cell.LtGray2, StatusNameFG: cell.White,
 		// 捲軸沿用原版 Win32 控制項的灰:軌道 #AAAAAA、滑塊 #FFFFFF、
@@ -85,7 +85,7 @@ func DefaultTheme() Theme {
 		ScrollThumbFG: cell.White, ScrollArrowFG: cell.Black,
 		DriveFG: cell.LtGray, DriveBG: cell.Blue,
 		DriveVolumeFG: cell.RemovableDiskGreen,
-		BG: cell.Black,
+		BG:            cell.Black,
 	}
 }
 
@@ -129,6 +129,11 @@ type Model struct {
 	Drives      []vfs.Drive
 	DrivePane   int
 	DriveCursor int
+
+	// NameW 是主檔名欄的寬度,0 表示預設的 8(原版的 8.3 版面)。
+	// 長檔名在原版是丟到最右欄加底線,清單本身永遠是 8.3;拉寬這一欄
+	// 是重製版加的,讓長檔名不必看到最右邊。範圍見 ResizeName。
+	NameW int
 
 	// DiskStat 回報這個目錄所在磁碟的可用與總容量,狀態列右邊要用。
 	// 做成 hook 而不是直接呼叫 vfs.DiskUsage —— 壓縮檔內部也走同一個
@@ -343,6 +348,37 @@ func (m *Model) UnmarkAll() {
 
 // --- 繪製 -----------------------------------------------------------------
 
+// nameW 是主檔名欄實際的寬度。
+func (m *Model) nameW() int {
+	if m.NameW <= 0 {
+		return colBase
+	}
+	return m.NameW
+}
+
+// MinNameW / MaxNameW 是主檔名欄的可調範圍。下限就是原版的 8;
+// 上限取一個「日期欄還在畫面上」的值,再寬也只是把其他欄擠出去。
+const (
+	MinNameW = colBase
+	MaxNameW = 60
+)
+
+// ResizeName 把主檔名欄加寬 d 格(負數變窄),夾在範圍內。回傳有沒有變。
+func (m *Model) ResizeName(d int) bool {
+	w := m.nameW() + d
+	if w < MinNameW {
+		w = MinNameW
+	}
+	if w > MaxNameW {
+		w = MaxNameW
+	}
+	if w == m.nameW() {
+		return false
+	}
+	m.NameW = w
+	return true
+}
+
 // listX 是檔案清單的左界,磁碟窗格開著時要往右讓。
 func (m *Model) listX() int { return m.DrivePane }
 
@@ -453,14 +489,14 @@ func (m *Model) drawRow(s *cell.Screen, y int, e Entry, cursor bool) {
 	long := e.Link
 	// 放不進 8.3 的名字,主欄位放截斷版,完整名字丟到最右欄 —— 原版
 	// 在 Windows 上是「短名在左、長名在右」,這裡是同一個版面的等價作法。
-	if width(base) > colBase || width(ext) > colExt {
+	if width(base) > m.nameW() || width(ext) > colExt {
 		if long == "" {
 			long = e.Name
 		}
-		base = truncate(base, colBase)
+		base = truncate(base, m.nameW())
 		ext = truncate(ext, colExt)
 	}
-	x += s.Print(x, y, pad(base, colBase), nameFG, bg)
+	x += s.Print(x, y, pad(base, m.nameW()), nameFG, bg)
 	x++
 	x += s.Print(x, y, pad(ext, colExt), nameFG, bg)
 	x++
@@ -597,7 +633,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 
 	if e := m.Current(); e != nil {
 		x := 1
-		x += s.Print(x, y, pad(truncate(e.Base(), colBase), colBase), t.StatusFG, t.StatusBG)
+		x += s.Print(x, y, pad(truncate(e.Base(), m.nameW()), m.nameW()), t.StatusFG, t.StatusBG)
 		x++
 		x += s.Print(x, y, pad(truncate(e.Ext(), colExt), colExt), t.StatusFG, t.StatusBG)
 		x++
@@ -624,7 +660,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 		right := fmt.Sprintf("剩餘: %sMB / %sMB",
 			comma(m.FreeBytes>>20), comma(m.DiskBytes>>20))
 		// 原版把「剩餘」接在時間欄之後,不是靠右對齊到畫面邊緣。
-		x := 1 + colBase + 1 + colExt + 1 + colSize + 1 + colDate + 1 + colTime + 1
+		x := 1 + m.nameW() + 1 + colExt + 1 + colSize + 1 + colDate + 1 + colTime + 1
 		if x+width(right) > s.Cols {
 			x = s.Cols - width(right)
 		}

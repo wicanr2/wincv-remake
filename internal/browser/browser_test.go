@@ -262,3 +262,44 @@ func TestDateKeepsColourUnderCursor(t *testing.T) {
 		t.Error("游標列上找不到游標色")
 	}
 }
+
+// 主檔名欄可以拉寬:拉寬之後長檔名直接顯示在清單裡,不必看最右欄。
+func TestResizeName(t *testing.T) {
+	m := New(fakeFS{entries: map[string][]vfs.Entry{
+		"/w": {{Name: "a-very-long-filename.txt", Size: 1}},
+	}}, "/w")
+	if err := m.Load("/w"); err != nil {
+		t.Fatal(err)
+	}
+	m.MoveTo(len(m.Entries)-1, 4)
+	s := cell.New(80, 6)
+	m.Draw(s)
+	if !strings.Contains(row(s, 2), "a-very-l ") {
+		t.Fatalf("預設 8 格應該截成 a-very-l:%q", row(s, 2))
+	}
+	if !m.ResizeName(12) {
+		t.Fatal("加寬沒生效")
+	}
+	m.Draw(s)
+	if !strings.Contains(row(s, 2), "a-very-long-filename txt") {
+		t.Fatalf("加寬到 20 格後:%q", row(s, 2))
+	}
+	// 夾邊界:再窄不能低於原版的 8。
+	m.ResizeName(-100)
+	if m.nameW() != MinNameW {
+		t.Fatalf("下限應該是 %d,得到 %d", MinNameW, m.nameW())
+	}
+	if m.ResizeName(-1) {
+		t.Error("到了下限還回 true")
+	}
+}
+
+func row(s *cell.Screen, y int) string {
+	var b strings.Builder
+	for x := 0; x < s.Cols; x++ {
+		if c := s.At(x, y); c != nil && !c.Cont {
+			b.WriteRune(c.Ch)
+		}
+	}
+	return b.String()
+}

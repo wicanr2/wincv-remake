@@ -130,6 +130,15 @@ func (a *App) clickEditor(col, row int) bool {
 	return true
 }
 
+// Drag 是按著左鍵橫向拖了 dx 格。目前只有檔案清單用得到:
+// 拖寬主檔名欄。其他模式回 false。
+func (a *App) Drag(dx int) bool {
+	if dx == 0 || a.Mode != ModeBrowser || a.menu.active || a.prompt.active {
+		return false
+	}
+	return a.Browser.ResizeName(dx)
+}
+
 // Wheel 是滾輪。d 是格數,正數往下。
 //
 // 翻成上下鍵而不是直接動 Top:每個模式的「往下」意思不同(清單移游標、
