@@ -200,6 +200,11 @@ internal/
   session/    關掉時記下人在哪裡,下次開回同一個位置
   epub/       EPUB 電子書(ZIP + XHTML,借 web 的 HTML 解析器)
   pdfdoc/     PDF 取文字與圖片(rsc.io/pdf + pdfcpu,不還原版面)
+  ooxml/      docx/pptx/xlsx 共用的 OPC 外殼:組件查表、關聯解析、XML 走訪
+  docx/       Word .docx      pptx/ PowerPoint      xlsx/ Excel
+  cfb/        OLE2 複合文件容器   doc97/ Word 97–2003 .doc(FIB + piece table)
+  rtf/        Rich Text Format(自寫的 tokenizer,含字碼頁與內嵌圖片)
+  officedoc/  把上面五種格式收在同一個窄介面後面,app 只認得這一層
   checksum/   MD5 / SFV      launch/ 跨平台開啟與執行
   archive/    壓縮檔讀取(見 §4.3)
     lzh/ arj/ cab/ arc/ zcompress/   自寫的解碼器
@@ -214,6 +219,9 @@ internal/
 
 **`cell`** — 整個 UI 的唯一渲染介面。上層只寫字元與屬性,不碰像素。
 換字型、換縮放、換 backend 都不影響上層。
+
+**`officedoc`** — 五種 Office 格式收在同一個介面後面(`Parts` / `Blocks` / `Image`)。
+`internal/app` 不認得 docx 或 rtf,只認得這一層,所以加第六種格式時 app 一行都不用改。
 
 **`vfs`** — 「壓縮檔當目錄瀏覽」是 CView 的核心手感。目錄與壓縮檔內部必須是同一個介面,
 否則 browser 會被兩套路徑分岔汙染。
@@ -377,6 +385,17 @@ remake 這一側不需要開視窗:`cmd/celldump` 用與 Ebiten 相同的 `rende
 - 快捷鍵:對照表逐一實測,不靠讀說明檔推斷(說明檔會漏、會過期)。
 - 編碼轉換:以原版隨附的對照表當 golden data 做 round-trip 測試。
 
+### 5.4 Office 文件
+
+原版沒有這些格式,所以沒有 oracle 可以對 —— 對照的是**外部工具**:
+`tools/office-oracle.sh` 在容器裡跑 LibreOffice,同一份檔案轉成純文字當真值。
+測試用的 `.doc` / `.docx` / `.pptx` / `.xlsx` 也是它產生的(`internal/*/testdata/`,
+各附一份 README 說明重建方式),不放第三方文件。
+
+用真檔而不是自己組的最小檔案是必要的:FIB、piece table、屬性頁三者互相指位置,
+版面配置的繼承、共用字串表、關聯的相對路徑也只在真檔上才會出現 ——
+自己組的檔案只驗得到自己對格式的理解。
+
 ---
 
 ## 6. 里程碑
@@ -461,6 +480,7 @@ tools/
   forth_image.py         WINCV.IMG 解析(header / symbols / words)
   setup-wine-oracle.sh   解安裝檔 + 建 Wine prefix
   oracle-shot.sh         跑原版並截圖
+  office-oracle.sh       容器裡的 LibreOffice:產生 Office 測試檔 + 轉純文字當對照
   xwd2png.py             XWD → PNG(本機無 ImageMagick,ffmpeg 不吃 xwd)
 docs/
   re/                    逆向產出(symbols.tsv / words.tsv / callgraph.md)

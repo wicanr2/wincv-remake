@@ -96,7 +96,7 @@ func normalizeURL(raw string) (string, error) {
 		return "", fmt.Errorf("位址是空的")
 	}
 	if web.IsHTTP(raw) || strings.HasPrefix(raw, epubScheme) ||
-		strings.HasPrefix(raw, pdfScheme) {
+		strings.HasPrefix(raw, pdfScheme) || strings.HasPrefix(raw, docScheme) {
 		return raw, nil
 	}
 	u, err := gopher.ParseURL(raw)
@@ -124,6 +124,10 @@ func (a *App) browseFetch(raw string, push bool) {
 	}
 	if strings.HasPrefix(full, pdfScheme) {
 		a.showPDF(full)
+		return
+	}
+	if strings.HasPrefix(full, docScheme) {
+		a.showOffice(full)
 		return
 	}
 	ch := make(chan browseResult, 1)
@@ -343,6 +347,18 @@ func (a *App) browseImage(src string) (image.Image, error) {
 		a.bv.imgs[src] = m
 		return m, nil
 	}
+	// Office 文件裡的圖同理:內嵌在檔案裡,讀出來就有。
+	if strings.HasPrefix(src, docScheme) {
+		m, err := a.officeImage(src)
+		if err != nil {
+			return nil, err
+		}
+		if a.bv.imgs == nil {
+			a.bv.imgs = map[string]image.Image{}
+		}
+		a.bv.imgs[src] = m
+		return m, nil
+	}
 	// 書裡的圖是本機 zip 的成員,讀完就有,不必等一輪。
 	if a.book != nil && !web.IsHTTP(src) {
 		m, err := a.bookImage(src)
@@ -421,6 +437,7 @@ func (a *App) browseKey(k keys.Key) bool {
 		a.Mode = ModeBrowser
 		a.closeBook()
 		a.closePDF()
+		a.closeOffice()
 		return true
 	case keys.Backspace:
 		return a.browseBack()

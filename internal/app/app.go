@@ -25,6 +25,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/keys"
+	"github.com/wicanr2/wincv-remake/internal/officedoc"
 	"github.com/wicanr2/wincv-remake/internal/pdfdoc"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/session"
@@ -157,9 +158,12 @@ type App struct {
 	book     *epub.Book
 	bookPath string
 	// pdf 是瀏覽模式正開著的一份 PDF。同上,開著不關是為了翻頁。
-	pdf      *pdfdoc.Doc
-	pdfPath  string
-	gpending chan browseResult
+	pdf     *pdfdoc.Doc
+	pdfPath string
+	// office 是瀏覽模式正開著的一份 Word / PowerPoint / Excel 文件。
+	office     *officedoc.Doc
+	officePath string
+	gpending   chan browseResult
 	// gReturn 與 mdReturn 同理:看圖是從瀏覽模式進來的,Esc 要退回去。
 	gReturn bool
 
@@ -669,6 +673,12 @@ func (a *App) enter() bool {
 	}
 	if IsPDF(e.Name) && !a.readOnlyHere() {
 		return a.openPDF(e.Name)
+	}
+	// [雷] .docx / .pptx / .xlsx 也是 zip,同樣要在壓縮檔判斷之前攔下來。
+	// 不先攔的話按 Enter 會走進去看到 word/document.xml,而那不是
+	// 任何人想看一份文件時要的東西。
+	if IsOfficeDoc(e.Name) && !a.readOnlyHere() {
+		return a.openOffice(e.Name)
 	}
 	if archive.IsArchive(e.Name) {
 		return a.enterArchive(e.Name)
