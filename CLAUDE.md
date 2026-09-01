@@ -199,7 +199,8 @@ internal/
   web/        HTTP + HTML→區塊 —— 用 gopher 的方式看網頁,同上
   session/    關掉時記下人在哪裡,下次開回同一個位置
   epub/       EPUB 電子書(ZIP + XHTML,借 web 的 HTML 解析器)
-  pdfdoc/     PDF 取文字與圖片(rsc.io/pdf + pdfcpu,不還原版面)
+  pdf/        PDF 內容資料流解譯、字型編碼與 ToUnicode、書籤(物件層用 pdfcpu)
+  pdfdoc/     PDF 取文字與圖片:組列、分欄、抽圖
   ooxml/      docx/pptx/xlsx 共用的 OPC 外殼:組件查表、關聯解析、XML 走訪
   docx/       Word .docx      pptx/ PowerPoint      xlsx/ Excel
   cfb/        OLE2 複合文件容器   doc97/ Word 97–2003 .doc(FIB + piece table)

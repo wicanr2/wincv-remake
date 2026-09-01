@@ -14,7 +14,6 @@ require (
 	golang.org/x/image v0.20.0
 	golang.org/x/net v0.25.0
 	golang.org/x/text v0.18.0
-	rsc.io/pdf v0.1.1
 )
 
 require (

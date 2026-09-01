@@ -14,7 +14,7 @@ import (
 //
 // 自己造而不是放一個現成的檔案進版控:這樣測試材料的每一個位元組
 // 都說得出理由,也沒有第三方檔案的授權問題。xref 的偏移量要真的算 ——
-// 算錯的話 rsc.io/pdf 讀不到任何物件,而症狀是「這份 PDF 沒有頁面」。
+// 算錯的話物件層讀不到任何物件,而症狀是「這份 PDF 沒有頁面」。
 func makePDF(t *testing.T, content string) string {
 	t.Helper()
 	objs := []string{
@@ -49,11 +49,9 @@ func makePDF(t *testing.T, content string) string {
 
 func TestOpenAndText(t *testing.T) {
 	// 兩個字串放在同一列,中間隔開 —— 隔多遠決定要不要補一個空格。
-	// [雷] 一個 Tj 裡面的字元在**沒有嵌入字型**的 PDF 裡座標全部相同
-	// (前進量要查字型的寬度表,而標準 14 字型沒有嵌在檔案裡),
-	// 空格字元也不會出現在文字串流中。所以這裡的空白要用 Td 位移做,
-	// 不能寫成 "(Second line)" —— 那樣測到的是解析器的限制,
-	// 不是這一包的組裝邏輯。
+	// 用 Td 位移而不是寫成 "(Hello World)":要測的是「靠座標間距
+	// 還原空白」這條路,而字串裡的空格字元走的是另一條(它本來就是
+	// 一個字元)。標準 14 字型的寬度來自內建的度量表,不必嵌在檔案裡。
 	p := makePDF(t, "BT /F1 12 Tf 72 720 Td (Hello) Tj 40 0 Td (World) Tj ET\n"+
 		"BT /F1 12 Tf 72 700 Td (Second) Tj 50 0 Td (line) Tj ET")
 	d, err := pdfdoc.Open(p)
@@ -122,7 +120,9 @@ func TestNoSpuriousSpace(t *testing.T) {
 	}
 }
 
-// [雷] rsc.io/pdf 遇到看不懂的東西是 panic 不是回錯誤。
+// [雷] 物件層對截斷或根本不是 PDF 的檔案會**無止境地掃下去** ——
+// 40 個位元組的垃圾就能讓它 100% CPU 轉到天荒地老。那不是死結是活迴圈,
+// 外面看起來只是「這個檔案開很久」。internal/pdf 的操作次數上限擋的就是這個。
 // 這是檔案管理器,使用者會開到各種來路不明的檔。
 func TestBadFilesDoNotPanic(t *testing.T) {
 	dir := t.TempDir()

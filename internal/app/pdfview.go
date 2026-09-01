@@ -159,9 +159,28 @@ func parsePDFImgRef(ref string) (page int, name string, ok bool) {
 	return n, name, true
 }
 
+// pdfTOC 排出目錄。
+//
+// PDF 自己帶的書籤才是這份文件的章節結構;一排頁碼只是退路,
+// 對一份三百頁的技術文件毫無用處。兩者都給,書籤在前。
 func pdfTOC(d *pdfdoc.Doc, path, name string) []markdown.Block {
 	out := []markdown.Block{{Kind: markdown.Heading, Level: 1,
 		Spans: []markdown.Span{{Text: name}}}}
+	if marks := d.Outline(); len(marks) > 0 {
+		for _, m := range marks {
+			sp := markdown.Span{Text: m.Title}
+			if m.Page >= 1 && m.Page <= d.Pages {
+				sp.Style, sp.Href = markdown.Link, pdfURL(path, m.Page)
+			}
+			out = append(out, markdown.Block{
+				Kind: markdown.List, Level: clampLevel(m.Level + 1),
+				Marker: "  ", Spans: []markdown.Span{sp},
+			})
+		}
+		out = append(out, markdown.Block{Kind: markdown.Rule})
+		out = append(out, markdown.Block{Kind: markdown.Heading, Level: 2,
+			Spans: []markdown.Span{{Text: "頁碼"}}})
+	}
 	for i := 1; i <= d.Pages; i++ {
 		out = append(out, markdown.Block{
 			Kind: markdown.List, Marker: "  ",
@@ -207,6 +226,17 @@ func (a *App) pdfImage(ref string) (image.Image, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// clampLevel 夾住清單的縮排層數。書籤可以巢狀很多層,而畫面的寬度有限。
+func clampLevel(n int) int {
+	if n < 1 {
+		return 1
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
 }
 
 // clampIndent 夾住縮排。座標換算出來的縮排偶爾會很離譜
