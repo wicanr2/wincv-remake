@@ -70,6 +70,37 @@ type path struct {
 
 func (p *path) empty() bool { return len(p.ops) == 0 }
 
+// subpaths 是這條路徑有幾圈。
+func (p *path) subpaths() int {
+	n := 0
+	for _, o := range p.ops {
+		if o.op == 'm' {
+			n++
+		}
+	}
+	if n == 0 && len(p.ops) > 0 {
+		return 1
+	}
+	return n
+}
+
+// split 把路徑拆成一圈一圈。奇偶填法要一圈一圈分別算。
+func (p *path) split() []path {
+	var out []path
+	cur := path{}
+	for _, o := range p.ops {
+		if o.op == 'm' && len(cur.ops) > 0 {
+			out = append(out, cur)
+			cur = path{}
+		}
+		cur.ops = append(cur.ops, o)
+	}
+	if len(cur.ops) > 0 {
+		out = append(out, cur)
+	}
+	return out
+}
+
 func (p *path) moveTo(x, y float64) {
 	p.ops = append(p.ops, pathOp{op: 'm', p: [3]point{{x, y}}})
 }

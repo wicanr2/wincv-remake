@@ -133,3 +133,64 @@ func TestRenderUsesEmbeddedFonts(t *testing.T) {
 		t.Errorf("這些字型的字沒有畫上去:%v", r.Missing)
 	}
 }
+
+// pixelAt 取畫面上某個 PDF 座標對應的顏色。dpi 換算與 Y 軸翻轉都在這裡做,
+// 測試裡就只要寫文件裡的座標。
+func pixelAt(t *testing.T, r *Rendered, pdfX, pdfY, pageH float64) color.RGBA {
+	t.Helper()
+	s := r.DPI / 72
+	x := int(pdfX * s)
+	y := int((pageH - pdfY) * s)
+	b := r.Img.Bounds()
+	if x < b.Min.X || x >= b.Max.X || y < b.Min.Y || y >= b.Max.Y {
+		t.Fatalf("座標 (%.0f, %.0f) 落在畫面外", pdfX, pdfY)
+	}
+	return color.RGBAModel.Convert(r.Img.At(x, y)).(color.RGBA)
+}
+
+// 奇偶填法:同方向的兩個同心方框,f* 中間要是洞,f 要是實心。
+//
+// testdata/evenodd.pdf 是手寫的最小檔案(未壓縮,打開就看得到內容),
+// 對照組是 LibreOffice 對同一份檔案的算繪結果。
+func TestRenderEvenOddFill(t *testing.T) {
+	r := renderPage(t, "testdata/evenodd.pdf", 1, RenderOptions{DPI: 96})
+	const pageH = 792
+
+	white := func(name string, c color.RGBA) {
+		if c.R < 200 || c.G < 200 || c.B < 200 {
+			t.Errorf("%s 應該是白的,拿到 %+v", name, c)
+		}
+	}
+	black := func(name string, c color.RGBA) {
+		if c.R > 60 || c.G > 60 || c.B > 60 {
+			t.Errorf("%s 應該是黑的,拿到 %+v", name, c)
+		}
+	}
+	// 左邊那一個用 f*:外圈與內圈同方向,中間應該被挖空。
+	black("左邊方框的環", pixelAt(t, r, 75, 600, pageH))
+	white("左邊方框的洞", pixelAt(t, r, 150, 600, pageH))
+	// 右邊那一個用 f:同樣的兩圈,但非零繞組會把中間填實。
+	black("右邊方框的環", pixelAt(t, r, 325, 600, pageH))
+	black("右邊方框的中間", pixelAt(t, r, 400, 600, pageH))
+}
+
+// 只有一圈的路徑,兩種填法的結果一樣 —— 那條快路不能因為 f* 就被繞開。
+func TestSingleSubpathSameEitherRule(t *testing.T) {
+	p := &path{}
+	p.moveTo(10, 10)
+	p.lineTo(50, 10)
+	p.lineTo(50, 50)
+	p.close()
+	if n := p.subpaths(); n != 1 {
+		t.Errorf("這條路徑有 %d 圈,應該是 1 圈", n)
+	}
+	p.moveTo(60, 60)
+	p.lineTo(80, 60)
+	p.close()
+	if n := p.subpaths(); n != 2 {
+		t.Errorf("加一圈之後是 %d 圈,應該是 2 圈", n)
+	}
+	if got := len(p.split()); got != 2 {
+		t.Errorf("拆出 %d 圈", got)
+	}
+}

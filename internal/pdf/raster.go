@@ -121,13 +121,18 @@ func (d *rasterDevice) paint(p *path, gs *gstate, fill, stroke, evenOdd bool) {
 	}
 	clip := d.clipRectOf(gs)
 	if fill && gs.fillCS != csPatternCS {
-		// [注意] 這個掃描器不支援奇偶填法(它的 SetWinding 是空的),
-		// 所以 f* 會照非零繞組畫。同方向的內圈會被填實而不是留成洞。
-		d.drawPath(p, gs.fill.rgba(gs.fillAlpha), clip, 1, func() {
-			addPath(d.filler, p, d.offX, d.offY)
-			d.filler.Draw()
-			d.filler.Clear()
-		})
+		// 奇偶填法只有在路徑不只一圈的時候才與非零繞組不同。
+		// 單圈的情形走原本那條快路 —— 真實檔案裡絕大多數的填色是
+		// 單一個方框,沒必要為它多配兩張遮罩。
+		if evenOdd && p.subpaths() > 1 {
+			d.fillEvenOdd(p, gs.fill.rgba(gs.fillAlpha), clip)
+		} else {
+			d.drawPath(p, gs.fill.rgba(gs.fillAlpha), clip, 1, func() {
+				addPath(d.filler, p, d.offX, d.offY)
+				d.filler.Draw()
+				d.filler.Clear()
+			})
+		}
 	}
 	if stroke && gs.strokeCS != csPatternCS {
 		w := gs.lineWidth * gs.ctm.scale()
@@ -144,6 +149,70 @@ func (d *rasterDevice) paint(p *path, gs *gstate, fill, stroke, evenOdd bool) {
 			d.dasher.Draw()
 			d.dasher.Clear()
 		})
+	}
+}
+
+// fillEvenOdd 用奇偶規則填一條路徑。
+//
+// 光柵器本身只會非零繞組(它的 SetWinding 是空的),所以改用奇偶規則的
+// 定義來算:一個點在裡面,等於「包住它的圈數是奇數」。把每一圈各自
+// 畫進一張遮罩,再逐像素做互斥或,結果就是奇偶填法。
+//
+// 這個等式在「每一圈自己不交叉」時成立,而那是實際檔案裡的常態
+// (字形的內外圈、甜甜圈、挖空的圖示)。自己交叉的單一圈會退化成
+// 非零繞組的結果 —— 那是這個做法的邊界,不是隨機的錯。
+func (d *rasterDevice) fillEvenOdd(p *path, col color.RGBA, clip image.Rectangle) {
+	x0, y0, x1, y1 := p.bounds()
+	if math.IsInf(x0, 0) || math.IsInf(y0, 0) {
+		return
+	}
+	r := image.Rect(
+		int(math.Floor(x0-1)), int(math.Floor(y0-1)),
+		int(math.Ceil(x1+1))+1, int(math.Ceil(y1+1))+1).Intersect(clip)
+	if r.Empty() {
+		return
+	}
+	acc := image.NewAlpha(r)
+	one := image.NewAlpha(r)
+	opaque := image.NewUniform(color.Alpha{A: 255})
+	for _, sp := range p.split() {
+		// 每一圈單獨畫。這裡用的是光柵器原本的非零繞組 —— 對單一圈
+		// 來說,那就是「在這一圈裡面」。
+		for i := range one.Pix {
+			one.Pix[i] = 0
+		}
+		d.scanner.Dest = one
+		d.scanner.SetBounds(r.Dx(), r.Dy())
+		d.scanner.Clear()
+		d.scanner.SetColor(opaque.C)
+		addPath(d.filler, &sp, float64(-r.Min.X), float64(-r.Min.Y))
+		d.filler.Draw()
+		d.filler.Clear()
+		xorAlpha(acc.Pix, one.Pix)
+	}
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		row := acc.Pix[(y-r.Min.Y)*acc.Stride:]
+		for x := r.Min.X; x < r.Max.X; x++ {
+			if a := row[x-r.Min.X]; a > 0 {
+				c := col
+				c.A = uint8(int(col.A) * int(a) / 255)
+				d.blend(x, y, c, 1)
+			}
+		}
+	}
+}
+
+// xorAlpha 把兩張覆蓋率做互斥或:a ← a + b − 2ab。
+//
+// 邊緣的覆蓋率是 0 到 1 之間的小數,不是非黑即白。用機率式的互斥或
+// 才能讓內外圈相接的地方平順 —— 直接拿整數 XOR 會在邊緣留下雜點。
+func xorAlpha(dst, src []byte) {
+	for i := range dst {
+		if i >= len(src) {
+			return
+		}
+		a, b := int(dst[i]), int(src[i])
+		dst[i] = byte(a + b - 2*a*b/255)
 	}
 }
 
