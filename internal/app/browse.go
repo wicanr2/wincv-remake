@@ -474,6 +474,12 @@ func (a *App) browseKey(k keys.Key) bool {
 	if k.Code == keys.Rune && k.Alt && (k.R == 'g' || k.R == 'G') {
 		return a.browseAsk()
 	}
+	// V:把 PDF 的這一頁整頁畫出來。只有 PDF 有這個動作 ——
+	// 其他來源(gopher、網頁、書、Office 文件)本來就沒有「頁面」這回事。
+	if k.Code == keys.Rune && !k.Alt && (k.R == 'v' || k.R == 'V') &&
+		strings.HasPrefix(a.bv.url, pdfScheme) {
+		return a.showPDFPageImage()
+	}
 	return false
 }
 

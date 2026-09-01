@@ -75,6 +75,26 @@ func (d *Doc) Text(page int) (lines []Line, err error) {
 	return layout(p.Texts(), p.X0, p.X1), nil
 }
 
+// Rendered 是畫好的一頁。
+type Rendered = pdf.Rendered
+
+// Render 把一頁畫成點陣圖。
+//
+// 與取文字走同一份解譯器,只是換一個輸出裝置 —— 位置怎麼算只有一份,
+// 兩邊不會分岔。
+func (d *Doc) Render(page int, dpi float64) (*Rendered, error) {
+	if page < 1 || page > d.Pages {
+		return nil, fmt.Errorf("沒有第 %d 頁", page)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	p, err := d.d.Page(page)
+	if err != nil {
+		return nil, err
+	}
+	return p.Render(pdf.RenderOptions{DPI: dpi})
+}
+
 // Bookmark 是書籤裡的一筆。
 type Bookmark = pdf.Bookmark
 

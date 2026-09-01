@@ -32,7 +32,28 @@ type Font struct {
 	// scale 是寬度的換算倍率。一般字型的寬度以千分之一字寬為單位,
 	// Type3 字型則是自己的座標系,要靠 FontMatrix 換算。
 	scale float64
+
+	// 以下只有畫頁面時用得到,取文字不碰。
+	//
+	// embedded 是嵌在檔案裡的字型程式,kind 說明它是哪一種格式。
+	// 沒有嵌入(或格式還不會解)時用系統字型照同樣的位置與字級補上,
+	// 字形不同但讀得到 —— 整段空白才是使用者看得出來的錯。
+	embedded []byte
+	kind     fontProgram
+	// cidToGID 不為 nil 時,CID 要查這張表才是字形編號。
+	cidToGID []byte
+	baseFont string
 }
+
+// fontProgram 是嵌入字型程式的格式。
+type fontProgram int
+
+const (
+	progNone  fontProgram = iota
+	progSFNT              // TrueType / OpenType,x/image/font/sfnt 解得開
+	progCFF               // 裸的 CFF(Type1C / CIDFontType0C)
+	progType1             // Type1(PFB,eexec 加密)
+)
 
 // Glyph 是解出來的一個字。
 type Glyph struct {
@@ -43,6 +64,9 @@ type Glyph struct {
 	// Space 為真表示這是單位元組的空白字元。字間距(Tw)只加在它身上,
 	// 加錯地方會讓中文的字距整片跑掉。
 	Space bool
+	// advance 是這個字在畫面上實際佔的寬度(已經套過所有變換)。
+	// 由解譯器填,取文字那一層拿它來還原詞間空白。
+	advance float64
 }
 
 // Decode 把一個字串拆成字。

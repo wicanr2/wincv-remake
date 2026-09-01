@@ -253,3 +253,44 @@ func TestPDFImageRefCarriesPage(t *testing.T) {
 		t.Error("書的位址不該被當成 PDF 的圖")
 	}
 }
+
+// 在 PDF 頁面上按 V 要看到整頁畫出來的圖,Esc 退回原來那一頁。
+//
+// 取文字看的是內容,看整頁看的是版面 —— 表格、圖表、公式抽成文字就沒了。
+func TestPDFPageImage(t *testing.T) {
+	a := New(vfs.OS{}, makePDFFile(t))
+	a.CellW, a.CellH = 8, 16
+	s := cell.New(70, 20)
+	a.Draw(s)
+	a.focusOn("doc.pdf")
+	a.HandleKey(keys.Named(keys.Enter))
+	a.Draw(s)
+
+	a.HandleKey(keys.Key{Code: keys.Rune, R: 'v'})
+	if a.Mode != ModeImage {
+		t.Fatalf("按 V 沒有進看圖模式,現在是 %v(狀態:%s)", a.Mode, a.bv.status)
+	}
+	if a.Image == nil {
+		t.Fatal("沒有畫出圖")
+	}
+	b := a.Image.Img.Bounds()
+	// 612×792 點的頁面在 150 dpi 下大約 1275×1650。
+	if b.Dx() < 1200 || b.Dy() < 1500 {
+		t.Errorf("畫出來的尺寸是 %d×%d", b.Dx(), b.Dy())
+	}
+	a.HandleKey(keys.Named(keys.Esc))
+	if a.Mode != ModeBrowse {
+		t.Errorf("Esc 之後應該退回瀏覽模式,現在是 %v", a.Mode)
+	}
+}
+
+// V 只在 PDF 上有意義。其他來源按了不該有反應,更不該當掉。
+func TestPageImageOnlyForPDF(t *testing.T) {
+	a, _ := bookApp(t)
+	a.HandleKey(keys.Named(keys.Enter))
+	before := a.Mode
+	a.HandleKey(keys.Key{Code: keys.Rune, R: 'v'})
+	if a.Mode != before {
+		t.Errorf("在書上按 V 不該換模式(從 %v 變成 %v)", before, a.Mode)
+	}
+}

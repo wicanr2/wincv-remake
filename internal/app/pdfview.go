@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
+	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/markdown"
 	"github.com/wicanr2/wincv-remake/internal/pdfdoc"
 )
@@ -209,6 +210,46 @@ func pdfNav(d *pdfdoc.Doc, path string, page int) []markdown.Block {
 			Marker: "  ", Spans: []markdown.Span{sp}})
 	}
 	return out
+}
+
+// PageImageDPI 是「看整頁」時的解析度。
+//
+// 150 比螢幕的 96 高一階:看圖模式可以放大,而放大一張 96 dpi 的圖
+// 會糊掉。再高的話一頁 A4 就超過三千萬個像素,在手機上會吃掉記憶體。
+const PageImageDPI = 150
+
+// showPDFPageImage 把目前這一頁畫成圖。
+//
+// 取文字看的是內容,看整頁看的是版面 —— 表格、圖表、公式、簽名,
+// 那些東西的意義在位置上,抽成文字就沒了。
+func (a *App) showPDFPageImage() bool {
+	path, page, ok := parsePDFURL(a.bv.url)
+	if !ok || page < 1 {
+		a.bv.status = "這裡沒有可以畫的頁面"
+		return true
+	}
+	if err := a.loadPDF(path); err != nil {
+		a.bv.status = err.Error()
+		return true
+	}
+	r, err := a.pdf.Render(page, PageImageDPI)
+	if err != nil {
+		a.bv.status = err.Error()
+		return true
+	}
+	name := fmt.Sprintf("%s — 第 %d 頁", filepath.Base(path), page)
+	a.Image = imgview.FromImage(name, "PDF", r.Img, 0)
+	a.Mode = ModeImage
+	a.gReturn = true
+	// 字形不是原檔那一套時要講出來:畫面看起來正常,差別在字形,
+	// 不講的話使用者會以為看到的就是原樣。
+	if len(r.Substituted) > 0 {
+		a.Message = "有字型畫不出來,改用系統字型:" + strings.Join(r.Substituted, "、")
+	}
+	if len(r.Missing) > 0 {
+		a.Message = "有字型畫不出來,那些字沒有顯示:" + strings.Join(r.Missing, "、")
+	}
+	return true
 }
 
 // pdfImage 讀 PDF 裡的一張圖。

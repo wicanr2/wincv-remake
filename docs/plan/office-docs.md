@@ -75,13 +75,49 @@ CMap 與寬度。物件層(交叉參照表、解密、串流濾鏡)交給 pdfcpu
 - **失控的檔案**:壞掉的 PDF 會讓物件層無止境地掃下去(40 個位元組的
   垃圾就能讓它 100% CPU 轉個不停)。加一層操作次數上限擋住。
 
-### 第二期 — 頁面渲染
+### 第二期 — 頁面渲染(已完成主要路徑)
 
-把 content stream 解出來畫成點陣圖,貼到格點上。純 Go 沒有堪用的 PDF 渲染器,
-接 C 函式庫會破掉四平台交叉編譯,所以要自己寫:content stream 解譯器
-(路徑、填色、變換矩陣、影像)+ 內嵌字型(TrueType / CFF / Type1)光柵化。
-光柵器用 `golang.org/x/image/vector`,TrueType 用 `x/image/font/sfnt`,
-CFF 與 Type1 要自己解。不加新相依。
+同一個解譯器換一個輸出裝置:取文字用 `textDevice`,畫頁面用 `rasterDevice`。
+文字定位那一段只有一份,兩邊不會分岔。瀏覽模式按 `V` 看整頁。
+
+做好的:路徑建構與填色/描邊(含線帽、接合、虛線)、色彩空間
+(Gray / RGB / CMYK / ICCBased / Indexed / Separation 近似)、裁剪(矩形)、
+影像(交給 pdfcpu 解成 png/jpg 再依 CTM 貼上)、表單物件遞迴、頁面旋轉、
+嵌入 TrueType / OpenType 的字形外框,以及解不開時用系統字型補畫。
+
+光柵器用相依裡已經有的 `rasterx`(SVG 那條路本來就在用),字形外框用
+`x/image/font/sfnt`。沒有加新相依。
+
+還沒做的:
+
+- **CFF(Type1C / CIDFontType0C)與 Type1 的字形外框。** 那兩種格式
+  `sfnt` 解不開,目前改用系統字型照同樣的位置與字級畫 —— 讀得到,
+  字形不同。LibreOffice 產的中文 PDF 就是這一類(Noto Serif CJK 是 CFF)。
+- **漸層與圖樣**:那些區域目前留白。
+- **奇偶填法**:光柵器的 `SetWinding` 是空的,`f*` 照非零繞組畫。
+
+### 渲染的驗收
+
+`tools/pdfshot` 畫一頁成 PNG,LibreOffice 畫同一頁當對照,
+`tools/inkdiff` 比兩張的墨水密度格點:
+
+```bash
+tools/go.sh run ./tools/pdfshot -o /src/.cache/a.png /src/internal/pdf/testdata/twocol.pdf
+tools/office-oracle.sh png twocol.pdf                     # LibreOffice 那一張
+tools/go.sh run ./tools/inkdiff /src/.cache/a.png /src/.cache/lo.png
+```
+
+不逐像素比:兩個渲染器對反鋸齒與字型微調的處理一定不同,逐像素永遠是紅的。
+量到的結果(2026-09-02,32×44 格):
+
+| 檔案 | 平均密度差 | 最大單格差 | 相關係數 | 墨水總量(本專案 / LibreOffice)|
+|---|---|---|---|---|
+| `twocol.pdf` 雙欄內文 | 0.0098 | 0.0593 | 0.9952 | 0.1199 / 0.1285 |
+| `rich.pdf` 中英混排 | 0.0024 | 0.2323 | 0.9426 | 0.0069 / 0.0078 |
+
+`rich.pdf` 的相關係數比較低,原因是它的中文字型是 CFF,目前用系統字型補畫 ——
+字形不同,墨水分布自然有差。CFF 做完之後這個數字應該會往上走,
+那也是下一步的驗收判準。
 
 ## 驗收
 

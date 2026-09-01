@@ -199,7 +199,8 @@ internal/
   web/        HTTP + HTML→區塊 —— 用 gopher 的方式看網頁,同上
   session/    關掉時記下人在哪裡,下次開回同一個位置
   epub/       EPUB 電子書(ZIP + XHTML,借 web 的 HTML 解析器)
-  pdf/        PDF 內容資料流解譯、字型編碼與 ToUnicode、書籤(物件層用 pdfcpu)
+  pdf/        PDF 內容資料流解譯、字型編碼與 ToUnicode、書籤、頁面渲染
+              (物件層用 pdfcpu,光柵器用 rasterx,字形外框用 x/image/font/sfnt)
   pdfdoc/     PDF 取文字與圖片:組列、分欄、抽圖
   ooxml/      docx/pptx/xlsx 共用的 OPC 外殼:組件查表、關聯解析、XML 走訪
   docx/       Word .docx      pptx/ PowerPoint      xlsx/ Excel
@@ -481,7 +482,9 @@ tools/
   forth_image.py         WINCV.IMG 解析(header / symbols / words)
   setup-wine-oracle.sh   解安裝檔 + 建 Wine prefix
   oracle-shot.sh         跑原版並截圖
-  office-oracle.sh       容器裡的 LibreOffice:產生 Office 測試檔 + 轉純文字當對照
+  office-oracle.sh       容器裡的 LibreOffice:產生 Office 測試檔 + 轉純文字/PNG 當對照
+  pdfshot/               把 PDF 的一頁畫成 PNG(驗收頁面渲染用)
+  inkdiff/               比兩張頁面圖的墨水密度格點(不逐像素比)
   xwd2png.py             XWD → PNG(本機無 ImageMagick,ffmpeg 不吃 xwd)
 docs/
   re/                    逆向產出(symbols.tsv / words.tsv / callgraph.md)

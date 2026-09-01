@@ -11,6 +11,13 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
+// [雷] 物件層預設會在使用者的家目錄底下建一個設定目錄,而且是在
+// 第一次讀檔時才建。那有兩個問題:一個函式庫不該在別人的家目錄寫東西,
+// 而且兩個行程同時第一次跑的時候會互相踩到,錯誤訊息是
+// 「config dir problem: unexpected EOF」——看起來像檔案壞了,
+// 其實是兩邊同時在寫同一個檔。這裡直接關掉,預設值本來就夠用。
+func init() { model.ConfigPath = "disable" }
+
 // Doc 是一份打開著的 PDF。
 type Doc struct {
 	Pages int
@@ -67,9 +74,9 @@ func (d *Doc) Close() error { return nil }
 // 用操作次數而不是計時:計時要另開執行緒,而放棄一個還在轉的執行緒
 // 等於留下一個永遠燒 CPU 的東西。次數是在同一條路徑上就停得下來的。
 type guarded struct {
-	rs   io.ReadSeeker
-	ops  int
-	max  int
+	rs  io.ReadSeeker
+	ops int
+	max int
 }
 
 func guard(rs io.ReadSeeker, size int64) io.ReadSeeker {

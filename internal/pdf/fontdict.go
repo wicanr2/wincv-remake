@@ -11,6 +11,7 @@ import (
 // loadFont 把一份字型字典變成可以解碼的 Font。
 func loadFont(x *model.XRefTable, d types.Dict) *Font {
 	f := &Font{widths: map[uint32]float64{}}
+	f.baseFont = nameOf(deref(x, d["BaseFont"]))
 	sub := nameOf(deref(x, d["Subtype"]))
 	if tu := streamBytes(x, d["ToUnicode"]); len(tu) > 0 {
 		if c := parseCMap(tu); !c.empty() {
@@ -67,6 +68,11 @@ func (f *Font) loadType0(x *model.XRefTable, d types.Dict) {
 	desc := firstDescendant(x, d)
 	if desc == nil {
 		return
+	}
+	f.loadProgram(x, desc)
+	// CIDToGIDMap 是串流時要查表;是 /Identity 或沒寫時 CID 就是字形編號。
+	if b := streamBytes(x, desc["CIDToGIDMap"]); len(b) > 0 {
+		f.cidToGID = b
 	}
 	f.dw = 1000
 	if v, ok := numOf(deref(x, desc["DW"])); ok {
@@ -182,6 +188,38 @@ func (f *Font) loadSimple(x *model.XRefTable, d types.Dict) {
 		if v, ok := numOf(deref(x, fd["MissingWidth"])); ok {
 			f.dw = v
 		}
+	}
+	f.loadProgram(x, d)
+}
+
+// loadProgram 取出嵌在檔案裡的字型程式。
+//
+// 三個欄位各自對應一種格式,而且**只會有一個**:FontFile 是 Type1、
+// FontFile2 是 TrueType、FontFile3 看它的 Subtype(OpenType 是完整的
+// sfnt 容器,Type1C 與 CIDFontType0C 是裸的 CFF)。
+func (f *Font) loadProgram(x *model.XRefTable, d types.Dict) {
+	fd, ok := deref(x, d["FontDescriptor"]).(types.Dict)
+	if !ok {
+		return
+	}
+	if b := streamBytes(x, fd["FontFile2"]); len(b) > 0 {
+		f.embedded, f.kind = b, progSFNT
+		return
+	}
+	if sd, _, err := x.DereferenceStreamDict(fd["FontFile3"]); err == nil && sd != nil {
+		b := streamBytes(x, fd["FontFile3"])
+		if len(b) > 0 {
+			f.embedded = b
+			if nameOf(deref(x, sd.Dict["Subtype"])) == "OpenType" {
+				f.kind = progSFNT
+			} else {
+				f.kind = progCFF
+			}
+			return
+		}
+	}
+	if b := streamBytes(x, fd["FontFile"]); len(b) > 0 {
+		f.embedded, f.kind = b, progType1
 	}
 }
 
