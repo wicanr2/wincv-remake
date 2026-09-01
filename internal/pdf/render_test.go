@@ -120,3 +120,16 @@ func TestRenderBackgroundIsWhite(t *testing.T) {
 		t.Errorf("底色是 %+v", c)
 	}
 }
+
+// 這一份的字型全部嵌在檔案裡(拉丁文是 TrueType、中文是 Type1),
+// 所以不該有任何一個字需要用系統字型補畫 —— 補畫代表某一種嵌入格式
+// 解不開,而畫面上看起來只是字形換了一套。
+func TestRenderUsesEmbeddedFonts(t *testing.T) {
+	r := renderPage(t, "testdata/rich.pdf", 1, RenderOptions{DPI: 96})
+	if len(r.Substituted) > 0 {
+		t.Errorf("這些字型沒有用檔案裡嵌的那一份:%v", r.Substituted)
+	}
+	if len(r.Missing) > 0 {
+		t.Errorf("這些字型的字沒有畫上去:%v", r.Missing)
+	}
+}

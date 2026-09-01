@@ -165,6 +165,7 @@ func (f *Font) loadSimple(x *model.XRefTable, d types.Dict) {
 			cur = int(v.Value())
 		case types.Name:
 			if cur >= 0 && cur < 256 {
+				f.names[cur] = v.Value()
 				if s := glyphRune(v.Value()); s != "" {
 					f.simple[cur] = s
 				}

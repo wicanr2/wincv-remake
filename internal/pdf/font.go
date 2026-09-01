@@ -18,9 +18,12 @@ type Font struct {
 	// composite 為真表示這是複合字型(Type0),字碼可能不只一個位元組。
 	composite bool
 	// enc 是碼 → CID 的對照。Identity 編碼時為 nil,那時候碼就是 CID。
-	enc      *cmap
-	toUni    *cmap
-	simple   [256]string // 簡單字型:碼 → 文字
+	enc    *cmap
+	toUni  *cmap
+	simple [256]string // 簡單字型:碼 → 文字
+	// names 是碼 → 字形名(來自 Encoding 的 Differences)。
+	// Type1 的字形是按名字存的,所以畫的時候要的是名字不是文字。
+	names    [256]string
 	widths   map[uint32]float64
 	dw       float64
 	coreFont string            // 核心字型名,用來查內建度量

@@ -142,8 +142,10 @@
 - [x] PDF 取文字:CID 字型與 ToUnicode、預先定義的中日韓 CMap、分欄、書籤目錄
 - [x] PDF 頁面圖:路徑填色與描邊、色彩空間、影像、嵌入 TrueType 的字形外框
       (瀏覽模式按 `V`;對照 LibreOffice 的渲染,相關係數 0.99)
-- [ ] PDF:CFF(Type1C / CIDFontType0C)與 Type1 嵌入字型的外框。
-      目前那兩種改用系統字型補畫,位置與字級對、字形不同
+- [x] PDF:CFF(Type1C / CIDFontType0C)與 Type1 嵌入字型的外框。
+      CFF 拿系統上 OpenType 字型的 CFF 表跟 `x/image/font/sfnt` 對比(199 個字形
+      的外接矩形一致);Type1 用 testdata 的真檔驗(LibreOffice 把中日韓子集
+      嵌成 Type1)。兩者都做完之後 rich.pdf 不再需要系統字型補畫
 - [ ] PDF:漸層(shading)與圖樣(pattern)—— 目前那些區域留白
 - [ ] PDF:奇偶填法(`f*`)—— 光柵器不支援,目前照非零繞組畫
 

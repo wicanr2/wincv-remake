@@ -82,19 +82,26 @@ CMap 與寬度。物件層(交叉參照表、解密、串流濾鏡)交給 pdfcpu
 
 做好的:路徑建構與填色/描邊(含線帽、接合、虛線)、色彩空間
 (Gray / RGB / CMYK / ICCBased / Indexed / Separation 近似)、裁剪(矩形)、
-影像(交給 pdfcpu 解成 png/jpg 再依 CTM 貼上)、表單物件遞迴、頁面旋轉、
-嵌入 TrueType / OpenType 的字形外框,以及解不開時用系統字型補畫。
+影像(交給 pdfcpu 解成 png/jpg 再依 CTM 貼上)、表單物件遞迴、頁面旋轉,
+以及三種嵌入字型格式的字形外框:
 
-光柵器用相依裡已經有的 `rasterx`(SVG 那條路本來就在用),字形外框用
-`x/image/font/sfnt`。沒有加新相依。
+| 格式 | 誰解的 |
+|---|---|
+| TrueType / OpenType(`FontFile2`、`FontFile3` 的 OpenType) | `x/image/font/sfnt` |
+| CFF(`FontFile3` 的 Type1C 與 CIDFontType0C) | 自寫:INDEX / DICT / charset / FDSelect + Type2 charstring |
+| Type1(`FontFile`) | 自寫:eexec 兩層解密 + Type1 charstring(含 flex 與提示替換) |
+
+三種都解不開時才用系統字型照同樣的位置與字級補畫,並在畫面上說明換過
+哪些字型 —— 字形不同使用者看不出來,整段文字消失看得出來。
+
+光柵器用相依裡已經有的 `rasterx`(SVG 那條路本來就在用)。沒有加新相依。
 
 還沒做的:
 
-- **CFF(Type1C / CIDFontType0C)與 Type1 的字形外框。** 那兩種格式
-  `sfnt` 解不開,目前改用系統字型照同樣的位置與字級畫 —— 讀得到,
-  字形不同。LibreOffice 產的中文 PDF 就是這一類(Noto Serif CJK 是 CFF)。
 - **漸層與圖樣**:那些區域目前留白。
 - **奇偶填法**:光柵器的 `SetWinding` 是空的,`f*` 照非零繞組畫。
+- **seac**(用兩個標準字形拼出重音字):基底字形照樣畫,重音沒有加上去。
+- **內嵌影像**(`BI`/`ID`/`EI`):整段正確跳過,但沒有畫。
 
 ### 渲染的驗收
 
@@ -113,11 +120,18 @@ tools/go.sh run ./tools/inkdiff /src/.cache/a.png /src/.cache/lo.png
 | 檔案 | 平均密度差 | 最大單格差 | 相關係數 | 墨水總量(本專案 / LibreOffice)|
 |---|---|---|---|---|
 | `twocol.pdf` 雙欄內文 | 0.0098 | 0.0593 | 0.9952 | 0.1199 / 0.1285 |
-| `rich.pdf` 中英混排 | 0.0024 | 0.2323 | 0.9426 | 0.0069 / 0.0078 |
+| `rich.pdf` 中英混排 | 0.0024 | 0.2169 | 0.9464 | 0.0067 / 0.0078 |
 
-`rich.pdf` 的相關係數比較低,原因是它的中文字型是 CFF,目前用系統字型補畫 ——
-字形不同,墨水分布自然有差。CFF 做完之後這個數字應該會往上走,
-那也是下一步的驗收判準。
+兩份都用檔案裡嵌的字型畫(`Rendered.Substituted` 是空的,有測試盯著)。
+`rich.pdf` 的最大單格差落在大字級的標題那一格 —— 兩邊的反鋸齒與字型微調
+不同,字級越大差越明顯。整體墨水量本專案略低,也是同一個原因。
+
+字型格式本身另外有兩道與畫面無關的驗證,它們比整頁比對更能定位錯誤:
+
+- CFF:拿系統上 OpenType 字型的 `CFF ` 表,同一份資料給自己的解析器與
+  `x/image/font/sfnt` 各解一次,比 199 個字形的外接矩形(容差 1.5 個字身單位)。
+- Type1:用 testdata 的真檔(LibreOffice 把中日韓子集嵌成 Type1),
+  檢查自帶編碼裡的每一個字碼都畫得出外框,且外框落在字身範圍內。
 
 ## 驗收
 

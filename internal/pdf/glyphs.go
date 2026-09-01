@@ -34,7 +34,9 @@ func newGlyphCache() *glyphCache {
 
 // outlines 是一個字型的外框來源。
 type outlines struct {
-	sf *sfnt.Font
+	sf  *sfnt.Font
+	cff *cffFont
+	t1  *type1Font
 	// composite 為真表示字碼要先變成 CID 再變成字形編號。
 	composite bool
 	// hasCmap 為真表示這份字型帶著可用的字碼對照表。
@@ -52,9 +54,18 @@ func (c *glyphCache) source(f *Font) *outlines {
 		return o
 	}
 	var o *outlines
-	if f.kind == progSFNT && len(f.embedded) > 0 {
+	switch {
+	case f.kind == progSFNT && len(f.embedded) > 0:
 		if sf := parseSFNT(f.embedded); sf != nil {
 			o = &outlines{sf: sf, composite: f.composite, hasCmap: c.probeCmap(sf)}
+		}
+	case f.kind == progCFF && len(f.embedded) > 0:
+		if cf, err := parseCFF(f.embedded); err == nil {
+			o = &outlines{cff: cf, composite: f.composite}
+		}
+	case f.kind == progType1 && len(f.embedded) > 0:
+		if t1, err := parseType1(f.embedded); err == nil {
+			o = &outlines{t1: t1, composite: f.composite}
 		}
 	}
 	c.sources[f] = o
@@ -89,9 +100,19 @@ const (
 //
 // 嵌入的字型解不開(格式還不會解)或裡面沒有這個字時,改用系統字型 ——
 // 字形不同但位置、字級與內容都對。回傳 fromNone 表示兩邊都畫不出來。
-func (c *glyphCache) segments(f *Font, g Glyph) ([]sfnt.Segment, glyphOrigin) {
+func (c *glyphCache) segments(f *Font, g Glyph) ([]gseg, glyphOrigin) {
 	if o := c.source(f); o != nil {
-		if segs, ok := c.load(o.sf, c.gidOf(o, f, g)); ok {
+		if o.t1 != nil {
+			if segs, ok := o.t1.glyph(t1Name(o, f, g)); ok {
+				return segs, fromEmbedded
+			}
+		} else if o.cff != nil {
+			if gid, ok := c.cffGID(o, f, g); ok {
+				if segs, ok := o.cff.glyph(int(gid)); ok {
+					return segs, fromEmbedded
+				}
+			}
+		} else if segs, ok := c.load(o.sf, c.gidOf(o, f, g)); ok {
 			return segs, fromEmbedded
 		}
 	}
@@ -99,6 +120,40 @@ func (c *glyphCache) segments(f *Font, g Glyph) ([]sfnt.Segment, glyphOrigin) {
 		return segs, fromFallback
 	}
 	return nil, fromNone
+}
+
+// t1Name 算出一個字在 Type1 字型裡叫什麼名字。
+//
+// Type1 的字形是按名字存的。名字有兩個來源:PDF 的 Encoding/Differences,
+// 以及字型自己帶的編碼。前者優先 —— 它是這份文件實際用的那一套。
+func t1Name(o *outlines, f *Font, g Glyph) string {
+	if !o.composite && g.Code < 256 {
+		if n := f.names[g.Code]; n != "" {
+			return n
+		}
+		if n, ok := o.t1.enc[byte(g.Code)]; ok {
+			return n
+		}
+	}
+	return ""
+}
+
+// cffGID 算出一個字在 CFF 裡的字形編號。
+func (c *glyphCache) cffGID(o *outlines, f *Font, g Glyph) (uint16, bool) {
+	if o.cff.isCID {
+		cid := g.Code
+		if f.enc != nil {
+			if v, ok := f.enc.cid(g.Code); ok {
+				cid = v
+			}
+		}
+		return o.cff.gidForCID(cid)
+	}
+	if o.cff.encoding != nil {
+		gid, ok := o.cff.encoding[byte(g.Code)]
+		return gid, ok
+	}
+	return 0, false
 }
 
 // gidOf 算出一個字在字型裡的字形編號。
@@ -154,7 +209,11 @@ func (c *glyphCache) probeCmap(sf *sfnt.Font) bool {
 	return false
 }
 
-func (c *glyphCache) load(sf *sfnt.Font, gid sfnt.GlyphIndex) ([]sfnt.Segment, bool) {
+// load 取一個 TrueType / OpenType 字形的外框,並換成共用的表示法。
+//
+// [雷] sfnt 交出來的 Y 軸**向下**(那是 Go 繪圖的慣例),而字形空間的
+// Y 軸向上。不翻的話每個字都是上下顛倒的 —— 而顛倒的字看起來仍然像字。
+func (c *glyphCache) load(sf *sfnt.Font, gid sfnt.GlyphIndex) ([]gseg, bool) {
 	if sf == nil || int(gid) >= sf.NumGlyphs() {
 		return nil, false
 	}
@@ -162,14 +221,39 @@ func (c *glyphCache) load(sf *sfnt.Font, gid sfnt.GlyphIndex) ([]sfnt.Segment, b
 	if err != nil || len(segs) == 0 {
 		return nil, false
 	}
-	return segs, true
+	out := make([]gseg, 0, len(segs))
+	var cx, cy float64
+	for _, s := range segs {
+		switch s.Op {
+		case sfnt.SegmentOpMoveTo:
+			cx, cy = f26(s.Args[0].X), -f26(s.Args[0].Y)
+			out = append(out, gseg{op: 'm', x: [3]float64{cx}, y: [3]float64{cy}})
+		case sfnt.SegmentOpLineTo:
+			cx, cy = f26(s.Args[0].X), -f26(s.Args[0].Y)
+			out = append(out, gseg{op: 'l', x: [3]float64{cx}, y: [3]float64{cy}})
+		case sfnt.SegmentOpQuadTo:
+			// 二次貝茲升成三次:兩個控制點各取三分之二。
+			qx, qy := f26(s.Args[0].X), -f26(s.Args[0].Y)
+			ex, ey := f26(s.Args[1].X), -f26(s.Args[1].Y)
+			out = append(out, gseg{op: 'c',
+				x: [3]float64{cx + 2.0/3*(qx-cx), ex + 2.0/3*(qx-ex), ex},
+				y: [3]float64{cy + 2.0/3*(qy-cy), ey + 2.0/3*(qy-ey), ey}})
+			cx, cy = ex, ey
+		case sfnt.SegmentOpCubeTo:
+			out = append(out, gseg{op: 'c',
+				x: [3]float64{f26(s.Args[0].X), f26(s.Args[1].X), f26(s.Args[2].X)},
+				y: [3]float64{-f26(s.Args[0].Y), -f26(s.Args[1].Y), -f26(s.Args[2].Y)}})
+			cx, cy = f26(s.Args[2].X), -f26(s.Args[2].Y)
+		}
+	}
+	return out, true
 }
 
 // fallbackSegments 用系統字型畫一個字。
 //
 // 字形跟原檔不同,但位置、字級與內容都是對的。這是「畫不出來」與
 // 「整段空白」之間的選擇 —— 少一段文字使用者看得出來,換一套字形不會。
-func (c *glyphCache) fallbackSegments(g Glyph) ([]sfnt.Segment, bool) {
+func (c *glyphCache) fallbackSegments(g Glyph) ([]gseg, bool) {
 	if g.Text == "" {
 		return nil, false
 	}
@@ -237,29 +321,29 @@ func (d *rasterDevice) glyph(g Glyph, f *Font, trm matrix, gs *gstate) {
 	case fromFallback:
 		d.substituted[name] = true
 	}
-	// 外框是千分之一字身、Y 軸向上;sfnt 交出來的 Y 軸向下,所以縱向要翻。
-	m := mul(matrix{1.0 / glyphEm, 0, 0, -1.0 / glyphEm, 0, 0}, trm)
+	// 外框是千分之一字身,乘上字級的變換矩陣就落到畫面上。
+	m := mul(matrix{1.0 / glyphEm, 0, 0, 1.0 / glyphEm, 0, 0}, trm)
 
 	var p path
+	open := false
 	for _, s := range segs {
-		switch s.Op {
-		case sfnt.SegmentOpMoveTo:
-			x, y := m.apply(f26(s.Args[0].X), f26(s.Args[0].Y))
+		switch s.op {
+		case 'm':
+			// 字形的每一圈都是封閉的。開新的一圈之前要把上一圈收掉,
+			// 不然內圈與外圈會被當成同一條路徑,洞就填實了。
+			if open {
+				p.close()
+			}
+			x, y := m.apply(s.x[0], s.y[0])
 			p.moveTo(x, y)
-		case sfnt.SegmentOpLineTo:
-			x, y := m.apply(f26(s.Args[0].X), f26(s.Args[0].Y))
+			open = true
+		case 'l':
+			x, y := m.apply(s.x[0], s.y[0])
 			p.lineTo(x, y)
-		case sfnt.SegmentOpQuadTo:
-			// 二次貝茲升成三次:控制點各取三分之二。
-			x0, y0 := lastPoint(&p)
-			cx, cy := m.apply(f26(s.Args[0].X), f26(s.Args[0].Y))
-			x3, y3 := m.apply(f26(s.Args[1].X), f26(s.Args[1].Y))
-			p.curveTo(x0+2.0/3*(cx-x0), y0+2.0/3*(cy-y0),
-				x3+2.0/3*(cx-x3), y3+2.0/3*(cy-y3), x3, y3)
-		case sfnt.SegmentOpCubeTo:
-			x1, y1 := m.apply(f26(s.Args[0].X), f26(s.Args[0].Y))
-			x2, y2 := m.apply(f26(s.Args[1].X), f26(s.Args[1].Y))
-			x3, y3 := m.apply(f26(s.Args[2].X), f26(s.Args[2].Y))
+		case 'c':
+			x1, y1 := m.apply(s.x[0], s.y[0])
+			x2, y2 := m.apply(s.x[1], s.y[1])
+			x3, y3 := m.apply(s.x[2], s.y[2])
 			p.curveTo(x1, y1, x2, y2, x3, y3)
 		}
 	}
@@ -298,18 +382,3 @@ func isBlank(s string) bool {
 }
 
 func f26(v fixed.Int26_6) float64 { return float64(v) / 64 }
-
-// lastPoint 是路徑目前的終點。二次貝茲升三次要用到它。
-func lastPoint(p *path) (float64, float64) {
-	if len(p.ops) == 0 {
-		return 0, 0
-	}
-	o := p.ops[len(p.ops)-1]
-	switch o.op {
-	case 'c':
-		return o.p[2].x, o.p[2].y
-	case 'm', 'l':
-		return o.p[0].x, o.p[0].y
-	}
-	return 0, 0
-}
