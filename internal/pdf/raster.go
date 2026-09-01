@@ -120,6 +120,9 @@ func (d *rasterDevice) paint(p *path, gs *gstate, fill, stroke, evenOdd bool) {
 		return
 	}
 	clip := d.clipRectOf(gs)
+	if fill && gs.fillCS == csPatternCS && gs.fillShade != nil {
+		d.fillShading(p, gs.fillShade, gs.fillShadeM, gs, evenOdd)
+	}
 	if fill && gs.fillCS != csPatternCS {
 		// 奇偶填法只有在路徑不只一圈的時候才與非零繞組不同。
 		// 單圈的情形走原本那條快路 —— 真實檔案裡絕大多數的填色是

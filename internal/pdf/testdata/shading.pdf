@@ -1,0 +1,74 @@
+%PDF-1.4
+1 0 obj
+<</Type/Catalog/Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type/Pages/Kids[3 0 R]/Count 1>>
+endobj
+3 0 obj
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Shading<</Sh0 5 0 R/Sh1 8 0 R/Sh2 10 0 R>>/Pattern<</P0 7 0 R>>>>>>
+endobj
+4 0 obj
+<</Length 370>>
+stream
+% A: axial shading clipped to a triangle, exponential function
+q 60 560 m 260 560 l 60 680 l h W n /Sh0 sh Q
+% B: radial shading used as a fill pattern
+q /Pattern cs /P0 scn 300 560 200 120 re f Q
+% C: stitching function, green -> yellow -> green
+q 60 380 200 120 re W n /Sh1 sh Q
+% D: sampled function, red -> blue -> green -> yellow
+q 300 380 200 120 re W n /Sh2 sh Q
+endstream
+endobj
+5 0 obj
+<</ShadingType 2/ColorSpace/DeviceRGB/Coords[60 0 260 0]/Function 6 0 R/Extend[true true]>>
+endobj
+6 0 obj
+<</FunctionType 2/Domain[0 1]/C0[1 0 0]/C1[0 0 1]/N 1>>
+endobj
+7 0 obj
+<</Type/Pattern/PatternType 2/Shading<</ShadingType 3/ColorSpace/DeviceRGB/Coords[400 620 0 400 620 90]/Function 6 0 R/Extend[false true]>>>>
+endobj
+8 0 obj
+<</ShadingType 2/ColorSpace/DeviceRGB/Coords[60 0 260 0]/Function 9 0 R/Extend[true true]>>
+endobj
+9 0 obj
+<</FunctionType 3/Domain[0 1]/Bounds[0.5]/Encode[0 1 0 1]/Functions[11 0 R 12 0 R]>>
+endobj
+10 0 obj
+<</ShadingType 2/ColorSpace/DeviceRGB/Coords[300 0 500 0]/Function 13 0 R/Extend[true true]>>
+endobj
+11 0 obj
+<</FunctionType 2/Domain[0 1]/C0[0 1 0]/C1[1 1 0]/N 1>>
+endobj
+12 0 obj
+<</FunctionType 2/Domain[0 1]/C0[1 1 0]/C1[0 1 0]/N 1>>
+endobj
+13 0 obj
+<</FunctionType 0/Domain[0 1]/Range[0 1 0 1 0 1]/Size[4]/BitsPerSample 8/Filter/ASCIIHexDecode/Length 30>>
+stream
+FF0000 0000FF 00FF00 FFFF00 >
+endstream
+endobj
+xref
+0 14
+0000000000 65535 f 
+0000000009 00000 n 
+0000000054 00000 n 
+0000000105 00000 n 
+0000000263 00000 n 
+0000000681 00000 n 
+0000000788 00000 n 
+0000000859 00000 n 
+0000001016 00000 n 
+0000001123 00000 n 
+0000001223 00000 n 
+0000001333 00000 n 
+0000001405 00000 n 
+0000001477 00000 n 
+trailer
+<</Size 14/Root 1 0 R>>
+startxref
+1647
+%%EOF

@@ -485,6 +485,8 @@ tools/
   office-oracle.sh       容器裡的 LibreOffice:產生 Office 測試檔 + 轉純文字/PNG 當對照
   pdfshot/               把 PDF 的一頁畫成 PNG(驗收頁面渲染用)
   inkdiff/               比兩張頁面圖的墨水密度格點(不逐像素比)
+  pdfprobe/              掃真實 PDF 用到哪些漸層 / 圖樣 / 函式;也能印資源、
+                         內容資料流、單一物件,或沿一條線取樣像素
   xwd2png.py             XWD → PNG(本機無 ImageMagick,ffmpeg 不吃 xwd)
 docs/
   re/                    逆向產出(symbols.tsv / words.tsv / callgraph.md)

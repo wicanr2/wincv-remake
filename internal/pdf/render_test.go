@@ -225,3 +225,74 @@ func TestRenderInlineImage(t *testing.T) {
 	blue("第二列第一格", at(0, 1))
 	red("第二列第二格", at(1, 1))
 }
+
+// 漸層。testdata/shading.pdf 是手寫的最小檔案,四塊各盯一件事:
+//
+//	A 三角形裁剪 + 軸向漸層 —— `sh` 的形狀完全來自裁剪路徑
+//	B 放射漸層當填色圖樣(PatternType 2 + ShadingType 3)
+//	C 接合函式(第 3 型):綠 → 黃 → 綠
+//	D 取樣函式(第 0 型):紅 → 藍 → 綠 → 黃
+//
+// C 與 D 的顏色順序是刻意挑的:兩端相同(C)或中間繞一圈(D),
+// 兩種都不可能由「兩個端點線性內插」生出來,所以函式沒讀對就一定紅。
+func TestRenderShading(t *testing.T) {
+	r := renderPage(t, "testdata/shading.pdf", 1, RenderOptions{DPI: 96})
+	const pageH = 792
+
+	// 主色:哪一個分量明顯大。用「誰大」而不是比對確切數值,
+	// 因為反鋸齒與取樣位置會讓邊緣差幾個階。
+	want := func(name string, c color.RGBA, wr, wg, wb bool) {
+		t.Helper()
+		got := func(v uint8) bool { return v > 200 }
+		lo := func(v uint8) bool { return v < 60 }
+		ok := true
+		for _, p := range []struct {
+			on bool
+			v  uint8
+		}{{wr, c.R}, {wg, c.G}, {wb, c.B}} {
+			if p.on && !got(p.v) || !p.on && !lo(p.v) {
+				ok = false
+			}
+		}
+		if !ok {
+			t.Errorf("%s 顏色不對,拿到 %+v(期待 R=%v G=%v B=%v)", name, c, wr, wg, wb)
+		}
+	}
+
+	// A:三角形內部照漸層走,三角形外(但仍在外接矩形內)必須是白的。
+	want("A 左下角", pixelAt(t, r, 80, 570, pageH), true, false, false)
+	want("A 右下角", pixelAt(t, r, 240, 565, pageH), false, false, true)
+	want("A 右上角(三角形外)", pixelAt(t, r, 240, 660, pageH), true, true, true)
+
+	// B:放射漸層的圓心是紅的,角落被 Extend 拉成藍的。
+	want("B 圓心", pixelAt(t, r, 400, 620, pageH), true, false, false)
+	want("B 角落", pixelAt(t, r, 310, 570, pageH), false, false, true)
+
+	// C:接合函式。兩端同色、中間不同 —— 線性內插做不出這個。
+	want("C 左", pixelAt(t, r, 65, 440, pageH), false, true, false)
+	want("C 中", pixelAt(t, r, 160, 440, pageH), true, true, false)
+	want("C 右", pixelAt(t, r, 255, 440, pageH), false, true, false)
+
+	// D:取樣函式的四個取樣點。
+	want("D 取樣 0", pixelAt(t, r, 302, 440, pageH), true, false, false)
+	want("D 取樣 1", pixelAt(t, r, 367, 440, pageH), false, false, true)
+	want("D 取樣 2", pixelAt(t, r, 433, 440, pageH), false, true, false)
+	want("D 取樣 3", pixelAt(t, r, 498, 440, pageH), true, true, false)
+}
+
+// 取文字不該被漸層影響:textDevice 對 shade 是空實作,而 shading.pdf
+// 一個字都沒有。這條擋的是「圖形路徑意外把取文字弄掛」。
+func TestShadingDoesNotBreakTextExtraction(t *testing.T) {
+	d, err := Open("testdata/shading.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	p, err := d.Page(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(p.Texts()); got != 0 {
+		t.Errorf("這一頁沒有文字,卻取出 %d 段", got)
+	}
+}

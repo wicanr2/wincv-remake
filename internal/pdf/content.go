@@ -156,6 +156,10 @@ type gstate struct {
 	// 顏色
 	fill, stroke     rgb
 	fillCS, strokeCS *colorSpace
+	// fillShade 是「填色是一個漸層圖樣」時的漸層,fillShadeM 是它的
+	// 空間到畫面的變換。圖樣的座標系綁在頁面上,不跟著當時的 CTM 走。
+	fillShade  *shading
+	fillShadeM matrix
 
 	// 線條
 	lineWidth  float64
@@ -170,6 +174,10 @@ type gstate struct {
 
 	// clip 是目前的裁剪範圍(裝置座標的矩形)。
 	clip clipRect
+	// clipPath 是最後一次設下裁剪的那條路徑,連同它的填法。
+	// 只有 `sh` 用得到 —— 見 clipRect 的說明。
+	clipPath    *path
+	clipEvenOdd bool
 }
 
 // clipRect 是矩形的裁剪範圍。
@@ -178,6 +186,10 @@ type gstate struct {
 // 九成以上是 `re W n`(把內容框在一個方框裡)。非矩形的裁剪取它的
 // 外接矩形 —— 那會多顯示一點東西,但不會少顯示;反過來(整個不畫)
 // 才是使用者看得出來的錯。
+//
+// 只有 `sh` 是例外,它另外留了 clipPath。填色的形狀由路徑自己決定,
+// 裁剪多半只是保險;`sh` 沒有自己的形狀,**裁剪就是形狀**,取外接
+// 矩形會把箭頭、圓角、斜角全部畫成方塊。
 type clipRect struct {
 	set            bool
 	x0, y0, x1, y1 float64
@@ -206,14 +218,18 @@ type device interface {
 	image(sd *types.StreamDict, gs *gstate)
 	// inline 畫一張內嵌影像。它已經解好了,擺放的規則與上面那個相同。
 	inline(m image.Image, isMask bool, gs *gstate)
+	// shade 把一個漸層塗滿目前的裁剪範圍(`sh` 運算子)。
+	shade(sh *shading, gs *gstate)
 	// graphics 回答要不要送圖形指令。取文字時回 false,可以省掉路徑建構。
 	graphics() bool
 }
 
 type interp struct {
-	doc   *Doc
-	x     *model.XRefTable
-	dev   device
+	doc *Doc
+	x   *model.XRefTable
+	dev device
+	// base 是頁面的基底變換。圖樣的座標系綁在它上面,不是綁在當時的 CTM。
+	base  matrix
 	gs    gstate
 	stack []gstate
 	tm    matrix
@@ -244,6 +260,7 @@ func (d *textDevice) graphics() bool                         { return false }
 func (d *textDevice) paint(*path, *gstate, bool, bool, bool) {}
 func (d *textDevice) image(*types.StreamDict, *gstate)       {}
 func (d *textDevice) inline(image.Image, bool, *gstate)      {}
+func (d *textDevice) shade(*shading, *gstate)                {}
 
 func (d *textDevice) glyph(g Glyph, f *Font, trm matrix, gs *gstate) {
 	if g.Text == "" || len(d.out) >= MaxTexts {
@@ -265,7 +282,7 @@ func (p *Page) Texts() []Text {
 
 // interpret 用給定的基底變換解讀一頁。
 func (p *Page) interpret(dev device, base matrix) {
-	in := &interp{doc: p.doc, x: p.doc.ctx.XRefTable, dev: dev}
+	in := &interp{doc: p.doc, x: p.doc.ctx.XRefTable, dev: dev, base: base}
 	in.gs = gstate{ctm: base, hscale: 1, lineWidth: 1, miterLimit: 10,
 		fillAlpha: 1, strokeAlpha: 1, fill: rgb{0, 0, 0}, stroke: rgb{0, 0, 0}}
 	in.tm, in.tlm = identity, identity
@@ -390,11 +407,16 @@ func (in *interp) run(b []byte, res types.Dict) {
 		case "cs":
 			in.gs.fillCS = in.colorSpace(res, name(0))
 			in.gs.fill = in.gs.fillCS.initial()
+			in.gs.fillShade, in.gs.fillShadeM = nil, identity
 		case "CS":
 			in.gs.strokeCS = in.colorSpace(res, name(0))
 			in.gs.stroke = in.gs.strokeCS.initial()
 		case "sc", "scn":
 			in.gs.fill = in.gs.fillCS.color(numbers(ops))
+			in.gs.fillShade, in.gs.fillShadeM = nil, identity
+			if in.gs.fillCS == csPatternCS {
+				in.setFillPattern(res, name(0))
+			}
 		case "SC", "SCN":
 			in.gs.stroke = in.gs.strokeCS.color(numbers(ops))
 
@@ -464,6 +486,12 @@ func (in *interp) run(b []byte, res types.Dict) {
 			}
 
 		// --- 外部物件 ---
+		case "sh":
+			if in.dev.graphics() {
+				if sh := in.namedShading(res, name(0)); sh != nil {
+					in.dev.shade(sh, &in.gs)
+				}
+			}
 		case "Do":
 			if len(ops) > 0 && ops[len(ops)-1].kind == vName {
 				in.doXObject(res, ops[len(ops)-1].str)
@@ -478,6 +506,50 @@ func (in *interp) run(b []byte, res types.Dict) {
 		}
 		ops = ops[:0]
 	}
+}
+
+// namedShading 由名稱查出頁面資源裡的漸層。
+func (in *interp) namedShading(res types.Dict, name string) *shading {
+	all, _ := deref(in.x, res["Shading"]).(types.Dict)
+	if all == nil || name == "" {
+		return nil
+	}
+	return in.loadShading(all[name])
+}
+
+// setFillPattern 把「填色是一個圖樣」解出來。
+//
+// 只認漸層圖樣(第 2 型)。拼貼圖樣(第 1 型)是一小段內容資料流重複鋪滿,
+// 還沒做 —— 那時候 fillShade 是 nil,填色會被跳過而不是塗上一片猜的顏色。
+func (in *interp) setFillPattern(res types.Dict, name string) {
+	all, _ := deref(in.x, res["Pattern"]).(types.Dict)
+	if all == nil || name == "" {
+		return
+	}
+	o := deref(in.x, all[name])
+	d, ok := o.(types.Dict)
+	if !ok {
+		if sd, _, err := in.x.DereferenceStreamDict(all[name]); err == nil && sd != nil {
+			d = sd.Dict
+		} else {
+			return
+		}
+	}
+	if int(numOrZero(in.x, d["PatternType"])) != 2 {
+		return
+	}
+	sh := in.loadShading(d["Shading"])
+	if sh == nil {
+		return
+	}
+	m := identity
+	if arr := floatsOf(in.x, d["Matrix"]); len(arr) == 6 {
+		copy(m[:], arr)
+	}
+	// [雷] 圖樣的座標系是**頁面的預設座標系**,不是畫它的時候的 CTM。
+	// 拿當時的 CTM 去接的話,漸層會跟著被畫的東西一起位移縮放,
+	// 而畫出來仍然是一片漸層,只是方向與範圍都不對。
+	in.gs.fillShade, in.gs.fillShadeM = sh, mul(m, in.base)
 }
 
 // numbers 取出運算元裡的數字,依原本的順序。
@@ -598,6 +670,8 @@ func (in *interp) endPath(fill, stroke, evenOdd bool) {
 			// 提早套用會把這條路徑自己也裁掉。
 			x0, y0, x1, y1 := in.cur.bounds()
 			in.gs.clip = in.gs.clip.intersect(x0, y0, x1, y1)
+			kept := in.cur
+			in.gs.clipPath, in.gs.clipEvenOdd = &kept, in.pendClip == 2
 		}
 	}
 	in.pendClip = 0
