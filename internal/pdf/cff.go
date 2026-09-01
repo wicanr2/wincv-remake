@@ -98,10 +98,13 @@ func parseCFF(b []byte) (f *cffFont, err error) {
 		f.subrs = readPrivateSubrs(b, int(p[1]), int(p[0]))
 	}
 
+	// charset 兩種字型都要讀。CID 字型的它存 CID,非 CID 字型的存
+	// 標準字串編號(SID)—— seac 要靠後者把「StandardEncoding 的字碼」
+	// 換成字形編號。
+	f.readCharset(b, dictInt(top, cffCharset))
 	if f.isCID {
 		f.readFDArray(b, top)
 		f.readFDSelect(b, dictInt(top, cffFDSelect))
-		f.readCharset(b, dictInt(top, cffCharset))
 	} else {
 		f.readEncoding(b, dictInt(top, cffEncoding))
 	}
@@ -254,8 +257,9 @@ func (f *cffFont) readCharset(b []byte, off int) {
 	// 第 0 號字形一定是 .notdef,charset 不列它。
 	f.cidToGID[0] = 0
 	if off <= 2 || off >= len(b) {
-		// 0/1/2 是預先定義的 charset。CID 字型不會用,但真的遇到時
-		// 當成「CID 就是字形編號」比整份不畫好。
+		// 0/1/2 是預先定義的 charset。0 是 ISOAdobe,它的第 n 個字形
+		// 的 SID 就是 n,所以恆等是對的;1/2 是 Expert 那兩種,恆等
+		// 不對但極罕見。CID 字型不會用預先定義的 charset。
 		for g := 0; g < n; g++ {
 			f.cidToGID[uint32(g)] = uint16(g)
 		}
@@ -290,6 +294,26 @@ func (f *cffFont) readCharset(b []byte, off int) {
 			p += step
 		}
 	}
+}
+
+// gidForStandardCode 查一個 StandardEncoding 字碼對應的字形編號。
+// seac 用得到:它指定基底字與重音字的方式就是這個字碼。
+//
+// 非 CID 字型的 charset 存的是標準字串編號(SID),與 CID 字型的 CID
+// 走同一張表,所以這裡直接查 cidToGID。
+func (f *cffFont) gidForStandardCode(code int) (uint16, bool) {
+	// [雷] CID 字型的 charset 存的是 CID,不是 SID,兩者沒有關係。
+	// 不擋掉的話會查到一個編號合法但完全無關的字形,而畫出來是一個
+	// 長得很正常的字 —— 只是不是那個字。(seac 本來就不是 CID 字型的功能。)
+	if f.isCID {
+		return 0, false
+	}
+	sid, ok := standardSID(code)
+	if !ok {
+		return 0, false
+	}
+	g, ok := f.cidToGID[uint32(sid)]
+	return g, ok
 }
 
 // gidForCID 查一個 CID 對應的字形編號。

@@ -282,6 +282,14 @@ func (t *t2) run(cs []byte) {
 		case 11: // return
 			return
 		case 14: // endchar
+			// 帶四個運算元的 endchar 是 CFF 版的 seac:用兩個標準字形
+			// 拼出重音字。CFF 沒有 seac 運算子,是把它塞進 endchar 的。
+			if len(t.stack) >= 4 {
+				a := t.stack[len(t.stack)-4:]
+				t.seac(a[0], a[1], int(a[2]), int(a[3]))
+				t.done = true
+				return
+			}
 			t.takeWidth(0, false)
 			t.done = true
 			return
@@ -404,4 +412,44 @@ func t2Number(b []byte) (float64, int) {
 		return float64(v) / 65536, 5
 	}
 	return 0, 0
+}
+
+// seac 把兩個標準字形拼成一個重音字(CFF 版,由 endchar 的四參數形式進來)。
+//
+// 兩個字都是用 **StandardEncoding 的字碼**指定的。CFF 裡沒有字形名可以直接
+// 查,要先把字碼換成標準字串編號(SID),再由 charset 換成字形編號。
+func (t *t2) seac(adx, ady float64, bchar, achar int) {
+	bg, ok1 := t.f.gidForStandardCode(bchar)
+	ag, ok2 := t.f.gidForStandardCode(achar)
+	if !ok1 || !ok2 || t.depth > MaxCharstringDepth {
+		return
+	}
+	t.out = t.out[:0]
+	t.appendGlyph(int(bg), 0, 0)
+	t.appendGlyph(int(ag), adx, ady)
+}
+
+// appendGlyph 把另一個字形的外框平移後接到這一條上。
+func (t *t2) appendGlyph(gid int, dx, dy float64) {
+	if gid < 0 || gid >= len(t.f.charStrings) {
+		return
+	}
+	sub := &t2{f: t.f, subrs: t.subrs, depth: t.depth + 1}
+	if t.f.isCID && gid < len(t.f.fdSelect) {
+		if fd := int(t.f.fdSelect[gid]); fd < len(t.f.fdSubrs) {
+			sub.subrs = t.f.fdSubrs[fd]
+		}
+	}
+	sub.run(t.f.charStrings[gid])
+	for _, g := range sub.out {
+		n := 1
+		if g.op == 'c' {
+			n = 3
+		}
+		for i := 0; i < n; i++ {
+			g.x[i] += dx
+			g.y[i] += dy
+		}
+		t.out = append(t.out, g)
+	}
 }

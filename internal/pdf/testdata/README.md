@@ -42,3 +42,20 @@ docker run --rm --network none -u "$(id -u):$(id -g)" \
 (ShadingType 4)與 PostScript 計算函式(FunctionType 4)。它該畫出一張全白
 的頁面 —— 看不懂就不畫,留白比塗一片猜的顏色好。poppler 畫得出來,
 所以這一份不做算繪比對,只驗「整頁沒有墨水」。
+
+`seac.pdf` 裡的 Type1 字型是自己寫的,不是從別處拿來的:三個字形都是方塊
+(`A` 是 50..450 × 0..600、`acute` 是 50..250 × 700..800),第三個 `Aacute`
+用 `seac` 把前兩個拼起來,重音再往右 300、往上 100。用方塊而不是真的字母,
+是因為「重音有沒有偏一點」在真字母上看不出來,在方塊上差一格都看得到。
+eexec 區段用十六進位寫,整份字型都是可讀的 ASCII,但字形本身是加密的,
+打開 PDF 看不到 —— 產生它的 `tools/mkseac.py` 就是這份 fixture 的規格:
+
+```bash
+python3 tools/mkseac.py internal/pdf/testdata/seac.pdf
+```
+
+對照組是 poppler(相關係數 0.9997)。
+
+另外用系統上真的有用 seac 的字型(`/usr/share/fonts/X11/Type1/c0632bt_.pfb`,
+Bitstream Charter)也對過一次,相關係數 0.9994 —— 那份字型是第三方的,
+所以只在本機驗,不放進 repo。

@@ -19,6 +19,9 @@ type t1 struct {
 	flexPts []point
 	// ps 是 callothersubr 回推、等著被 pop 取走的值。
 	ps []float64
+	// sbx 是這個字形自己的左邊界(hsbw 的第一個運算元)。seac 要用它
+	// 算重音的位置,而那時候 x 早就被移到別的地方了。
+	sbx float64
 }
 
 func (t *t1) moveTo(x, y float64) {
@@ -59,6 +62,7 @@ func (t *t1) run(cs []byte) {
 		case 13: // hsbw:左邊界與字寬
 			if len(s) >= 1 {
 				t.x = s[0]
+				t.sbx = s[0]
 			}
 			t.clear()
 		case 9: // closepath
@@ -196,8 +200,9 @@ func (t *t1) escape(b1 int) {
 			t.x, t.y = s[0], s[1]
 		}
 	case 6: // seac:用兩個標準字形拼出重音字。
-		// 拼字要靠標準編碼的字形名對照表,這裡沒有做 —— 已經畫出來的
-		// 基底字形照樣交出去,比整個字不見好。
+		if len(s) >= 5 {
+			t.seac(s[0], s[1], s[2], int(s[3]), int(s[4]))
+		}
 	case 0, 1, 2: // dotsection vstem3 hstem3:提示,對畫面沒有影響
 	}
 	t.clear()
@@ -267,4 +272,45 @@ func t1Number(b []byte) (float64, int) {
 		return float64(v), 5
 	}
 	return 0, 0
+}
+
+// seac 把兩個標準字形拼成一個重音字。
+//
+// 運算元是「重音的左邊界、水平位移、垂直位移、基底字、重音字」,而後兩個
+// 是 **StandardEncoding 的字碼**,不是字形編號 —— 拿它們當編號用會取到
+// 完全無關的字,而畫出來仍然是一個像樣的字形。
+//
+// 位移要扣掉重音自己的左邊界再補上這個字的:兩個字形各自的座標都是從
+// 自己的左邊界起算的,不校正的話重音會偏掉一個邊界的寬度。
+func (t *t1) seac(asb, adx, ady float64, bchar, achar int) {
+	base, ok1 := standardName(bchar)
+	accent, ok2 := standardName(achar)
+	if !ok1 || !ok2 {
+		return
+	}
+	t.out = t.out[:0]
+	t.appendGlyph(base, 0, 0)
+	t.appendGlyph(accent, t.sbx-asb+adx, ady)
+	t.done = true
+}
+
+// appendGlyph 把另一個字形的外框平移後接到這一條上。
+func (t *t1) appendGlyph(name string, dx, dy float64) {
+	cs, ok := t.f.chars[name]
+	if !ok || len(cs) == 0 {
+		return
+	}
+	sub := &t1{f: t.f, depth: t.depth + 1}
+	sub.run(cs)
+	for _, g := range sub.out {
+		n := 1
+		if g.op == 'c' {
+			n = 3
+		}
+		for i := 0; i < n; i++ {
+			g.x[i] += dx
+			g.y[i] += dy
+		}
+		t.out = append(t.out, g)
+	}
 }

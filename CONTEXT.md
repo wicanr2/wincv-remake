@@ -58,6 +58,7 @@
 | 2026-08-20 | WinCV 用 16 色 | **29 個具名顏色**,含 mildyellow / gooseyellow / inkgreen / ltorange 等 | `keyword_*.cfg` 用到的顏色名超過 16 個;image 0x5692d 有完整的斜線分隔清單 |
 | 2026-08-20 | image 裡沒有靜態的 COLORREF 表,29 色的 RGB 要進 IDA 看 `NEW-COLOR` 的呼叫端才拿得到 | RGB 就在每個顏色 word 的 body 裡:body 有 0x24 個位元組,第 8-10 個就是 R、G、B | 先前只搜「連續 29 個 dword」這種**表**的形狀。改成從 Forth 標頭走 xt(名字結尾 +9 的 dword)進到各自的 body,29 個一次到齊。抽取程式:`tools/palette.py` |
 | 2026-08-20 | 符號補充區(C6A1-C8FE)的 43 個洞在哪要逐一 dump 字模比對才知道,在那之前整區當缺字 | 直接問 Big5 解碼器就有:走一次該區,解得開的碼位才佔一個字模,累加即是索引。算出來剛好 365,與 SPCFSUPP.15 的字模數相符 | 洞是 C8A5-C8CC(40 個)與 C8F2-C8F4(3 個)。數量本身就是驗證 —— 對不上就表示假設錯了,不會安靜地取到別的字 |
+| 2026-09-02 | Type1 的 `seac` 這台機器上「3,700 多個字形裡 0 個用它」,沒有可驗的樣本 | 43 份系統 Type1 字型、30,442 個字形裡有 **448 個**用 seac(全在 8 份 Bitstream Charter 裡,每份 56 個) | 前一次只掃了 URW C059 與 D050000L 幾份。把整個 `/usr/share/fonts/X11/Type1` 掃過一遍就出現了 —— 零結果要先做正對照(`TestSeacScanners`),不然「沒有」與「掃錯了」長得一樣 |
 | 2026-08-20 | oracle 截圖只能當版面與配色真值,不能當字模真值(Wine 用自己的 cvgasys.fon 16 px 替換掉 cvga 15 px) | Wine **確實用 app 自己的 cvga**(log:`Chosen: L"cvga Regular" (C:\wincv\wincv.fon)`);`cvgasys.fon` 是另外給選單列用的 System 字型。拿真實 cvga 字模去比對,每個字元都剛好命中一次 | 當初的「零命中」是 `tools/xwd2png.py` 的 24 bpp 通道輪轉造成的。那個 bug 後來修好了,但這條結論沒有回頭重驗 |
 | 2026-08-20 | 主畫面的格子是 8×15(等於半形字身) | 是 **8×16**。多的那一列是程式拿全形字的高度當列高,不是字型要的(`cvga` 的 `dfExternalLeading` 是 0) | 樣板比對量出列起點 40/56/72…,間距 16;Wine 的 font trace 顯示 app 同時要 `pix_h 15 charset 255` 與 `pix_h 16 charset 136` |
 | 2026-08-20 | KK 音標的符號要靠一張替換表或專用字型才畫得出來 | 是一個位元組一個音素的自訂編碼,41 個符號。隨附的三個 `.FON` 都是標準 CP437,沒有音標字形 | 作者在 `kk.txt.dat` 裡留了兩筆把整套符號列一遍的條目(`aaaaa` / `aaaaaaaaaaaa`),音值再拿已知發音的單字反推 |
@@ -105,6 +106,7 @@
 | 2026-09-02 | PDF 頁面圖要做哪些功能,由 `tools/pdfprobe scan` 掃真實檔案的分布決定,不照規格的功能清單 | 規格列了七種漸層、四種函式,105 份真實 PDF 裡只出現軸向與放射兩種漸層、指數/接合/取樣三種函式。照清單做會把力氣花在一次都不會遇到的型別上,而真正常見的缺口(軟遮罩)反而排在後面 |
 | 2026-09-02 | 頁面圖的對照組加一個 poppler,不只 LibreOffice | LibreOffice 走的是 PDF 匯入再重新排版,對版面夠用但對顏色與幾何不準(它自己把漸層畫成一條條色帶)。poppler 是獨立的 PDF 渲染器,而且本機已有 `minidocks/poppler`,不必另建 |
 | 2026-09-02 | `sh` 記下裁剪路徑本身,其餘運算子仍只取外接矩形 | 填色的形狀由路徑自己決定,裁剪多半只是保險;`sh` 沒有自己的形狀,**裁剪就是形狀**。只為它多存一條路徑,不必把整個渲染器改成遮罩式裁剪 |
+| 2026-09-02 | CFF 的 seac 不抄 391 個標準字串的表,用「前 149 個標準字串就是 StandardEncoding 的順序」這個規律算 SID | 那個順序是規格當初就這樣訂的,不是巧合;算出來的對應拿真實字型驗過(`TestStandardSIDAgainstRealFont`,10 個字碼含上半部的 acute / dieresis / AE)。抄表的話多 391 行資料,而且抄錯一格不會有任何徵兆 |
 
 ---
 
@@ -153,6 +155,9 @@
 - [x] PDF:漸層(shading)與漸層圖樣 —— 軸向與放射兩種,顏色由指數 / 接合 /
       取樣三種函式算。`sh` 照裁剪路徑填(不是外接矩形),漸層圖樣的座標系綁在
       頁面上。對 poppler 的算繪相關係數 0.9999
+- [x] PDF:`seac`(用兩個標準字形拼出重音字)—— Type1 的 seac 與 CFF 的
+      四參數 endchar 兩條路。對 poppler 的算繪相關係數 0.9994(拿系統上真的
+      有用 seac 的 Bitstream Charter 驗)
 - [ ] PDF:軟遮罩與透明群組(ExtGState 的 `/SMask`、表單物件的 `/Group`)。
       真實檔案上量到的最大缺口:行銷型錄那類 PDF 的漸層條與半透明色塊靠它,
       沒做的話該半透明的東西會畫成不透明(對 poppler 相關係數 0.37)
@@ -167,8 +172,6 @@
   **PostScript 計算函式**(FunctionType 4):`tools/pdfprobe scan` 掃這台機器上
   105 份真實 PDF,這三類**一次都沒有出現**。看不懂的漸層一律留白,
   `internal/pdf/testdata/shading-unsupported.pdf` 盯著這個行為。
-- **Type1 的 `seac`**(用兩個標準字形拼出重音字):這台機器上的 Type1 字型
-  3,700 多個字形裡 0 個用它,拿不到可驗的樣本。
 - **PCD**(Photo CD):Huffman 編碼的 YCC + 多組解析度,同樣沒有 oracle。
 - **CAB 的 LZX / Quantum**、**ARC 的方法 4 與 7**、**LHA 的 -lh1-**、
   **ACE 的 SOUND / PIC**:同理,沒有可驗證的測試資料就不寫。
