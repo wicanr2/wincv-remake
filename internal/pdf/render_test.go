@@ -194,3 +194,34 @@ func TestSingleSubpathSameEitherRule(t *testing.T) {
 		t.Errorf("拆出 %d 圈", got)
 	}
 }
+
+// 內嵌影像(BI / ID / EI):4×4 的紅藍棋盤放大貼在頁面上。
+//
+// testdata/inline.pdf 是手寫的最小檔案。棋盤的用意是「位置錯了看得出來」——
+// 顏色平均的圖就算貼歪了、上下顛倒了也看不出來。
+func TestRenderInlineImage(t *testing.T) {
+	r := renderPage(t, "testdata/inline.pdf", 1, RenderOptions{DPI: 96})
+	const pageH = 792
+	// 影像佔 PDF 的 (60,500)–(260,700),4×4 格,每格 50 點。
+	// 左上角那一格是紅的,它右邊那一格是藍的。
+	at := func(col, row int) color.RGBA {
+		return pixelAt(t, r, 60+float64(col)*50+25, 700-float64(row)*50-25, pageH)
+	}
+	red := func(name string, c color.RGBA) {
+		if c.R < 200 || c.G > 80 || c.B > 80 {
+			t.Errorf("%s 應該是紅的,拿到 %+v", name, c)
+		}
+	}
+	blue := func(name string, c color.RGBA) {
+		if c.B < 200 || c.R > 80 || c.G > 80 {
+			t.Errorf("%s 應該是藍的,拿到 %+v", name, c)
+		}
+	}
+	// 棋盤的第一列:紅藍紅藍。畫反了(上下顛倒)的話這一列會變成藍紅藍紅。
+	red("第一列第一格", at(0, 0))
+	blue("第一列第二格", at(1, 0))
+	red("第一列第三格", at(2, 0))
+	// 第二列相位相反。
+	blue("第二列第一格", at(0, 1))
+	red("第二列第二格", at(1, 1))
+}

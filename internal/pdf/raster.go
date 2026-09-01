@@ -293,10 +293,21 @@ func addPath(a rasterx.Adder, p *path, dx, dy float64) {
 // 用反矩陣問「這一點對應到影像裡的哪裡」。正向掃描來源會在放大時
 // 留下沒填到的洞。
 func (d *rasterDevice) image(sd *types.StreamDict, gs *gstate) {
-	m, alpha, err := d.decodeImage(sd, gs)
+	m, isMask, err := d.decodeImage(sd, gs)
 	if err != nil || m == nil {
 		return
 	}
+	d.paintImage(m, isMask, gs)
+}
+
+// inline 畫一張內嵌影像。解碼在解譯器那一層做完了(它才拿得到頁面資源),
+// 擺放的規則與一般影像完全相同,所以走同一段。
+func (d *rasterDevice) inline(m image.Image, isMask bool, gs *gstate) {
+	d.paintImage(m, isMask, gs)
+}
+
+// paintImage 把一張已經解好的影像貼到頁面上。
+func (d *rasterDevice) paintImage(m image.Image, alpha bool, gs *gstate) {
 	inv, ok := gs.ctm.invert()
 	if !ok {
 		return

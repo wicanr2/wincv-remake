@@ -17,6 +17,10 @@ tools/go.sh run ./tools/pdfshot -o mine.png internal/pdf/testdata/evenodd.pdf
 tools/go.sh run ./tools/inkdiff mine.png evenodd.png
 ```
 
+`inline.pdf` 也是手寫的:一張 4×4 的紅藍棋盤用 `BI`/`ID`/`EI` 直接寫在
+內容資料流裡,放大貼在頁面上,旁邊描一個框當定位參考。用棋盤而不是
+單色塊,是因為「貼歪了、上下顛倒了」在單色塊上看不出來。
+
 `rich.pdf` 的字型是子集化的 CID 字型(Identity-H 編碼 + ToUnicode),
 也就是中文 PDF 最常見的形態;沒有走 ToUnicode 的話整頁會是亂碼。
 `twocol.fodt` 的原始檔一起放在這裡,內文是可預測的重複句子,

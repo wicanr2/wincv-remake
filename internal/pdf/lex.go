@@ -296,33 +296,143 @@ func (l *lexer) readDict() value {
 	return value{kind: vDict}
 }
 
-// skipInlineImage 跳過一張內嵌影像。
+// readInlineImage 讀一張內嵌影像:BI 後面的參數字典,加上 ID 後面的資料。
 //
-// [雷] 內嵌影像的資料是**原始位元組**,裡面什麼都可能有,包括看起來
-// 像運算子的東西。不整段跳過的話,後面的解讀會從影像資料中間開始,
-// 而那會解出一串合法但毫無意義的運算子。
-func (l *lexer) skipInlineImage() {
-	// 先走到 ID。
-	for l.i < len(l.b) {
-		v, ok := l.next()
-		if !ok {
-			return
+// [雷] 影像資料是**原始位元組**,裡面什麼都可能有,包括看起來像運算子的
+// 東西、也包括 "EI" 這兩個字母。所以能算出長度時就照算的走,不去掃描 ——
+// 掃描碰上剛好含 EI 的資料會提早結束,而後面的解讀會從影像資料中間開始,
+// 解出一串合法但毫無意義的運算子。
+//
+// 呼叫的時候 BI 已經被讀掉了。回傳的 data 只在 ok 為真時有意義;
+// 不論成功與否,解碼器都會停在這張影像之後。
+func (l *lexer) readInlineImage() (dict map[string]value, data []byte, ok bool) {
+	dict = map[string]value{}
+	key := ""
+	for {
+		v, more := l.next()
+		if !more {
+			return dict, nil, false
 		}
-		if v.kind == vOp && v.str == "ID" {
-			break
+		if v.kind == vOp {
+			if v.str == "ID" {
+				break
+			}
+			// true / false 在這個掃描器眼裡是「裸關鍵字」,也就是運算子。
+			// 它們是合法的字典值,要收下來;其他運算子表示這一張壞掉了。
+			if key != "" && (v.str == "true" || v.str == "false") {
+				dict[key] = v
+				key = ""
+				continue
+			}
+			return dict, nil, false
+		}
+		if key == "" && v.kind == vName {
+			key = v.str
+			continue
+		}
+		if key != "" {
+			dict[key] = v
+			key = ""
 		}
 	}
+	// ID 後面固定接一個空白,再來才是資料。
 	if l.i < len(l.b) && isWhite(l.b[l.i]) {
 		l.i++
 	}
-	for l.i+1 < len(l.b) {
-		if l.b[l.i] == 'E' && l.b[l.i+1] == 'I' &&
-			(l.i == 0 || isWhite(l.b[l.i-1])) &&
-			(l.i+2 >= len(l.b) || isWhite(l.b[l.i+2]) || isDelim(l.b[l.i+2])) {
-			l.i += 2
-			return
+	start := l.i
+	if n := inlineDataLen(dict); n > 0 && start+n <= len(l.b) {
+		l.i = start + n
+		if l.skipToEI() {
+			return dict, l.b[start : start+n], true
 		}
-		l.i++
+		// 算出來的長度對不上(通常表示參數看錯了),退回去用掃描的。
+		l.i = start
+	}
+	end := l.i
+	for end+1 < len(l.b) {
+		if l.b[end] == 'E' && l.b[end+1] == 'I' && end > start && isWhite(l.b[end-1]) &&
+			(end+2 >= len(l.b) || isWhite(l.b[end+2]) || isDelim(l.b[end+2])) {
+			l.i = end + 2
+			return dict, l.b[start : end-1], true
+		}
+		end++
 	}
 	l.i = len(l.b)
+	return dict, nil, false
+}
+
+// skipToEI 確認接下來就是 EI,並跳過它。
+func (l *lexer) skipToEI() bool {
+	j := l.i
+	for j < len(l.b) && isWhite(l.b[j]) {
+		j++
+	}
+	if j+1 < len(l.b) && l.b[j] == 'E' && l.b[j+1] == 'I' {
+		l.i = j + 2
+		return true
+	}
+	return false
+}
+
+// inlineDataLen 算沒有壓縮的影像資料有多長。有濾鏡時回 0(長度要解了才知道)。
+//
+// [雷] 每一列都補齊到整個位元組。1 位元的黑白影像最容易踩到:
+// 寬度 12 的一列是 2 個位元組不是 1.5 個,少算的話整張影像會斜掉。
+func inlineDataLen(dict map[string]value) int {
+	if _, ok := dictOf(dict, "F", "Filter"); ok {
+		return 0
+	}
+	w := int(numOfValue(dict, "W", "Width"))
+	h := int(numOfValue(dict, "H", "Height"))
+	if w <= 0 || h <= 0 {
+		return 0
+	}
+	bpc := int(numOfValue(dict, "BPC", "BitsPerComponent"))
+	n := inlineComponents(dict)
+	if isInlineMask(dict) {
+		bpc, n = 1, 1
+	}
+	if bpc <= 0 || n <= 0 {
+		return 0
+	}
+	return (w*bpc*n + 7) / 8 * h
+}
+
+// inlineComponents 算一個像素有幾個分量。
+func inlineComponents(dict map[string]value) int {
+	v, ok := dictOf(dict, "CS", "ColorSpace")
+	if !ok {
+		return 1
+	}
+	switch v.str {
+	case "RGB", "DeviceRGB", "CalRGB":
+		return 3
+	case "CMYK", "DeviceCMYK":
+		return 4
+	case "G", "DeviceGray", "CalGray", "I", "Indexed":
+		return 1
+	}
+	// 具名的色彩空間要查資源才知道,交給掃描那條路。
+	return 0
+}
+
+func isInlineMask(dict map[string]value) bool {
+	v, ok := dictOf(dict, "IM", "ImageMask")
+	return ok && (v.kind == vOp && v.str == "true" || v.kind == vName && v.str == "true" || v.num != 0)
+}
+
+// dictOf 依縮寫與全名兩種鍵查值。內嵌影像的參數兩種寫法都合法。
+func dictOf(dict map[string]value, abbr, full string) (value, bool) {
+	if v, ok := dict[abbr]; ok {
+		return v, true
+	}
+	v, ok := dict[full]
+	return v, ok
+}
+
+func numOfValue(dict map[string]value, abbr, full string) float64 {
+	if v, ok := dictOf(dict, abbr, full); ok && v.kind == vNum {
+		return v.num
+	}
+	return 0
 }

@@ -1,6 +1,7 @@
 package pdf
 
 import (
+	"image"
 	"math"
 	"strconv"
 
@@ -203,6 +204,8 @@ type device interface {
 	paint(p *path, gs *gstate, fill, stroke, evenOdd bool)
 	// image 畫一張影像。影像本身佔的是單位正方形,由 CTM 決定它到哪裡。
 	image(sd *types.StreamDict, gs *gstate)
+	// inline 畫一張內嵌影像。它已經解好了,擺放的規則與上面那個相同。
+	inline(m image.Image, isMask bool, gs *gstate)
 	// graphics 回答要不要送圖形指令。取文字時回 false,可以省掉路徑建構。
 	graphics() bool
 }
@@ -240,6 +243,7 @@ type textDevice struct {
 func (d *textDevice) graphics() bool                         { return false }
 func (d *textDevice) paint(*path, *gstate, bool, bool, bool) {}
 func (d *textDevice) image(*types.StreamDict, *gstate)       {}
+func (d *textDevice) inline(image.Image, bool, *gstate)      {}
 
 func (d *textDevice) glyph(g Glyph, f *Font, trm matrix, gs *gstate) {
 	if g.Text == "" || len(d.out) >= MaxTexts {
@@ -465,7 +469,12 @@ func (in *interp) run(b []byte, res types.Dict) {
 				in.doXObject(res, ops[len(ops)-1].str)
 			}
 		case "BI":
-			l.skipInlineImage()
+			dict, data, got := l.readInlineImage()
+			if got && in.dev.graphics() {
+				if m, isMask, err := in.decodeInline(dict, data, res); err == nil && m != nil {
+					in.dev.inline(m, isMask, &in.gs)
+				}
+			}
 		}
 		ops = ops[:0]
 	}

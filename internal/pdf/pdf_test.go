@@ -52,18 +52,69 @@ func TestLexArraysAndOps(t *testing.T) {
 	}
 }
 
-// 內嵌影像的資料是原始位元組,裡面什麼都可能有。不整段跳過的話,
-// 後面會從影像資料中間開始解讀,而那會解出一串合法但無意義的運算子。
-func TestSkipInlineImage(t *testing.T) {
-	l := &lexer{b: []byte("BI /W 2 /H 2 ID \x00(fake) Tj\xff\xfe EI (after) Tj")}
+// 內嵌影像的資料是原始位元組,裡面什麼都可能有 —— 包括看起來像運算子的
+// 東西,也包括 "EI" 這兩個字母。算得出長度時就照算的走,不去掃描。
+func TestReadInlineImage(t *testing.T) {
+	// 2×2 的灰階影像,每個像素一個位元組。資料裡故意放一個 " EI " ——
+	// 掃描法會在那裡提早結束,照長度走的不會。
+	data := " EI "
+	l := &lexer{b: []byte("BI /W 2 /H 2 /CS /G /BPC 8 ID " + data + "\nEI (after) Tj")}
 	v, _ := l.next()
 	if v.str != "BI" {
 		t.Fatalf("第一個 token 是 %+v", v)
 	}
-	l.skipInlineImage()
-	got, _ := l.next()
-	if got.kind != vStr || got.str != "after" {
-		t.Fatalf("跳過影像之後拿到 %+v", got)
+	dict, got, ok := l.readInlineImage()
+	if !ok {
+		t.Fatal("內嵌影像讀不出來")
+	}
+	if string(got) != data {
+		t.Errorf("影像資料是 %q,要 %q", got, data)
+	}
+	if dict["W"].num != 2 || dict["H"].num != 2 || dict["CS"].str != "G" {
+		t.Errorf("參數字典不對:%+v", dict)
+	}
+	next, _ := l.next()
+	if next.kind != vStr || next.str != "after" {
+		t.Fatalf("影像之後拿到 %+v", next)
+	}
+}
+
+// 有濾鏡時算不出長度,只能掃到 EI 為止。
+func TestReadInlineImageScanned(t *testing.T) {
+	l := &lexer{b: []byte("BI /W 2 /H 2 /F /AHx ID 41424344> EI (after) Tj")}
+	l.next()
+	_, got, ok := l.readInlineImage()
+	if !ok || string(got) != "41424344>" {
+		t.Fatalf("拿到 %q ok=%v", got, ok)
+	}
+	next, _ := l.next()
+	if next.str != "after" {
+		t.Fatalf("影像之後拿到 %+v", next)
+	}
+}
+
+// 每一列補齊到整個位元組。1 位元的影像最容易踩到:寬 12 的一列是 2 個
+// 位元組不是 1.5 個,少算的話整張圖會逐列斜掉。
+func TestInlineDataLenRowPadding(t *testing.T) {
+	for _, tc := range []struct {
+		w, h, bpc int
+		cs        string
+		want      int
+	}{
+		{12, 3, 1, "G", 6},   // 每列 12 位元 → 2 個位元組
+		{2, 2, 8, "RGB", 12}, // 每列 2 像素 × 3 分量
+		{4, 4, 8, "RGB", 48},
+		{8, 1, 4, "G", 4},
+	} {
+		d := map[string]value{
+			"W":   {kind: vNum, num: float64(tc.w)},
+			"H":   {kind: vNum, num: float64(tc.h)},
+			"BPC": {kind: vNum, num: float64(tc.bpc)},
+			"CS":  {kind: vName, str: tc.cs},
+		}
+		if got := inlineDataLen(d); got != tc.want {
+			t.Errorf("%d×%d %d 位元 %s → %d,要 %d", tc.w, tc.h, tc.bpc, tc.cs, got, tc.want)
+		}
 	}
 }
 
