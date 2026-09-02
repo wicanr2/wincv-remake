@@ -67,3 +67,17 @@ Bitstream Charter)也對過一次,相關係數 0.9994 —— 那份字型是第�
 第三塊是關鍵:沒有群組語意的話,重疊處會被塗兩次而變深;有群組語意的話,
 整組先算完再套透明度,重疊處與非重疊處一樣。對照組是 poppler,每一點都在
 1/255 以內。
+
+`image.pdf` 的兩張圖都用 ICCBased 色彩空間 —— 物件層對這個組合會回空但
+不報錯,所以這一份盯的是「自己解」那條退路。`ImA` 是 FlateDecode 的原始
+取樣值(2×2 紅綠藍黃)外加自己的 `/SMask`,遮罩把左上與右下挖成透明;
+`ImB` 是 DCTDecode。那份 JPEG 是拿本專案自己的 `shading.pdf` 裁一小塊
+產生的,不是第三方素材:
+
+```bash
+docker run --rm --network none -u "$(id -u):$(id -g)" \
+    -v "$PWD/.cache/probe":/w -w /w --entrypoint /usr/bin/pdftoppm \
+    minidocks/poppler:latest -jpeg -r 20 -f 1 -l 1 -singlefile \
+    -x 20 -y 35 -W 32 -H 24 shading.pdf tile
+python3 tools/mkimagepdf.py internal/pdf/testdata/image.pdf .cache/probe/tile.jpg
+```

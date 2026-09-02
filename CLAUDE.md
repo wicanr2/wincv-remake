@@ -488,6 +488,7 @@ tools/
   pdfprobe/              掃真實 PDF 用到哪些漸層 / 圖樣 / 函式;也能印資源、
                          內容資料流、單一物件,或沿一條線取樣像素
   mkseac.py              產生 internal/pdf/testdata/seac.pdf 的最小 Type1 字型
+  mkimagepdf.py          產生 internal/pdf/testdata/image.pdf(ICCBased 的影像)
   xwd2png.py             XWD → PNG(本機無 ImageMagick,ffmpeg 不吃 xwd)
 docs/
   re/                    逆向產出(symbols.tsv / words.tsv / callgraph.md)

@@ -46,7 +46,7 @@ func (in *interp) loadShading(o types.Object) *shading {
 	if sh.typ != 2 && sh.typ != 3 {
 		return nil
 	}
-	sh.cs = in.parseColorSpace(deref(in.x, d["ColorSpace"]), 0)
+	sh.cs = parseColorSpace(in.x, deref(in.x, d["ColorSpace"]), 0)
 	sh.fn = loadFunc(in.x, d["Function"])
 	if sh.fn == nil {
 		return nil

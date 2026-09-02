@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"image/jpeg"
 	"io"
 	"math"
 
@@ -432,19 +433,145 @@ func (d *rasterDevice) decodeImage(sd *types.StreamDict, gs *gstate) (m image.Im
 		isMask = true
 	}
 	rd, _, err := pdfcpulib.RenderImage(d.x, sd, false, "img", 0)
-	if err != nil || rd == nil {
-		return nil, isMask, fmt.Errorf("影像取不出來")
+	if err == nil && rd != nil {
+		data, err := io.ReadAll(io.LimitReader(rd, MaxImageBytes))
+		if err == nil && len(data) > 0 {
+			if img, _, err := image.Decode(bytes.NewReader(data)); err == nil {
+				return img, isMask, nil
+			}
+		}
 	}
-	data, err := io.ReadAll(io.LimitReader(rd, MaxImageBytes))
-	if err != nil || len(data) == 0 {
-		return nil, isMask, fmt.Errorf("影像是空的")
+	// 退路:自己解。
+	//
+	// [雷] 物件層對某些組合(實測:ICCBased 色彩空間,不論 DCTDecode 或
+	// FlateDecode)會**回空但不報錯**,而那張圖就整塊不見 —— 版面其餘部分
+	// 完全正常,看起來像那一頁本來就沒有圖。arXiv 論文那一類的插圖全是這種。
+	if img := d.rawImage(sd, isMask); img != nil {
+		return img, isMask, nil
 	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, isMask, err
+	return nil, isMask, fmt.Errorf("影像取不出來")
+}
+
+// rawImage 自己把影像串流解成影像。
+//
+// 兩條路:只經過 DCTDecode 的串流本身就是一份完整的 JPEG;其餘的濾鏡
+// 物件層會解掉,剩下的是原始取樣值,那一段與內嵌影像走同一個解碼器。
+func (d *rasterDevice) rawImage(sd *types.StreamDict, isMask bool) image.Image {
+	w := int(numOrZero(d.x, sd.Dict["Width"]))
+	h := int(numOrZero(d.x, sd.Dict["Height"]))
+	if w <= 0 || h <= 0 || w > 1<<15 || h > 1<<15 || w*h > MaxImagePixels {
+		return nil
 	}
-	return img, isMask, nil
+	var img image.Image
+	if onlyDCT(d.x, sd.Dict["Filter"]) {
+		if len(sd.Raw) == 0 {
+			return nil
+		}
+		m, err := jpeg.Decode(bytes.NewReader(sd.Raw))
+		if err != nil {
+			return nil
+		}
+		img = m
+	} else {
+		data := streamContent(sd)
+		if len(data) == 0 {
+			return nil
+		}
+		if isMask {
+			img = maskImage(data, w, h, imageDecodeFlipped(d.x, sd.Dict))
+		} else {
+			bpc := int(numOrZero(d.x, sd.Dict["BitsPerComponent"]))
+			if bpc <= 0 || bpc > 16 {
+				return nil
+			}
+			cs := parseColorSpace(d.x, deref(d.x, sd.Dict["ColorSpace"]), 0)
+			img = samplesImage(data, w, h, bpc, cs)
+		}
+	}
+	if isMask {
+		return img
+	}
+	return d.applyImageSMask(img, sd)
+}
+
+// applyImageSMask 把影像自己的 /SMask 當成透明度貼上去。
+//
+// 沒有這一步的話,去背的插圖會帶著一整塊不透明的方形背景蓋住底下的東西 ——
+// 而圖本身是對的,所以看起來像「排版擠掉了」而不是「透明度沒做」。
+func (d *rasterDevice) applyImageSMask(img image.Image, sd *types.StreamDict) image.Image {
+	msd, _, err := d.x.DereferenceStreamDict(sd.Dict["SMask"])
+	if err != nil || msd == nil {
+		return img
+	}
+	mw := int(numOrZero(d.x, msd.Dict["Width"]))
+	mh := int(numOrZero(d.x, msd.Dict["Height"]))
+	if mw <= 0 || mh <= 0 || mw*mh > MaxImagePixels {
+		return img
+	}
+	var mask image.Image
+	if onlyDCT(d.x, msd.Dict["Filter"]) && len(msd.Raw) > 0 {
+		m, err := jpeg.Decode(bytes.NewReader(msd.Raw))
+		if err != nil {
+			return img
+		}
+		mask = m
+	} else {
+		data := streamContent(msd)
+		bpc := int(numOrZero(d.x, msd.Dict["BitsPerComponent"]))
+		if len(data) == 0 || bpc <= 0 || bpc > 16 {
+			return img
+		}
+		mask = samplesImage(data, mw, mh, bpc, csDeviceGray)
+	}
+	b := img.Bounds()
+	out := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	for y := 0; y < b.Dy(); y++ {
+		// 遮罩的尺寸不一定與影像相同,規格允許,要各自縮放。
+		my := y * mh / b.Dy()
+		for x := 0; x < b.Dx(); x++ {
+			mx := x * mw / b.Dx()
+			a, _, _, _ := mask.At(mx, my).RGBA()
+			k := float64(a>>8) / 255
+			cr, cg, cb, _ := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			// 預乘。
+			out.SetRGBA(x, y, color.RGBA{
+				uint8(float64(cr>>8) * k), uint8(float64(cg>>8) * k),
+				uint8(float64(cb>>8) * k), uint8(255 * k),
+			})
+		}
+	}
+	return out
+}
+
+// streamContent 取串流解過濾鏡之後的位元組。
+func streamContent(sd *types.StreamDict) []byte {
+	if len(sd.Content) == 0 {
+		if err := sd.Decode(); err != nil {
+			return nil
+		}
+	}
+	return sd.Content
+}
+
+// imageDecodeFlipped 看遮罩影像的 Decode 陣列有沒有把黑白對調。
+func imageDecodeFlipped(x *model.XRefTable, d types.Dict) bool {
+	dec := floatsOf(x, d["Decode"])
+	return len(dec) >= 2 && dec[0] == 1
+}
+
+func onlyDCT(x *model.XRefTable, o types.Object) bool {
+	switch v := deref(x, o).(type) {
+	case types.Name:
+		return v.Value() == "DCTDecode"
+	case types.Array:
+		return len(v) == 1 && nameOf(deref(x, v[0])) == "DCTDecode"
+	}
+	return false
 }
 
 // MaxImageBytes 是單張影像的上限。
 const MaxImageBytes = 64 << 20
+
+// MaxImagePixels 是自己解影像時的像素上限。標頭裡的寬高是檔案說了算的,
+// 不設限的話一個宣告 40000×40000 的檔案就會吃掉幾 GB。
+const MaxImagePixels = 64 << 20

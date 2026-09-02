@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"math"
 
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
@@ -155,11 +156,13 @@ func (in *interp) colorSpace(res types.Dict, name string) *colorSpace {
 	if all == nil {
 		return csDeviceGray
 	}
-	return in.parseColorSpace(deref(in.x, all[name]), 0)
+	return parseColorSpace(in.x, deref(in.x, all[name]), 0)
 }
 
 // parseColorSpace 解一個色彩空間物件。depth 擋住互相參照的檔案。
-func (in *interp) parseColorSpace(o types.Object, depth int) *colorSpace {
+//
+// 不掛在解譯器上:光柵器自己解影像的時候也要用它,而那時候沒有解譯器。
+func parseColorSpace(x *model.XRefTable, o types.Object, depth int) *colorSpace {
 	if depth > 4 {
 		return csDeviceGray
 	}
@@ -178,13 +181,13 @@ func (in *interp) parseColorSpace(o types.Object, depth int) *colorSpace {
 		if len(v) == 0 {
 			return csDeviceGray
 		}
-		switch nameOf(deref(in.x, v[0])) {
+		switch nameOf(deref(x, v[0])) {
 		case "ICCBased":
 			// ICC 描述檔本身不解,照它宣告的分量數當成對應的裝置空間。
 			// 這是規格給的替代做法,而且與檔案裡的資料一致。
 			n := 3
-			if sd, _, err := in.x.DereferenceStreamDict(v[1]); err == nil && sd != nil {
-				if k, ok := numOf(deref(in.x, sd.Dict["N"])); ok {
+			if sd, _, err := x.DereferenceStreamDict(v[1]); err == nil && sd != nil {
+				if k, ok := numOf(deref(x, sd.Dict["N"])); ok {
 					n = int(k)
 				}
 			}
@@ -200,17 +203,17 @@ func (in *interp) parseColorSpace(o types.Object, depth int) *colorSpace {
 				return csDeviceGray
 			}
 			cs := &colorSpace{kind: csIndexed, n: 1}
-			cs.base = in.parseColorSpace(deref(in.x, v[1]), depth+1)
-			if h, ok := numOf(deref(in.x, v[2])); ok {
+			cs.base = parseColorSpace(x, deref(x, v[1]), depth+1)
+			if h, ok := numOf(deref(x, v[2])); ok {
 				cs.hival = int(h)
 			}
-			cs.lookup = in.lookupTable(v[3])
+			cs.lookup = lookupTable(x, v[3])
 			return cs
 		case "Separation":
 			return &colorSpace{kind: csSeparation, n: 1}
 		case "DeviceN":
 			n := 1
-			if arr, ok := deref(in.x, v[1]).(types.Array); ok {
+			if arr, ok := deref(x, v[1]).(types.Array); ok {
 				n = len(arr)
 			}
 			return &colorSpace{kind: csSeparation, n: n}
@@ -232,8 +235,8 @@ func (in *interp) parseColorSpace(o types.Object, depth int) *colorSpace {
 }
 
 // lookupTable 取索引色的調色盤。它可以寫成字串,也可以是一條串流。
-func (in *interp) lookupTable(o types.Object) []byte {
-	switch v := deref(in.x, o).(type) {
+func lookupTable(x *model.XRefTable, o types.Object) []byte {
+	switch v := deref(x, o).(type) {
 	case types.StringLiteral:
 		s, _ := types.StringLiteralToString(v)
 		return []byte(s)
@@ -241,5 +244,5 @@ func (in *interp) lookupTable(o types.Object) []byte {
 		s, _ := types.HexLiteralToString(v)
 		return []byte(s)
 	}
-	return streamBytes(in.x, o)
+	return streamBytes(x, o)
 }

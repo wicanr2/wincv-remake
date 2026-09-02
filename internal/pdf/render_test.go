@@ -351,3 +351,43 @@ func abs(v int) int {
 	}
 	return v
 }
+
+// 影像:testdata/image.pdf 兩張都用 ICCBased 色彩空間。
+//
+// [雷] 物件層對這個組合會**回空但不報錯**,那張圖就整塊不見 —— 版面其餘
+// 部分完全正常,看起來像那一頁本來就沒有圖。這一條盯的是「自己解」那條退路。
+//
+//	ImA  FlateDecode 的原始取樣值(2×2 紅綠藍黃),外加自己的 /SMask,
+//	     把左上與右下挖成透明。用棋盤而不是單色:上下顛倒、左右反了,
+//	     在單色上看不出來。
+//	ImB  DCTDecode。
+func TestRenderImageFallback(t *testing.T) {
+	r := renderPage(t, "testdata/image.pdf", 1, RenderOptions{DPI: 96})
+	const pageH = 792
+
+	// ImA 佔 (60,600)–(220,760),四個象限。
+	white := func(name string, x, y float64) {
+		t.Helper()
+		c := pixelAt(t, r, x, y, pageH)
+		if c.R < 250 || c.G < 250 || c.B < 250 {
+			t.Errorf("%s 應該被遮罩挖掉,拿到 %+v", name, c)
+		}
+	}
+	solid := func(name string, x, y float64, wr, wg, wb uint8) {
+		t.Helper()
+		c := pixelAt(t, r, x, y, pageH)
+		if c.R != wr || c.G != wg || c.B != wb {
+			t.Errorf("%s = %+v,期待 (%d, %d, %d)", name, c, wr, wg, wb)
+		}
+	}
+	white("ImA 左上(遮罩 0)", 100, 720)
+	solid("ImA 右上", 180, 720, 0, 255, 0)
+	solid("ImA 左下", 100, 640, 0, 0, 255)
+	white("ImA 右下(遮罩 0)", 180, 640)
+
+	// ImB 佔 (280,600)–(440,720)。取一塊實紅的地方。
+	c := pixelAt(t, r, 293, 641, pageH)
+	if c.R < 200 || c.G > 60 || c.B > 80 {
+		t.Errorf("ImB(JPEG)那一點應該偏紅,拿到 %+v", c)
+	}
+}
