@@ -25,7 +25,21 @@ fi
 COMMIT=$(git rev-parse HEAD)
 SHORT=$(git rev-parse --short HEAD)
 
+# 建置完成的印記:記下這批產物是從哪一個 commit 建的。
+#
+# 為什麼不用檔案時間判斷:原本是拿 dist-all/ 裡檔案的 mtime 跟 HEAD 的
+# commit 時間比。但 --no-build 會把 dist/ 重新複製一次,mtime 變成複製的
+# 當下,於是那道檢查在 --no-build 這條路上**永遠會過** —— 而 --no-build
+# 正是它唯一要防的情境。守門的東西擋不住它要擋的事,就等於沒有。
+#
+# 時間本來也只是代理指標:「比 HEAD 新」是必要條件,不是充分條件
+# (在新 commit 建完再 checkout 回舊的,時間照樣是新的)。印記直接回答
+# 「從哪一個 commit 建的」,兩個方向都擋得住。
+STAMP=$REPO/dist/BUILT-FROM
+
 if [ "$BUILD" = 1 ]; then
+    # 先清掉:建到一半失敗時,留著的是上一輪的印記,而 dist/ 裡是半成品。
+    rm -f "$STAMP"
     echo "== 桌面三平台 =="
     "$REPO/tools/build-all.sh"
     echo "== Android =="
@@ -34,6 +48,22 @@ if [ "$BUILD" = 1 ]; then
     "$REPO/tools/embed-fonts.sh" base
     TAGS=fonts "$REPO/tools/build-android.sh"
     "$REPO/tools/embed-fonts.sh" clean
+    echo "$COMMIT" > "$STAMP"
+fi
+
+# 印記只由這支腳本寫。自己跑 build-all.sh / build-android.sh 建出來的 dist/
+# 沒有印記,--no-build 會拒絕 —— 那種產物來自哪一個 commit 無從查證,
+# 而這支腳本存在的理由就是不讓那種東西進發布。
+if [ ! -f "$STAMP" ]; then
+    echo "dist/ 沒有建置印記,無從確認它來自哪一個 commit。" >&2
+    echo "重跑一次不要加 --no-build。" >&2
+    exit 1
+fi
+BUILT=$(cat "$STAMP")
+if [ "$BUILT" != "$COMMIT" ]; then
+    echo "dist/ 是 ${BUILT:0:12} 建的,HEAD 是 ${COMMIT:0:12}。" >&2
+    echo "發布物要對得上一個 commit,重跑一次不要加 --no-build。" >&2
+    exit 1
 fi
 
 # 公開版的四個產物。這支腳本只管這幾個(加上它們的校驗檔與對照表)。
@@ -44,26 +74,17 @@ PUBLIC=(wincv-linux-amd64 wincv-windows-amd64.exe wincv-darwin-universal wincv-a
 # 兩支腳本的執行順序就變成一個沒有人會記得的隱藏相依 —— 反過來跑會安靜地
 # 少掉四個檔,而 dist-all/ 看起來仍然是滿的。
 #
-# 「發布物要對得上同一個 commit」這個保證不靠清空目錄,靠的是下面兩件事:
-# 先把自己要重出的那幾個刪掉(留著舊的會讓下面的陳舊檢查誤判成新的),
-# 再逐一確認產物比 HEAD 新。
+# 「發布物要對得上同一個 commit」這個保證由上面的建置印記負責,
+# 這裡只負責不要把上一版的檔案留在目錄裡。
 mkdir -p "$OUT"
 for f in "${PUBLIC[@]}"; do rm -f "$OUT/$f"; done
 rm -f "$OUT/SHA256SUMS" "$OUT/MANIFEST.txt"
 
+# -p 保留建置時間。不保留的話 dist-all/ 裡看到的是複製的時間,
+# `ls -la` 會讓每一批產物看起來都是「剛剛才建的」。
 for f in "${PUBLIC[@]}"; do
     [ -s "$REPO/dist/$f" ] || { echo "缺少 dist/$f" >&2; exit 1; }
-    cp "$REPO/dist/$f" "$OUT/$f"
-done
-
-# 產物比 commit 舊的話,它是上一版建的 —— 那正是這支腳本要擋的錯。
-# 只檢查公開版:完整版有自己的建置流程,它比 HEAD 舊是正常的。
-CT=$(git log -1 --format=%ct)
-for f in "${PUBLIC[@]}"; do
-    if [ "$(stat -c %Y "$OUT/$f")" -lt "$CT" ]; then
-        echo "$f 比 HEAD 還舊,是上一版建的。重跑不要加 --no-build。" >&2
-        exit 1
-    fi
+    cp -p "$REPO/dist/$f" "$OUT/$f"
 done
 
 # 只列公開版。`sha256sum *` 會連完整版與解開的目錄一起吃進去,
