@@ -20,7 +20,16 @@ APK_OUT=${APK_OUT:-$DIST/wincv-android.apk}
 
 mkdir -p "$DIST" "$REPO/android/app/libs"
 
+
+# 這台機器是共用的,上面同時有別的專案在跑。WINCV_CPUS / WINCV_MEM 設了就
+# 把容器限制在那個額度內 —— 負載高的時候用得上,平常不設就是不限制。
+#
+#   WINCV_CPUS=2 WINCV_MEM=6g tools/build-android.sh
+LIMITS=""
+[ -n "${WINCV_CPUS:-}" ] && LIMITS="$LIMITS --cpus $WINCV_CPUS"
+[ -n "${WINCV_MEM:-}" ] && LIMITS="$LIMITS --memory $WINCV_MEM"
 DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
+        $LIMITS
         -u $(id -u):$(id -g)
         -v $REPO:/src -w /src
         -e GOFLAGS=-buildvcs=false

@@ -21,7 +21,16 @@ OSX_TARGET=${OSX_TARGET:-}
 # 容器內用主機的 UID/GID 跑,不然產出的檔案屬於 root,主機這邊改不動也刪不掉。
 # HOME 要指到容器內寫得進去的地方:go 會想寫 $HOME/.config/go/env,
 # 而 root 的家目錄對這個 UID 是唯讀的。
+
+# 這台機器是共用的,上面同時有別的專案在跑。WINCV_CPUS / WINCV_MEM 設了就
+# 把容器限制在那個額度內 —— 負載高的時候用得上,平常不設就是不限制。
+#
+#   WINCV_CPUS=2 WINCV_MEM=6g tools/build-all.sh
+LIMITS=""
+[ -n "${WINCV_CPUS:-}" ] && LIMITS="$LIMITS --cpus $WINCV_CPUS"
+[ -n "${WINCV_MEM:-}" ] && LIMITS="$LIMITS --memory $WINCV_MEM"
 DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
+        $LIMITS
         -u $(id -u):$(id -g) -e HOME=/tmp
         -v $REPO:/src -w /src
         -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod"
