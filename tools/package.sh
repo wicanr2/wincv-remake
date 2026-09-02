@@ -38,7 +38,13 @@ FULL=(
 cd "$OUT"
 
 if [ "$WHAT" != full ]; then
-    rm -f ./wincv-remake-*[!l].zip SHA256SUMS-zip
+    # [雷] 不要用 `wincv-remake-*[!l].zip` 來排除 -full.zip。那個字面類別排的是
+    # 「倒數第二個字元不是 l」,而 -macos-universal.zip 也符合 —— 上一版的
+    # macOS zip 會留下來,檔名看起來就像這一版的產物。改成逐個看後綴。
+    for z in ./wincv-remake-*.zip; do
+        case "$z" in *-full.zip) ;; *) rm -f "$z" ;; esac
+    done
+    rm -f SHA256SUMS-zip
 fi
 if [ "$WHAT" = full ]; then
     rm -f ./*-full.zip SHA256SUMS-zip-full
