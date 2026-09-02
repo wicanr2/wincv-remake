@@ -296,3 +296,58 @@ func TestShadingDoesNotBreakTextExtraction(t *testing.T) {
 		t.Errorf("這一頁沒有文字,卻取出 %d 段", got)
 	}
 }
+
+// 透明度的三件事。testdata/softmask.pdf 是手寫的:
+//
+//	A 常數透明度:紅色以 ca 0.5 畫在白底上
+//	B 亮度軟遮罩:純紅色透過一道黑到白的漸層遮罩
+//	C 透明群組:兩個互相重疊的不透明方塊,整組以 ca 0.5 合成
+//
+// C 是關鍵的那一個。沒有群組語意的話,重疊處會被塗兩次而變深;
+// 有群組語意的話,整組先算完再套透明度,重疊處與非重疊處一樣。
+// 對照組是 poppler(每一點都在 1/255 以內)。
+func TestRenderTransparency(t *testing.T) {
+	r := renderPage(t, "testdata/softmask.pdf", 1, RenderOptions{DPI: 96})
+	const pageH = 792
+
+	near := func(name string, got color.RGBA, wr, wg, wb int) {
+		t.Helper()
+		const tol = 6
+		if abs(int(got.R)-wr) > tol || abs(int(got.G)-wg) > tol || abs(int(got.B)-wb) > tol {
+			t.Errorf("%s = %+v,期待接近 (%d, %d, %d)", name, got, wr, wg, wb)
+		}
+	}
+
+	// A:白底上的半透明紅是淡紅,不是灰。
+	//
+	// [雷] 這一格擋的是預乘:`color.RGBA` 依定義各通道已經乘過 alpha,
+	// 不乘就交給光柵器的話,半透明的紅會畫成灰色 —— 顏色完全不對,
+	// 但畫出來仍然是一塊實心的方塊。
+	near("A 半透明紅", pixelAt(t, r, 100, 700, pageH), 255, 127, 127)
+
+	// B:遮罩是左黑右白,所以左端幾乎沒畫上去、右端幾乎是全紅。
+	left := pixelAt(t, r, 250, 695, pageH)
+	mid := pixelAt(t, r, 330, 695, pageH)
+	right := pixelAt(t, r, 410, 695, pageH)
+	near("B 遮罩左端", left, 255, 241, 241)
+	near("B 遮罩中間", mid, 255, 127, 127)
+	near("B 遮罩右端", right, 255, 14, 14)
+	if !(left.G > mid.G && mid.G > right.G) {
+		t.Errorf("遮罩應該由左到右愈來愈濃,拿到 %d → %d → %d", left.G, mid.G, right.G)
+	}
+
+	// C:群組裡兩塊重疊的不透明方塊,整組才套 0.5。
+	solo := pixelAt(t, r, 80, 560, pageH)
+	both := pixelAt(t, r, 135, 555, pageH)
+	near("C 群組單層", solo, 128, 128, 255)
+	if abs(int(solo.R)-int(both.R)) > 2 {
+		t.Errorf("群組內重疊處不該比較深:單層 %+v,重疊 %+v", solo, both)
+	}
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}

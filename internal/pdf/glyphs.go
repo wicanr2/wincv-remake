@@ -298,6 +298,7 @@ func (c *glyphCache) fallbackFonts() []*sfnt.Font {
 
 // glyph 把一個字畫上去。
 func (d *rasterDevice) glyph(g Glyph, f *Font, trm matrix, gs *gstate) {
+	d.use(gs)
 	// 繪製模式 3 與 7 是不可見的文字。掃描出來的 PDF 會把辨識結果
 	// 疊在影像底下 —— 那些字要拿得到(取文字時照收),但不能畫出來,
 	// 畫了會蓋在影像上變成兩層字。

@@ -45,6 +45,13 @@ type rasterDevice struct {
 	// offX / offY 是目前這一次繪製的座標平移量。
 	offX, offY float64
 
+	// mask 是目前生效的軟遮罩(裝置座標的 alpha 圖),nil 表示沒有。
+	// 畫之前由各個繪製入口從 gstate 取過來 —— blend 拿不到 gstate。
+	mask *image.Alpha
+	// layers 是暫時畫布的堆疊。透明群組與軟遮罩都要先畫到別的地方,
+	// 再整批合成回去。
+	layers []*image.RGBA
+
 	// glyphs 是字型的外框來源,查過的留著。
 	glyphs *glyphCache
 	// substituted 是改用系統字型補畫的字型,missing 是連補都補不出來的。
@@ -109,13 +116,23 @@ func (d *rasterDevice) drawPath(p *path, col color.RGBA, clip image.Rectangle, p
 	d.scanner.Dest = sub
 	d.scanner.SetBounds(r.Dx(), r.Dy())
 	d.scanner.Clear()
-	d.scanner.SetColor(col)
+	if d.mask == nil {
+		d.scanner.SetColor(col)
+	} else {
+		// [雷] 顏色函式收到的是**來源影像的座標**,而來源的取樣起點是
+		// Offset。不設成子影像的左上角,遮罩會整片位移到別的地方,
+		// 而畫出來仍然是一塊有濃淡的東西,看不出位移。
+		d.scanner.SetColor(d.maskFunc(func(int, int) color.Color { return col }))
+		d.scanner.Offset = r.Min
+	}
 	d.offX, d.offY = float64(-r.Min.X), float64(-r.Min.Y)
 	draw()
+	d.scanner.Offset = image.Point{}
 }
 
 // paint 畫一條路徑。
 func (d *rasterDevice) paint(p *path, gs *gstate, fill, stroke, evenOdd bool) {
+	d.use(gs)
 	if p.empty() {
 		return
 	}
@@ -197,9 +214,9 @@ func (d *rasterDevice) fillEvenOdd(p *path, col color.RGBA, clip image.Rectangle
 		row := acc.Pix[(y-r.Min.Y)*acc.Stride:]
 		for x := r.Min.X; x < r.Max.X; x++ {
 			if a := row[x-r.Min.X]; a > 0 {
-				c := col
-				c.A = uint8(int(col.A) * int(a) / 255)
-				d.blend(x, y, c, 1)
+				// 覆蓋率當係數傳進去 —— 顏色是預乘的,只改 A 會讓
+				// 各通道與 alpha 對不起來。
+				d.blend(x, y, col, float64(a)/255)
 			}
 		}
 	}
@@ -311,6 +328,7 @@ func (d *rasterDevice) inline(m image.Image, isMask bool, gs *gstate) {
 
 // paintImage 把一張已經解好的影像貼到頁面上。
 func (d *rasterDevice) paintImage(m image.Image, alpha bool, gs *gstate) {
+	d.use(gs)
 	inv, ok := gs.ctm.invert()
 	if !ok {
 		return
@@ -371,21 +389,32 @@ func (d *rasterDevice) paintImage(m image.Image, alpha bool, gs *gstate) {
 	}
 }
 
-// blend 把一個像素混上去。
-func (d *rasterDevice) blend(x, y int, c color.RGBA, alpha float64) {
-	a := float64(c.A) / 255 * alpha
-	if a <= 0 {
+// blend 把一個像素混上去。c 是**預乘**的顏色,k 是再乘上去的係數
+// (覆蓋率、常數透明度、軟遮罩)。
+func (d *rasterDevice) blend(x, y int, c color.RGBA, k float64) {
+	if m := d.mask; m != nil {
+		if !(image.Point{x, y}).In(m.Rect) {
+			return
+		}
+		k *= float64(m.Pix[m.PixOffset(x, y)]) / 255
+	}
+	if k <= 0 || c.A == 0 {
 		return
 	}
+	// 蓋掉多少 = 來源的 alpha 再乘上係數。預乘的來源各通道也要乘同一個係數。
+	a := float64(c.A) / 255 * k
 	i := d.img.PixOffset(x, y)
 	p := d.img.Pix[i : i+4 : i+4]
 	mix := func(dst uint8, src uint8) uint8 {
-		return uint8(math.Round(float64(src)*a + float64(dst)*(1-a)))
+		return uint8(math.Round(math.Min(float64(src)*k+float64(dst)*(1-a), 255)))
 	}
 	p[0] = mix(p[0], c.R)
 	p[1] = mix(p[1], c.G)
 	p[2] = mix(p[2], c.B)
-	p[3] = 255
+	// 目的地不一定是不透明的:暫時畫布(群組與遮罩)一開始是全透明的,
+	// 而「畫了什麼」正是靠這個通道記下來的。頁面本身是白底不透明,
+	// 這條算式在那裡的結果仍然是 255。
+	p[3] = mix(p[3], c.A)
 }
 
 // decodeImage 把影像串流變成可以取樣的影像。

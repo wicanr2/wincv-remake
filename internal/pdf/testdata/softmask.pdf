@@ -1,0 +1,63 @@
+%PDF-1.4
+1 0 obj
+<</Type/Catalog/Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type/Pages/Kids[3 0 R]/Count 1>>
+endobj
+3 0 obj
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</ExtGState<</GA 5 0 R/GM 6 0 R/G1 7 0 R>>/XObject<</FmG 10 0 R>>>>>>
+endobj
+4 0 obj
+<</Length 280>>
+stream
+% A: constant alpha - red at ca 0.5 over white
+q /GA gs 1 0 0 rg 60 660 140 70 re f Q
+% B: luminosity soft mask - solid red through a black-to-white ramp
+q /GM gs 1 0 0 rg 240 660 180 70 re f Q
+% C: transparency group - two overlapping opaque squares at ca 0.5
+q /GA gs /FmG Do Q
+endstream
+endobj
+5 0 obj
+<</Type/ExtGState/ca 0.5/CA 0.5>>
+endobj
+6 0 obj
+<</Type/ExtGState/ca 1/CA 1/SMask<</Type/Mask/S/Luminosity/G 8 0 R/BC[0]>>>>
+endobj
+7 0 obj
+<</Type/ExtGState/ca 1/CA 1>>
+endobj
+8 0 obj
+<</Type/XObject/Subtype/Form/FormType 1/BBox[240 660 420 730]/Group<</Type/Group/S/Transparency/CS/DeviceGray>>/Resources<</Shading<</Sh0 9 0 R>>>>/Length 34>>
+stream
+q 240 660 180 70 re W n /Sh0 sh Q
+endstream
+endobj
+9 0 obj
+<</ShadingType 2/ColorSpace/DeviceGray/Coords[240 0 420 0]/Function<</FunctionType 2/Domain[0 1]/C0[0]/C1[1]/N 1>>/Extend[true true]>>
+endobj
+10 0 obj
+<</Type/XObject/Subtype/Form/FormType 1/BBox[60 480 210 630]/Group<</Type/Group/S/Transparency/CS/DeviceRGB>>/Resources<</ExtGState<</G1 7 0 R>>>>/Length 61>>
+stream
+q /G1 gs 0 0 1 rg 60 480 100 100 re f 110 530 100 100 re f Q
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000054 00000 n 
+0000000105 00000 n 
+0000000263 00000 n 
+0000000591 00000 n 
+0000000640 00000 n 
+0000000732 00000 n 
+0000000777 00000 n 
+0000001003 00000 n 
+0000001153 00000 n 
+trailer
+<</Size 11/Root 1 0 R>>
+startxref
+1406
+%%EOF

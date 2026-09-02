@@ -171,6 +171,9 @@ type gstate struct {
 
 	// 透明度
 	fillAlpha, strokeAlpha float64
+	// softMask 是 ExtGState 的 /SMask 算出來的遮罩(裝置座標),
+	// nil 表示沒有。它跟著 q/Q 存續,所以放在 gstate 裡。
+	softMask *image.Alpha
 
 	// clip 是目前的裁剪範圍(裝置座標的矩形)。
 	clip clipRect
@@ -220,6 +223,13 @@ type device interface {
 	inline(m image.Image, isMask bool, gs *gstate)
 	// shade 把一個漸層塗滿目前的裁剪範圍(`sh` 運算子)。
 	shade(sh *shading, gs *gstate)
+	// pushLayer 開一張暫時畫布(透明群組與軟遮罩用),fill 是底色。
+	// 回傳假表示開不了(巢狀太深),那時候不可以再 pop。
+	pushLayer(fill *rgb) bool
+	// popLayerAsMask 把最上面那張畫布收成遮罩。
+	popLayerAsMask(luminosity bool) *image.Alpha
+	// popLayerComposite 把最上面那張畫布依透明度與遮罩合成回下一層。
+	popLayerComposite(alpha float64, mask *image.Alpha)
 	// graphics 回答要不要送圖形指令。取文字時回 false,可以省掉路徑建構。
 	graphics() bool
 }
@@ -256,11 +266,14 @@ type textDevice struct {
 	out []Text
 }
 
-func (d *textDevice) graphics() bool                         { return false }
-func (d *textDevice) paint(*path, *gstate, bool, bool, bool) {}
-func (d *textDevice) image(*types.StreamDict, *gstate)       {}
-func (d *textDevice) inline(image.Image, bool, *gstate)      {}
-func (d *textDevice) shade(*shading, *gstate)                {}
+func (d *textDevice) graphics() bool                          { return false }
+func (d *textDevice) paint(*path, *gstate, bool, bool, bool)  {}
+func (d *textDevice) image(*types.StreamDict, *gstate)        {}
+func (d *textDevice) inline(image.Image, bool, *gstate)       {}
+func (d *textDevice) shade(*shading, *gstate)                 {}
+func (d *textDevice) pushLayer(*rgb) bool                     { return false }
+func (d *textDevice) popLayerAsMask(bool) *image.Alpha        { return nil }
+func (d *textDevice) popLayerComposite(float64, *image.Alpha) {}
 
 func (d *textDevice) glyph(g Glyph, f *Font, trm matrix, gs *gstate) {
 	if g.Text == "" || len(d.out) >= MaxTexts {
@@ -609,6 +622,57 @@ func (in *interp) extGState(res types.Dict, name string) {
 	if v, ok := numOf(deref(in.x, d["LW"])); ok {
 		in.gs.lineWidth = v
 	}
+	if o, ok := d["SMask"]; ok {
+		in.setSoftMask(o, res)
+	}
+}
+
+// setSoftMask 算出 ExtGState 的 `/SMask`。
+//
+// 遮罩是「把另一段內容畫出來,拿它的亮度(或透明度)當每個像素的透明度」。
+// 漸層條、羽化的陰影、淡出的色塊都是這樣做的 —— 顏色是平的,變化在遮罩裡。
+//
+// [雷] 群組的邊界框以外要當成背景色。亮度遮罩的背景預設是黑的,也就是
+// **完全遮住**;漏掉這一步的話,遮罩外的東西會整片畫出來,而畫面上看起來
+// 只是「多了一塊顏色」,不像是遮罩沒生效。
+func (in *interp) setSoftMask(o types.Object, res types.Dict) {
+	if nameOf(deref(in.x, o)) == "None" {
+		in.gs.softMask = nil
+		return
+	}
+	d, _ := deref(in.x, o).(types.Dict)
+	if d == nil || !in.dev.graphics() {
+		in.gs.softMask = nil
+		return
+	}
+	sd, _, err := in.x.DereferenceStreamDict(d["G"])
+	if err != nil || sd == nil {
+		in.gs.softMask = nil
+		return
+	}
+	luminosity := nameOf(deref(in.x, d["S"])) != "Alpha"
+	var fill *rgb
+	if luminosity {
+		// 背景色。BC 的分量數要看群組自己的色彩空間,這裡只認灰階與
+		// RGB 兩種寫法;認不出來就當黑色(完全遮住),與預設一致。
+		back := rgb{0, 0, 0}
+		switch bc := floatsOf(in.x, d["BC"]); len(bc) {
+		case 1:
+			back = gray(bc[0])
+		case 3:
+			back = rgb{bc[0], bc[1], bc[2]}
+		}
+		fill = &back
+	}
+	if !in.dev.pushLayer(fill) {
+		in.gs.softMask = nil
+		return
+	}
+	saved := in.gs
+	in.gs.fillAlpha, in.gs.strokeAlpha, in.gs.softMask = 1, 1, nil
+	in.runForm(sd, res)
+	in.gs = saved
+	in.gs.softMask = in.dev.popLayerAsMask(luminosity)
 }
 
 // --- 路徑建構 ---
@@ -733,6 +797,35 @@ func (in *interp) doXObject(res types.Dict, name string) {
 	default:
 		return
 	}
+	// 透明群組要先畫到一張暫時畫布上,整組算完再套外層的透明度與遮罩。
+	//
+	// [雷] 群組裡面幾乎一定會有一句 `/GS0 gs` 把透明度設回 1。直接畫在
+	// 同一張畫布上的話,那一句會把外層的 0.1 蓋掉 —— 該淡淡一片的東西
+	// 變成實色,而畫出來仍然是一個形狀正常的圖。
+	group := in.isTransparencyGroup(sd)
+	outerAlpha, outerMask := in.gs.fillAlpha, in.gs.softMask
+	layered := false
+	if group && in.dev.graphics() && (outerAlpha < 1 || outerMask != nil) {
+		layered = in.dev.pushLayer(nil)
+	}
+	if layered {
+		// 群組內部從「全不透明、沒有遮罩」開始算,外層的那兩樣留到合成時才套。
+		in.gs.fillAlpha, in.gs.strokeAlpha, in.gs.softMask = 1, 1, nil
+	}
+	in.runForm(sd, res)
+	if layered {
+		in.dev.popLayerComposite(outerAlpha, outerMask)
+	}
+}
+
+// isTransparencyGroup 回答這個表單物件是不是一個透明群組。
+func (in *interp) isTransparencyGroup(sd *types.StreamDict) bool {
+	g, _ := deref(in.x, sd.Dict["Group"]).(types.Dict)
+	return g != nil && nameOf(deref(in.x, g["S"])) == "Transparency"
+}
+
+// runForm 跑一個表單物件的內容:套它自己的變換與邊界框,用它自己的資源。
+func (in *interp) runForm(sd *types.StreamDict, res types.Dict) {
 	if len(sd.Content) == 0 {
 		if err := sd.Decode(); err != nil {
 			return

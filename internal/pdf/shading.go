@@ -181,6 +181,7 @@ func shadeFunc(sh *shading, m matrix, alpha float64) (rasterx.ColorFunc, bool) {
 // 別的運算子有自己的形狀,裁剪只是保險;`sh` 的形狀完全來自裁剪。
 // 實測(085 第 29 頁)那一頁的漸層條是箭頭形,只用矩形會畫成方塊。
 func (d *rasterDevice) shade(sh *shading, gs *gstate) {
+	d.use(gs)
 	r := d.clipRectOf(gs)
 	if r.Empty() {
 		return
@@ -252,7 +253,7 @@ func (d *rasterDevice) drawPathFunc(p *path, fn rasterx.ColorFunc, clip image.Re
 	// Offset。不把 Offset 設成子影像的左上角,顏色會整片位移到別的地方,
 	// 而畫出來仍然是一片漸層,看不出位移。
 	d.scanner.Offset = r.Min
-	d.scanner.SetColor(fn)
+	d.scanner.SetColor(d.maskFunc(fn))
 	d.offX, d.offY = float64(-r.Min.X), float64(-r.Min.Y)
 	draw()
 	d.scanner.Offset = image.Point{}
@@ -297,8 +298,7 @@ func (d *rasterDevice) fillEvenOddFunc(p *path, fn rasterx.ColorFunc, clip image
 			if !ok || c.A == 0 {
 				continue
 			}
-			c.A = uint8(int(c.A) * int(a) / 255)
-			d.blend(x, y, c, 1)
+			d.blend(x, y, c, float64(a)/255)
 		}
 	}
 }

@@ -11,11 +11,18 @@ import (
 // 索引查表)都在這個範圍做,最後才量化成位元組。
 type rgb struct{ r, g, b float64 }
 
+// rgba 換成 Go 的顏色。
+//
+// [雷] `color.RGBA` 依定義是**預乘**的:各通道已經乘過 alpha。不乘的話,
+// 半透明的紅 `{255,0,0,128}` 交給光柵器會畫成灰色而不是淡紅 —— 顏色完全
+// 不對,但畫出來仍然是一塊實心的方塊,不會有任何錯誤。
+// (`image/draw` 與 `x/image/vector` 全都照這個定義走。)
 func (c rgb) rgba(alpha float64) color.RGBA {
+	a := math.Min(math.Max(alpha, 0), 1)
 	f := func(v float64) uint8 {
-		return uint8(math.Round(math.Min(math.Max(v, 0), 1) * 255))
+		return uint8(math.Round(math.Min(math.Max(v, 0), 1) * a * 255))
 	}
-	return color.RGBA{f(c.r), f(c.g), f(c.b), f(alpha)}
+	return color.RGBA{f(c.r), f(c.g), f(c.b), uint8(math.Round(a * 255))}
 }
 
 func gray(v float64) rgb { return rgb{v, v, v} }
