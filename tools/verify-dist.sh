@@ -12,8 +12,11 @@ set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 DIST=$REPO/dist
-OSX_IMG=${OSX_IMG:-wolong-osxcross-go:20260811-event10-r4}
-OSX_TARGET=${OSX_TARGET:-darwin24.5}
+OSX_IMG=${OSX_IMG:-wincv-osxcross-go:1}
+# 空的話由 image 自己說(osxcross-conf)。工具前綴帶 SDK 的次版號
+# (SDK 15.5 → darwin24.5,不是 darwin24),寫死的話換一次 SDK 就整批
+# 工具找不到,而 clang 只會轉述成 "unable to execute command"。
+OSX_TARGET=${OSX_TARGET:-}
 fail=0
 
 check() {
@@ -42,9 +45,10 @@ done
 if [ -f "$DIST/wincv-darwin-universal" ]; then
     echo "=== macOS 逐弧 ==="
     docker run --rm --log-opt max-size=10m --log-opt max-file=3 \
+        -u "$(id -u):$(id -g)" -e HOME=/tmp -e OSX_TARGET="$OSX_TARGET" \
         -v "$DIST":/dist "$OSX_IMG" bash -c "
         export PATH=/osxcross/bin:\$PATH
-        T=$OSX_TARGET
+        T=\${OSX_TARGET:-\$(osxcross-conf | sed -n 's/^export OSXCROSS_TARGET=//p')}
         \$T-lipo -info /dist/wincv-darwin-universal 2>/dev/null || x86_64-apple-\$T-lipo -info /dist/wincv-darwin-universal
         for a in arm64 x86_64; do
             x86_64-apple-\$T-lipo -thin \$a /dist/wincv-darwin-universal -output /tmp/\$a

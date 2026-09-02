@@ -36,22 +36,39 @@ if [ "$BUILD" = 1 ]; then
     "$REPO/tools/embed-fonts.sh" clean
 fi
 
-rm -rf "$OUT"; mkdir -p "$OUT"
-for f in wincv-linux-amd64 wincv-windows-amd64.exe wincv-darwin-universal wincv-android.apk; do
+# 公開版的四個產物。這支腳本只管這幾個(加上它們的校驗檔與對照表)。
+PUBLIC=(wincv-linux-amd64 wincv-windows-amd64.exe wincv-darwin-universal wincv-android.apk)
+
+# [雷] 不要 `rm -rf "$OUT"`。dist-all/ 裡還有完整版(tools/build-full.sh 產的)
+# 與使用者自己解開來跑的目錄,那些不是這支腳本的東西。整個刪掉的話,
+# 兩支腳本的執行順序就變成一個沒有人會記得的隱藏相依 —— 反過來跑會安靜地
+# 少掉四個檔,而 dist-all/ 看起來仍然是滿的。
+#
+# 「發布物要對得上同一個 commit」這個保證不靠清空目錄,靠的是下面兩件事:
+# 先把自己要重出的那幾個刪掉(留著舊的會讓下面的陳舊檢查誤判成新的),
+# 再逐一確認產物比 HEAD 新。
+mkdir -p "$OUT"
+for f in "${PUBLIC[@]}"; do rm -f "$OUT/$f"; done
+rm -f "$OUT/SHA256SUMS" "$OUT/MANIFEST.txt"
+
+for f in "${PUBLIC[@]}"; do
     [ -s "$REPO/dist/$f" ] || { echo "缺少 dist/$f" >&2; exit 1; }
     cp "$REPO/dist/$f" "$OUT/$f"
 done
 
 # 產物比 commit 舊的話,它是上一版建的 —— 那正是這支腳本要擋的錯。
+# 只檢查公開版:完整版有自己的建置流程,它比 HEAD 舊是正常的。
 CT=$(git log -1 --format=%ct)
-for f in "$OUT"/*; do
-    if [ "$(stat -c %Y "$f")" -lt "$CT" ]; then
-        echo "$(basename "$f") 比 HEAD 還舊,是上一版建的。重跑不要加 --no-build。" >&2
+for f in "${PUBLIC[@]}"; do
+    if [ "$(stat -c %Y "$OUT/$f")" -lt "$CT" ]; then
+        echo "$f 比 HEAD 還舊,是上一版建的。重跑不要加 --no-build。" >&2
         exit 1
     fi
 done
 
-( cd "$OUT" && sha256sum * > SHA256SUMS )
+# 只列公開版。`sha256sum *` 會連完整版與解開的目錄一起吃進去,
+# 而這份校驗檔是要上傳到 release 的。
+( cd "$OUT" && sha256sum "${PUBLIC[@]}" > SHA256SUMS )
 
 echo
 echo "== 打包 =="

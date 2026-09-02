@@ -13,8 +13,8 @@
 #   tools/build-full.sh desktop      # 只做桌面三個
 #   tools/build-full.sh android      # 只做 APK
 #
-# [雷] tools/release.sh 開頭會 `rm -rf dist-all/`。**先跑 release.sh,再跑這一支**,
-#      反過來的話這裡的產物會被清掉,而 release.sh 不會提醒你。
+# 兩支腳本共用 dist-all/,但各自只動自己的檔案(這一支只碰 *-full*),
+# 所以先跑哪一支都可以。
 
 set -euo pipefail
 
@@ -22,8 +22,11 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 OUT=$REPO/dist-all
 ASSETS=$REPO/internal/bundled/assets
 BUILD_IMG=${BUILD_IMG:-wincv-build:1}
-OSX_IMG=${OSX_IMG:-wolong-osxcross-go:20260811-event10-r4}
-OSX_TARGET=${OSX_TARGET:-darwin24.5}
+OSX_IMG=${OSX_IMG:-wincv-osxcross-go:1}
+# 空的話由 image 自己說(osxcross-conf)。工具前綴帶 SDK 的次版號
+# (SDK 15.5 → darwin24.5,不是 darwin24),寫死的話換一次 SDK 就整批
+# 工具找不到,而 clang 只會轉述成 "unable to execute command"。
+OSX_TARGET=${OSX_TARGET:-}
 WHAT=${1:-all}
 
 # 字型素材交給 tools/embed-fonts.sh 準備(公開版與完整版共用同一份清單,
@@ -68,10 +71,10 @@ if [ "$WHAT" = all ] || [ "$WHAT" = desktop ]; then
 
     echo "=== darwin universal(含字型)==="
     # [雷] 架構名有兩套:Go 的 GOARCH 用 amd64,osxcross 的工具前綴用 x86_64。
-    $DOCKER "$OSX_IMG" bash -c "
+    $DOCKER -e OSX_TARGET="$OSX_TARGET" "$OSX_IMG" bash -c "
         set -e
         export PATH=/osxcross/bin:\$PATH
-        T=$OSX_TARGET
+        T=\${OSX_TARGET:-\$(osxcross-conf | sed -n 's/^export OSXCROSS_TARGET=//p')}
         build() {
             CGO_ENABLED=1 GOOS=darwin GOARCH=\$1 \
                 CC=\$2-apple-\$T-clang CXX=\$2-apple-\$T-clang++ \
@@ -93,7 +96,10 @@ if [ "$WHAT" = all ] || [ "$WHAT" = android ]; then
     expect wincv-android-full.apk
 fi
 
-( cd "$OUT" && sha256sum ./*-full* > SHA256SUMS-full )
+# 只列檔案。`./*-full*` 會連解開來的目錄一起吃進去,sha256sum 對目錄
+# 會印一行錯誤然後繼續 —— 校驗檔少一列,而腳本看起來跑完了。
+( cd "$OUT" && find . -maxdepth 1 -type f -name '*-full*' ! -name 'SHA256SUMS-full' \
+    -printf '%P\n' | sort | xargs sha256sum > SHA256SUMS-full )
 
 cat > "$OUT/README-full.txt" <<EOF
 完整版(含字型)—— 本機保留,不對外散布

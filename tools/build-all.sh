@@ -12,8 +12,11 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 DIST=$REPO/dist
 BUILD_IMG=${BUILD_IMG:-wincv-build:1}
-OSX_IMG=${OSX_IMG:-wolong-osxcross-go:20260811-event10-r4}
-OSX_TARGET=${OSX_TARGET:-darwin24.5}
+OSX_IMG=${OSX_IMG:-wincv-osxcross-go:1}
+# 空的話由 image 自己說(osxcross-conf)。工具前綴帶 SDK 的次版號
+# (SDK 15.5 → darwin24.5,不是 darwin24),寫死的話換一次 SDK 就整批
+# 工具找不到,而 clang 只會轉述成 "unable to execute command"。
+OSX_TARGET=${OSX_TARGET:-}
 
 # 容器內用主機的 UID/GID 跑,不然產出的檔案屬於 root,主機這邊改不動也刪不掉。
 # HOME 要指到容器內寫得進去的地方:go 會想寫 $HOME/.config/go/env,
@@ -61,10 +64,10 @@ echo "=== darwin universal ==="
 # [雷] 架構名有**兩套**:Go 的 GOARCH 用 amd64,osxcross 的工具前綴用 x86_64。
 # 混用會得到 "unsupported GOOS/GOARCH pair darwin/x86_64",而且因為它印在
 # go build 的輸出裡、不影響回傳值,整個腳本會若無其事地繼續跑完。
-$DOCKER "$OSX_IMG" bash -c "
+$DOCKER -e OSX_TARGET="$OSX_TARGET" "$OSX_IMG" bash -c "
     set -e
     export PATH=/osxcross/bin:\$PATH
-    T=$OSX_TARGET
+    T=\${OSX_TARGET:-\$(osxcross-conf | sed -n 's/^export OSXCROSS_TARGET=//p')}
     build() {   # \$1=GOARCH  \$2=工具鏈前綴
         CGO_ENABLED=1 GOOS=darwin GOARCH=\$1 \
             CC=\$2-apple-\$T-clang CXX=\$2-apple-\$T-clang++ \

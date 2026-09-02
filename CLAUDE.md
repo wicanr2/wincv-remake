@@ -482,6 +482,7 @@ original/ref-shots/      原版 oracle 截圖
 tools/
   forth_image.py         WINCV.IMG 解析(header / symbols / words)
   setup-wine-oracle.sh   解安裝檔 + 建 Wine prefix
+  build-osxcross.sh      建 macOS 交叉編譯的 image(換 SDK 版本時才要跑)
   oracle-shot.sh         跑原版並截圖
   office-oracle.sh       容器裡的 LibreOffice:產生 Office 測試檔 + 轉純文字/PNG 當對照
   pdfshot/               把 PDF 的一頁畫成 PNG(驗收頁面渲染用)
