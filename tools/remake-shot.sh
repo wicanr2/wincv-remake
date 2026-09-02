@@ -12,7 +12,11 @@ DIR=${2:-/src/original/app}
 COLS=${3:-74}
 ROWS=${4:-22}
 
+# 容器內用主機的 UID/GID 跑,不然產出的檔案屬於 root,主機這邊改不動也刪不掉。
+# HOME 要指到容器內寫得進去的地方:go 會想寫 $HOME/.config/go/env,
+# 而 root 的家目錄對這個 UID 是唯讀的。
 docker run --rm --log-opt max-size=10m --log-opt max-file=3 \
+    -u "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$REPO":/src -w /src \
     -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod \
     -e LIBGL_ALWAYS_SOFTWARE=1 \

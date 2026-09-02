@@ -15,7 +15,11 @@ BUILD_IMG=${BUILD_IMG:-wincv-build:1}
 OSX_IMG=${OSX_IMG:-wolong-osxcross-go:20260811-event10-r4}
 OSX_TARGET=${OSX_TARGET:-darwin24.5}
 
+# 容器內用主機的 UID/GID 跑,不然產出的檔案屬於 root,主機這邊改不動也刪不掉。
+# HOME 要指到容器內寫得進去的地方:go 會想寫 $HOME/.config/go/env,
+# 而 root 的家目錄對這個 UID 是唯讀的。
 DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
+        -u $(id -u):$(id -g) -e HOME=/tmp
         -v $REPO:/src -w /src
         -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod"
 

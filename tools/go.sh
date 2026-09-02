@@ -13,7 +13,11 @@ while IFS='=' read -r name _; do
     case "$name" in WINCV_*) envs+=(-e "$name") ;; esac
 done < <(env)
 
+# 容器內用主機的 UID/GID 跑,不然產出的檔案屬於 root,主機這邊改不動也刪不掉。
+# HOME 要指到容器內寫得進去的地方:go 會想寫 $HOME/.config/go/env,
+# 而 root 的家目錄對這個 UID 是唯讀的。
 exec docker run --rm --log-opt max-size=10m --log-opt max-file=3 \
+    -u "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$REPO":/src -w /src \
     -v "$REPO/.cache/gomod":/gomod -v "$REPO/.cache/gobuild":/gobuild \
     -v /usr/share/fonts:/usr/share/fonts:ro \
