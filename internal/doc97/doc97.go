@@ -50,6 +50,11 @@ type Doc struct {
 	paras []paraProp
 	runs  []charRun
 	stis  []int // istd → sti(樣式識別碼)
+
+	// lists 是「清單編號方式」表,lfo 把段落上的 ilfo 對到那張表。
+	// 見 lists.go。
+	lists map[uint32]*lstInfo
+	lfo   []uint32
 }
 
 // Open 打開一份 .doc。
@@ -104,6 +109,7 @@ func New(f *cfb.File) (*Doc, error) {
 	d.readStyles(wd, tbl)
 	d.readParaProps(wd, tbl)
 	d.readCharRuns(wd, tbl)
+	d.readLists(wd, tbl)
 	return d, nil
 }
 

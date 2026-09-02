@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -166,5 +167,150 @@ func TestRealBig5File(t *testing.T) {
 	// 這個檔滿是 ANSI 色碼,控制碼不可以留在內容裡。
 	if strings.Contains(all, "\x1b[") {
 		t.Error("內容裡還留著 ANSI 控制碼")
+	}
+}
+
+// --- 游標與光棒 -----------------------------------------------------------
+
+func barModel(n int) *Model {
+	var sb strings.Builder
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&sb, "第 %d 行\n", i+1)
+	}
+	return Load("t.txt", []byte(sb.String()), textenc.UTF8)
+}
+
+// 光棒預設開著:使用者要的就是「一眼看到自己在哪一行」。
+func TestBarOnByDefault(t *testing.T) {
+	if !barModel(3).Bar {
+		t.Error("光棒預設應該是開的")
+	}
+}
+
+// 游標那一列整列反白,別的列不動。
+func TestBarPaintsCursorRow(t *testing.T) {
+	m := barModel(10)
+	s := cell.New(20, 6) // 5 列內容 + 1 列狀態
+	rows := m.Draw(s)
+	m.MoveBy(2, rows)
+	s = cell.New(20, 6)
+	m.Draw(s)
+
+	if m.Cur != 2 {
+		t.Fatalf("游標在第 %d 行", m.Cur)
+	}
+	for x := 0; x < s.Cols; x++ {
+		if got := s.At(x, 2).BG; got != m.Theme.BarBG {
+			t.Fatalf("游標列第 %d 格底色 = %v,想要 %v", x, got, m.Theme.BarBG)
+		}
+	}
+	for _, y := range []int{0, 1, 3, 4} {
+		if got := s.At(0, y).BG; got == m.Theme.BarBG {
+			t.Errorf("第 %d 列不該是光棒色", y)
+		}
+	}
+}
+
+// 光棒關掉之後一格都不能被染色 —— ANSI 簽名檔的底色是內容的一部分。
+func TestBarOffLeavesColoursAlone(t *testing.T) {
+	m := barModel(10)
+	m.Bar = false
+	s := cell.New(20, 6)
+	m.Draw(s)
+	for y := 0; y < 5; y++ {
+		for x := 0; x < s.Cols; x++ {
+			if s.At(x, y).BG == m.Theme.BarBG {
+				t.Fatalf("關掉光棒之後 (%d,%d) 還是光棒色", x, y)
+			}
+		}
+	}
+}
+
+// 游標走出畫面才捲動。還在畫面裡就硬把它拉到正中間的話,
+// 每按一次方向鍵整頁都在動。
+func TestCursorScrollsOnlyAtTheEdge(t *testing.T) {
+	m := barModel(100)
+	const rows = 5
+	for i := 0; i < rows-1; i++ {
+		m.MoveBy(1, rows)
+		if m.Top != 0 {
+			t.Fatalf("游標到第 %d 行就捲動了(Top=%d)", m.Cur, m.Top)
+		}
+	}
+	m.MoveBy(1, rows) // 第 5 次:游標到第 5 行,超出畫面
+	if m.Top != 1 {
+		t.Errorf("游標走出畫面時 Top 應該是 1,拿到 %d", m.Top)
+	}
+	// 往回走同理。
+	for i := 0; i < 4; i++ {
+		m.MoveBy(-1, rows)
+	}
+	if m.Cur != 1 || m.Top != 1 {
+		t.Errorf("往回走之後 Cur=%d Top=%d,預期 1 / 1", m.Cur, m.Top)
+	}
+	m.MoveBy(-1, rows)
+	if m.Top != 0 {
+		t.Errorf("游標回到第 0 行時 Top 應該是 0,拿到 %d", m.Top)
+	}
+}
+
+// 翻頁翻的是畫面,游標在畫面上的相對位置不變。
+// 「游標往下移一整頁」會讓游標從頂端跑到底端而畫面只捲一列 —— 那不是翻頁。
+func TestPageKeepsCursorOffset(t *testing.T) {
+	m := barModel(100)
+	const rows = 10
+	m.PageBy(1, rows)
+	if m.Top != 10 || m.Cur != 10 {
+		t.Errorf("翻一頁之後 Top=%d Cur=%d,預期 10 / 10", m.Top, m.Cur)
+	}
+	m.MoveBy(3, rows) // 游標移到畫面第 3 列
+	m.PageBy(1, rows)
+	if m.Cur-m.Top != 3 {
+		t.Errorf("翻頁之後游標在畫面第 %d 列,預期還是第 3 列", m.Cur-m.Top)
+	}
+}
+
+// 捲動畫面時游標要跟著留在畫面內,不然光棒會不見。
+func TestScrollKeepsCursorVisible(t *testing.T) {
+	m := barModel(100)
+	const rows = 5
+	m.ScrollBy(20, rows)
+	if m.Cur < m.Top || m.Cur > m.Top+rows-1 {
+		t.Errorf("捲動之後游標 %d 不在畫面 [%d, %d] 內", m.Cur, m.Top, m.Top+rows-1)
+	}
+}
+
+// 狀態列報的是游標在第幾行,不是畫面捲到第幾行 ——
+// 原版的工具列也是報游標(「1 字 1 行/ 626」)。
+func TestStatusReportsCursorLine(t *testing.T) {
+	m := barModel(100)
+	const rows = 5
+	m.MoveBy(30, rows)
+	s := cell.New(40, rows+1)
+	m.Draw(s)
+	var sb strings.Builder
+	for x := 0; x < s.Cols; x++ {
+		if c := s.At(x, s.Rows-1); c != nil && c.Ch != 0 {
+			sb.WriteRune(c.Ch)
+		}
+	}
+	got := strings.TrimRight(sb.String(), " ")
+	t.Logf("狀態列 = %q", got)
+	for _, want := range []string{"31/100", "31%"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("狀態列 = %q,應該含 %q", got, want)
+		}
+	}
+}
+
+// 搜尋命中之後光棒要停在那一行,不然「找到了」看不出來停在哪。
+func TestSearchMovesCursor(t *testing.T) {
+	m := barModel(100)
+	const rows = 5
+	if n := m.Search("第 42 行", rows); n != 1 {
+		t.Fatalf("找到 %d 筆", n)
+	}
+	if m.Cur != 41 {
+		t.Errorf("命中之後游標在第 %d 行,預期 41", m.Cur)
 	}
 }

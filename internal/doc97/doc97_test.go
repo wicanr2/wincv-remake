@@ -121,3 +121,51 @@ func TestNotADoc(t *testing.T) {
 		t.Fatal("不是複合文件應該要失敗")
 	}
 }
+
+// 有序清單要有編號。
+//
+// [雷] 編號方式不在段落屬性上:段落只說得出「屬於第幾串、第幾層」,
+// 是編號還是項目符號要去清單定義表(PlfLst)裡查。而 lcbPlfLst **只涵蓋
+// 前半段**(cLst + LSTF 陣列),後面接著的 LVL 陣列不算在裡面 ——
+// 照 lcb 切下去剛好切在第一組 LVL 之前,讀到的 LSTF 完全正確、數量也對,
+// 只是每一串都是零層,於是所有編號清單都變成項目符號。
+// 沒有任何一個地方會報錯,因為切出來的那一段本身是完好的。
+//
+// 對照組是 LibreOffice 讀同一份檔案:它轉出的純文字是「1. 條列一」。
+func TestOrderedListNumbers(t *testing.T) {
+	bs := openDoc(t, "rich.doc").Blocks()
+	var got []int
+	for _, b := range bs {
+		if b.Kind != markdown.List {
+			continue
+		}
+		if !b.Ordered {
+			t.Errorf("清單 %q 沒有被認成有序清單", text([]markdown.Block{b}))
+			continue
+		}
+		got = append(got, b.Num)
+	}
+	if len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Errorf("編號 = %v,預期 [1 2]", got)
+	}
+}
+
+// 沒有清單定義的段落仍然要當清單畫出來:段落自己已經說了它屬於某一串,
+// 那個事實比「查不到格式」更可靠 —— 至少縮排與符號是對的。
+func TestListWithoutFormatStillLists(t *testing.T) {
+	d := openDoc(t, "rich.doc")
+	d.lists = map[uint32]*lstInfo{} // 假裝定義表讀不到
+	d.lfo = nil
+	n := 0
+	for _, b := range d.Blocks() {
+		if b.Kind == markdown.List {
+			n++
+			if b.Ordered {
+				t.Error("查不到定義時不該自己宣稱是有序清單")
+			}
+		}
+	}
+	if n != 2 {
+		t.Errorf("認出 %d 段清單,預期 2", n)
+	}
+}

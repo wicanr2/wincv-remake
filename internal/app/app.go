@@ -327,7 +327,7 @@ func (a *App) rememberPos() {
 	p := session.DocPos{At: a.unix()}
 	switch a.Mode {
 	case ModeViewer:
-		p.Top = a.Viewer.Top
+		p.Top, p.Line = a.Viewer.Top, a.Viewer.Cur
 	case ModeHex:
 		p.Top = a.Hex.Top
 	case ModeEdit:
@@ -352,6 +352,7 @@ func (a *App) recallPos() {
 	switch a.Mode {
 	case ModeViewer:
 		a.Viewer.Top = clampTop(p.Top, len(a.Viewer.Lines))
+		a.Viewer.Cur = clampTop(p.Line, len(a.Viewer.Lines))
 	case ModeHex:
 		a.Hex.Top = clampTop(p.Top, len(a.Hex.Data)/16+1)
 	case ModeEdit:
@@ -1520,17 +1521,19 @@ func (a *App) viewerKey(k keys.Key) bool {
 	}
 
 	switch k.Code {
+	// 方向鍵移游標,畫面跟著游標走。原版的工具列本來就在報游標在第幾行
+	// (「1 字 1 行/ 626」),只是它沒有把那一列畫出來。
 	case keys.Up:
-		v.ScrollBy(-1, rows)
+		v.MoveBy(-1, rows)
 		return true
 	case keys.Down:
-		v.ScrollBy(1, rows)
+		v.MoveBy(1, rows)
 		return true
 	case keys.PgUp:
-		v.ScrollBy(-rows, rows)
+		v.PageBy(-1, rows)
 		return true
 	case keys.PgDn:
-		v.ScrollBy(rows, rows)
+		v.PageBy(1, rows)
 		return true
 	case keys.Home:
 		v.Home(rows)
@@ -1579,6 +1582,13 @@ func (a *App) viewerKey(k keys.Key) bool {
 		// H 切到 16 進位(image 內的標籤是「&Hex模式」)。
 		if !k.Ctrl && !k.Alt {
 			a.openHex(v.Name, a.viewData)
+			return true
+		}
+	case 'L':
+		// 光棒開關。ANSI 彩色簽名檔的底色本身有意義,蓋掉會失真,
+		// 所以要留一個關得掉的辦法。
+		if !k.Ctrl && !k.Alt {
+			v.Bar = !v.Bar
 			return true
 		}
 	}

@@ -134,7 +134,13 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 			mark := ind + "• "
 			switch {
 			case b.Marker != "":
+				// 符號與內文之間一定要有空白。標記是各種格式各自帶來的
+				// (RTF 帶「1.」、docx 帶「•」),誰有沒有留尾巴那個空格
+				// 並不一致 —— 沒補的話會變成「1.內文」黏在一起。
 				mark = ind + b.Marker
+				if !strings.HasSuffix(mark, " ") {
+					mark += " "
+				}
 			case b.Ordered:
 				mark = ind + itoa(b.Num) + ". "
 			}

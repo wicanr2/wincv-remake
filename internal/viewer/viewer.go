@@ -53,6 +53,7 @@ type Theme struct {
 	FG, BG             cell.Color
 	StatusFG, StatusBG cell.Color
 	HitFG, HitBG       cell.Color // 搜尋命中
+	BarFG, BarBG       cell.Color // 游標所在那一列(光棒)
 }
 
 func DefaultTheme() Theme {
@@ -60,6 +61,9 @@ func DefaultTheme() Theme {
 		FG: cell.LtGray, BG: cell.Black,
 		StatusFG: cell.Black, StatusBG: cell.LtGray,
 		HitFG: cell.Black, HitBG: cell.Yellow,
+		// 與檔案清單的游標同一組顏色。整個 UI 只有一種「游標在這裡」的
+		// 長相,換個畫面就換一種的話,使用者要重新學一次。
+		BarFG: cell.White, BarBG: cell.Blue,
 	}
 }
 
@@ -71,9 +75,17 @@ type Model struct {
 
 	Top  int // 畫面第一列對應的行號
 	Left int // 不換行時的水平捲動量(格)
+	// Cur 是游標停在第幾行。原版的工具列右邊就在報這個(「1 字 1 行/ 626」),
+	// 只是它沒有把那一列畫出來。
+	Cur int
 
 	Wrap bool // 自動換行(原版 W)
 	Ansi bool // 解讀 ANSI 色碼(原版 A)
+	// Bar 決定要不要把游標那一列整列反白(光棒)。
+	//
+	// 預設開著:長檔案捲到一半時,「我剛才看到哪裡」是靠一條線記住的。
+	// 可以關掉是因為 ANSI 彩色簽名檔的底色本來就有意義,蓋掉會失真。
+	Bar bool
 
 	Theme Theme
 
@@ -94,6 +106,7 @@ func Load(name string, data []byte, encHint textenc.Enc) *Model {
 		Name:  name,
 		Enc:   e,
 		Ansi:  true,
+		Bar:   true,
 		Theme: DefaultTheme(),
 	}
 	m.Lines = parse(textenc.Decode(data, e), m.Ansi, m.Theme)
@@ -270,23 +283,98 @@ func (m *Model) clamp(rows int) {
 	if m.Top < 0 {
 		m.Top = 0
 	}
+	if m.Cur > max {
+		m.Cur = max
+	}
+	if m.Cur < 0 {
+		m.Cur = 0
+	}
 	if m.Left < 0 {
 		m.Left = 0
 	}
 }
 
-func (m *Model) ScrollBy(d, rows int) { m.Top += d; m.clamp(rows) }
-func (m *Model) Home(rows int)        { m.Top = 0; m.Left = 0; m.clamp(rows) }
+// reveal 把畫面捲到游標看得見的地方。
+//
+// 只在游標跑出畫面時才捲:游標還在畫面裡的時候硬把它拉到正中間,
+// 會讓每按一次方向鍵整頁都在動,眼睛跟不上。
+func (m *Model) reveal(rows int) {
+	if rows < 1 {
+		rows = 1
+	}
+	if m.Cur < m.Top {
+		m.Top = m.Cur
+	}
+	if m.Cur > m.Top+rows-1 {
+		m.Top = m.Cur - rows + 1
+	}
+	if m.Top < 0 {
+		m.Top = 0
+	}
+}
 
-func (m *Model) End(rows int) {
-	m.Top = len(m.Lines) - rows
+// MoveBy 移動游標,需要的時候才捲動畫面。
+func (m *Model) MoveBy(d, rows int) {
+	m.Cur += d
+	m.clamp(rows)
+	m.reveal(rows)
+}
+
+// PageBy 翻頁:游標與畫面一起走,游標在畫面上的相對位置不變。
+//
+// 與「游標往下移一整頁」不同:那會讓游標從畫面頂端跑到底端,而畫面
+// 只往下捲一列。翻頁翻的是畫面,游標只是跟著它走。
+func (m *Model) PageBy(pages, rows int) {
+	if rows < 1 {
+		rows = 1
+	}
+	off := m.Cur - m.Top
+	m.Top += pages * rows
+	if m.Top < 0 {
+		m.Top = 0
+	}
+	m.Cur = m.Top + off
+	m.clamp(rows)
+	m.reveal(rows)
+}
+
+// ScrollBy 捲動畫面,游標跟著留在畫面內。
+//
+// 捲動與移動游標是兩件事:滑鼠滾輪、捲軸是捲畫面,方向鍵是移游標。
+// 兩者都要讓「游標在畫面裡」這件事成立,不然光棒會消失。
+func (m *Model) ScrollBy(d, rows int) {
+	m.Top += d
+	m.clamp(rows)
+	if rows < 1 {
+		rows = 1
+	}
+	if m.Cur < m.Top {
+		m.Cur = m.Top
+	}
+	if m.Cur > m.Top+rows-1 {
+		m.Cur = m.Top + rows - 1
+	}
 	m.clamp(rows)
 }
 
-// GoToLine 讓某一行出現在畫面上,盡量置中。
+func (m *Model) Home(rows int) {
+	m.Top, m.Left, m.Cur = 0, 0, 0
+	m.clamp(rows)
+}
+
+func (m *Model) End(rows int) {
+	m.Cur = len(m.Lines) - 1
+	m.Top = len(m.Lines) - rows
+	m.clamp(rows)
+	m.reveal(rows)
+}
+
+// GoToLine 把游標放到某一行,並讓它出現在畫面上,盡量置中。
 func (m *Model) GoToLine(n, rows int) {
+	m.Cur = n
 	m.Top = n - rows/2
 	m.clamp(rows)
+	m.reveal(rows)
 }
 
 // --- 搜尋 -----------------------------------------------------------------
@@ -341,10 +429,30 @@ func (m *Model) Draw(s *cell.Screen) int {
 
 	y := 0
 	for i := m.Top; i < len(m.Lines) && y < rows; i++ {
-		y += m.drawLine(s, y, rows, m.Lines[i])
+		used := m.drawLine(s, y, rows, m.Lines[i])
+		// 光棒在文字之後補畫:先鋪底色會被下面那一層的空白蓋掉,
+		// 而自動換行時一行佔幾列要畫完才知道。
+		if m.Bar && i == m.Cur {
+			m.drawBar(s, y, used, rows)
+		}
+		y += used
 	}
 	m.drawStatus(s)
 	return rows
+}
+
+// drawBar 把游標那一行整列反白。自動換行時那一行可能佔好幾列,
+// 每一列都要蓋 —— 只蓋第一列的話,長行的光棒看起來像斷掉。
+func (m *Model) drawBar(s *cell.Screen, y, used, rows int) {
+	for dy := 0; dy < used && y+dy < rows; dy++ {
+		for x := 0; x < s.Cols; x++ {
+			// 只換顏色,字與全形的左右半都留著 —— 重畫一次的話,
+			// 全形字的兩格會拆開,而拆開之後畫面上看到的是半個字。
+			if c := s.At(x, y+dy); c != nil {
+				c.FG, c.BG = m.Theme.BarFG, m.Theme.BarBG
+			}
+		}
+	}
 }
 
 // drawLine 畫一行,回傳它佔掉幾列(不換行時永遠是 1)。
@@ -398,7 +506,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 
 	pct := 100
 	if n := len(m.Lines); n > 0 {
-		pct = (m.Top + 1) * 100 / n
+		pct = (m.Cur + 1) * 100 / n
 	}
 	left := m.Name + "  [" + m.Enc.String() + "]"
 	if m.Wrap {
@@ -409,7 +517,9 @@ func (m *Model) drawStatus(s *cell.Screen) {
 	}
 	s.Print(0, y, left, t.StatusFG, t.StatusBG)
 
-	right := strconv.Itoa(m.Top+1) + "/" + strconv.Itoa(len(m.Lines)) + "  " +
+	// 報游標在第幾行,不是畫面捲到第幾行 —— 原版的工具列也是報游標
+	// (「1 字 1 行/ 626」)。
+	right := strconv.Itoa(m.Cur+1) + "/" + strconv.Itoa(len(m.Lines)) + "  " +
 		strconv.Itoa(pct) + "%"
 	if len(m.Hits) > 0 {
 		right = strconv.Itoa(m.HitIdx+1) + "/" + strconv.Itoa(len(m.Hits)) +

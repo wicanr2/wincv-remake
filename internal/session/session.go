@@ -29,6 +29,10 @@ type State struct {
 	File string `json:"file,omitempty"`
 	// Top 是那份文件捲到第幾列。
 	Top int `json:"top,omitempty"`
+	// Cur 是文字檢視器的游標停在第幾行(光棒那一列)。
+	// 與 Top 分開存:捲動與游標是兩件事,只存 Top 的話下次開起來
+	// 光棒會跳到畫面最上面,而使用者記得的是光棒的位置。
+	Cur int `json:"cur,omitempty"`
 
 	// Cols / Rows 是視窗的格數。
 	Cols int `json:"cols,omitempty"`

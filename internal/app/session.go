@@ -42,6 +42,7 @@ func (a *App) Snapshot() session.State {
 	case ModeViewer:
 		if a.Viewer != nil {
 			st.Mode, st.File, st.Top = "viewer", a.Viewer.Name, a.Viewer.Top
+			st.Cur = a.Viewer.Cur
 		}
 	case ModeHex:
 		if a.Hex != nil {
@@ -144,6 +145,7 @@ func (a *App) Restore(st session.State) {
 		switch {
 		case a.Viewer != nil && a.Mode == ModeViewer:
 			a.Viewer.Top = clampTop(st.Top, len(a.Viewer.Lines))
+			a.Viewer.Cur = clampTop(st.Cur, len(a.Viewer.Lines))
 		case a.Mode == ModeMarkdown:
 			a.md.top = clampTop(st.Top, len(a.md.blocks)*4)
 		}

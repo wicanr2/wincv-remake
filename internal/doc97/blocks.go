@@ -48,6 +48,9 @@ type builder struct {
 
 	footN     int
 	footTexts []string
+
+	// counters 是各串清單每一層數到哪。key 是 ilfo。
+	counters map[int][]int
 }
 
 // paragraphs 把一段 CP 範圍切成段落並排出來。
@@ -92,8 +95,7 @@ func (b *builder) paragraph(start, end int) {
 		b.out = append(b.out, markdown.Block{Kind: markdown.Heading,
 			Level: b.headingLevel(prop), Spans: spans})
 	case prop.ilfo != 0:
-		b.out = append(b.out, markdown.Block{Kind: markdown.List,
-			Level: clamp(prop.ilvl+1, 1, 9), Spans: spans})
+		b.out = append(b.out, b.listBlock(prop, spans))
 	default:
 		b.out = append(b.out, markdown.Block{Kind: markdown.Para, Spans: spans})
 	}
@@ -348,4 +350,47 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// listBlock 排一段清單。編號或項目符號要查清單格式表才知道 ——
+// 段落自己只說得出「屬於第幾串、第幾層」。
+func (b *builder) listBlock(prop paraProp, spans []markdown.Span) markdown.Block {
+	blk := markdown.Block{Kind: markdown.List,
+		Level: clamp(prop.ilvl+1, 1, 9), Spans: spans}
+	lv, ok := b.d.listLevel(prop.ilfo, prop.ilvl)
+	if !ok || !lv.ordered() {
+		// 查不到就當項目符號。段落自己已經說了它屬於某一串,
+		// 那個事實比「查不到格式」更可靠 —— 至少縮排與符號是對的。
+		return blk
+	}
+	blk.Ordered = true
+	blk.Num = b.nextNum(prop.ilfo, prop.ilvl, lv.start)
+	return blk
+}
+
+// nextNum 推進某一層的編號,並把更深的層歸零。
+//
+// 歸零是編號清單的定義:1.1、1.2 之後回到第二個「1.」,下一層要從
+// 2.1 重新開始而不是 2.3。
+func (b *builder) nextNum(ilfo, ilvl, start int) int {
+	if b.counters == nil {
+		b.counters = map[int][]int{}
+	}
+	cnt := b.counters[ilfo]
+	for len(cnt) <= ilvl {
+		cnt = append(cnt, 0)
+	}
+	if cnt[ilvl] == 0 {
+		if start < 1 {
+			start = 1
+		}
+		cnt[ilvl] = start
+	} else {
+		cnt[ilvl]++
+	}
+	for i := ilvl + 1; i < len(cnt); i++ {
+		cnt[i] = 0
+	}
+	b.counters[ilfo] = cnt
+	return cnt[ilvl]
 }
