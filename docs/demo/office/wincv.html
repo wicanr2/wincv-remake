@@ -1,0 +1,31 @@
+<html><body>
+<h1>WinCV 0.52 重製版</h1>
+<p>WinCV(CView for Windows)是台灣的共享軟體,作者 Lcc Wizard(林健總)
+一個人從 <b>1999</b> 年維護到 <b>2011</b> 年。它的執行檔裡沒有應用邏輯,
+真正的程式是隨附的一份 <i>Forth image</i>。</p>
+
+<h2>逆向的對象</h2>
+<p>要看的不是 52 KB 的 <b>wincv.exe</b>(那只是 Forth kernel),
+而是 1.52 MB 的 <b>WINCV.IMG</b>。</p>
+<ol>
+<li>3663 個 word body,其中 3633 個帶標準序言</li>
+<li>9497 筆符號、8957 個唯一名稱,未被 strip</li>
+<li>29 個具名顏色,RGB 一個一個從 word body 裡取出來</li>
+</ol>
+
+<h2>畫面規格</h2>
+<table border="1">
+<tr><td>項目</td><td>原版</td><td>重製版</td></tr>
+<tr><td>格子大小</td><td>8 x 16</td><td>8 x 16</td></tr>
+<tr><td>半形字型</td><td>cvga.fon 8x15</td><td>直接解析同一份 .FON</td></tr>
+<tr><td>全形字形</td><td>Windows 系統字型</td><td>倚天 STDFONT.15 16x15</td></tr>
+<tr><td>解壓縮</td><td>外掛 Windows DLL</td><td>純 Go,12 種格式</td></tr>
+</table>
+
+<h2>Office 與 PDF</h2>
+<p>原版讀不到的東西也接上了:Word 的 <b>.docx</b> / <b>.doc</b> / <b>.rtf</b>、
+PowerPoint 的 <b>.pptx</b>、Excel 的 <b>.xlsx</b>,以及 PDF 的
+<i>取文字</i>與<i>整頁算繪</i>兩種看法。五種 Office 格式收在同一個窄介面
+後面,所以加第六種格式時介面那一層一行都不用改。</p>
+<p>See also: <a href="https://github.com/wicanr2/wincv-remake">the repository</a>.</p>
+</body></html>

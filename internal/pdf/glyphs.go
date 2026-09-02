@@ -39,12 +39,12 @@ type outlines struct {
 	t1  *type1Font
 	// composite 為真表示字碼要先變成 CID 再變成字形編號。
 	composite bool
-	// hasCmap 為真表示這份字型帶著可用的字碼對照表。
+	// hasCmap 為真表示這份字型的字碼對照表就是這份文件用的定址方式。
 	//
-	// 這件事決定了「查不到字形」時該怎麼辦:有對照表就相信它,查不到
-	// 就是真的沒有;沒有對照表(子集化時被拿掉)才輪得到「字碼就是
-	// 字形編號」這條退路。分不清楚的話,子集字型裡查不到的空白會被
-	// 當成第 32 號字形畫出來 —— 而那是一個看起來很正常的字。
+	// 這件事決定了「查不到字形」時該怎麼辦:對照表是定址方式就相信它,
+	// 查不到就是真的沒有;不是的話才輪得到「字碼就是字形編號」這條退路。
+	// 分不清楚的話,子集字型裡查不到的空白會被當成第 32 號字形畫出來
+	// —— 而那是一個看起來很正常的字。
 	hasCmap bool
 }
 
@@ -57,7 +57,7 @@ func (c *glyphCache) source(f *Font) *outlines {
 	switch {
 	case f.kind == progSFNT && len(f.embedded) > 0:
 		if sf := parseSFNT(f.embedded); sf != nil {
-			o = &outlines{sf: sf, composite: f.composite, hasCmap: c.probeCmap(sf)}
+			o = &outlines{sf: sf, composite: f.composite, hasCmap: c.probeCmap(sf, f)}
 		}
 	case f.kind == progCFF && len(f.embedded) > 0:
 		if cf, err := parseCFF(f.embedded); err == nil {
@@ -196,11 +196,39 @@ func (c *glyphCache) gidOf(o *outlines, f *Font, g Glyph) sfnt.GlyphIndex {
 	return sfnt.GlyphIndex(g.Code)
 }
 
-// probeCmap 問這份字型認不認得幾個常見的字。
+// probeCmap 問「這份字型的字碼對照表,是不是這份文件真正在用的定址方式」。
 //
 // 用探測而不是直接讀 cmap 表:x/image/font/sfnt 查不到字時回的是
 // 「第 0 號字形」,與「這份字型根本沒有對照表」長得一模一樣。
-func (c *glyphCache) probeCmap(sf *sfnt.Font) bool {
+//
+// [雷] 不能只問「這張表認不認得幾個常見的字」。子集化的字型常常留著一張
+// 只涵蓋少數幾個字的對照表(實測:56 個字形的子集,表裡只有兩個數字),
+// 其餘的字是**用字碼直接定址**的。有一個字查得到就相信整張表的話,那份
+// 字型會整個被判成「沒有這些字」而改用系統字型畫 —— 位置、字級、內容
+// 全對,只有字形換了一套,看起來完全正常。
+//
+// 所以拿這份字型自己用到的字碼去問,大部分查得到才算數。
+func (c *glyphCache) probeCmap(sf *sfnt.Font, f *Font) bool {
+	hit, total := 0, 0
+	for code := 0; code < 256; code++ {
+		s := f.simple[code]
+		if s == "" || isBlank(s) {
+			continue
+		}
+		r := []rune(s)
+		if len(r) != 1 {
+			continue
+		}
+		total++
+		if idx, err := sf.GlyphIndex(&c.buf, r[0]); err == nil && idx != 0 {
+			hit++
+		}
+	}
+	if total > 0 {
+		return hit*2 >= total
+	}
+	// 這份字型沒有「碼 → 文字」可問(複合字型,或沒有 ToUnicode
+	// 也沒有 Encoding),退回問幾個常見的字。
 	for _, r := range []rune{'A', 'a', 'e', '0', '中', 'の'} {
 		if idx, err := sf.GlyphIndex(&c.buf, r); err == nil && idx != 0 {
 			return true

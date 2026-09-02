@@ -125,12 +125,18 @@ func TestRenderBackgroundIsWhite(t *testing.T) {
 // 所以不該有任何一個字需要用系統字型補畫 —— 補畫代表某一種嵌入格式
 // 解不開,而畫面上看起來只是字形換了一套。
 func TestRenderUsesEmbeddedFonts(t *testing.T) {
-	r := renderPage(t, "testdata/rich.pdf", 1, RenderOptions{DPI: 96})
-	if len(r.Substituted) > 0 {
-		t.Errorf("這些字型沒有用檔案裡嵌的那一份:%v", r.Substituted)
-	}
-	if len(r.Missing) > 0 {
-		t.Errorf("這些字型的字沒有畫上去:%v", r.Missing)
+	// README 的示範文件也一起驗:它裡面有一份子集化的 TrueType,
+	// 對照表只涵蓋 56 個字形裡的兩個數字,其餘的字是用字碼直接定址的。
+	// 只要有一個字查得到就相信整張表的話,那份字型會整個改用系統字型畫
+	// —— 位置、字級、內容全對,只有字形換了一套,看起來完全正常。
+	for _, f := range []string{"testdata/rich.pdf", "../../docs/demo/office/wincv.pdf"} {
+		r := renderPage(t, f, 1, RenderOptions{DPI: 96})
+		if len(r.Substituted) > 0 {
+			t.Errorf("%s:這些字型沒有用檔案裡嵌的那一份:%v", f, r.Substituted)
+		}
+		if len(r.Missing) > 0 {
+			t.Errorf("%s:這些字型的字沒有畫上去:%v", f, r.Missing)
+		}
 	}
 }
 

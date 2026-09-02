@@ -1,0 +1,10 @@
+格式,實作,驗證對象,成員數
+ZIP,Go 標準庫,-,-
+RAR,nwaples/rardecode,該套件,-
+7z,bodgit/sevenzip,該套件,-
+LZH,自寫,p7zip,675
+.Z,自寫,ncompress,-
+CAB,自寫,gcab / cabextract,-
+ARJ,自寫,arj 3.10,-
+ARC,自寫,arc 5.21,-
+ACE,自寫,acefile,269

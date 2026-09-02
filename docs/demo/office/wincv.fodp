@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+ xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0"
+ xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+ office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.presentation">
+<office:body><office:presentation>
+<draw:page draw:name="p1">
+ <draw:frame presentation:class="title" svg:x="1cm" svg:y="1cm" svg:width="20cm" svg:height="2cm">
+  <draw:text-box><text:p>WinCV 0.52 重製版</text:p></draw:text-box></draw:frame>
+ <draw:frame presentation:class="outline" svg:x="1cm" svg:y="4cm" svg:width="20cm" svg:height="8cm">
+  <draw:text-box><text:list>
+  <text:list-item><text:p>1999-2011 年的台灣共享軟體</text:p></text:list-item>
+  <text:list-item><text:p>作者 Lcc Wizard(林健總)</text:p></text:list-item>
+  <text:list-item><text:list><text:list-item><text:p>原站 cview.com.tw</text:p></text:list-item></text:list></text:list-item>
+  <text:list-item><text:p>用 Go 重寫,四個平台</text:p></text:list-item>
+  </text:list></draw:text-box></draw:frame>
+ <presentation:notes><draw:frame presentation:class="notes" svg:x="1cm" svg:y="1cm" svg:width="10cm" svg:height="5cm">
+  <draw:text-box><text:p>講稿:標準不是「功能差不多就好」,是逐格對過。</text:p></draw:text-box></draw:frame></presentation:notes>
+</draw:page>
+<draw:page draw:name="p2">
+ <draw:frame presentation:class="title" svg:x="1cm" svg:y="1cm" svg:width="20cm" svg:height="2cm">
+  <draw:text-box><text:p>逆向的對象</text:p></draw:text-box></draw:frame>
+ <draw:frame presentation:class="outline" svg:x="1cm" svg:y="4cm" svg:width="20cm" svg:height="8cm">
+  <draw:text-box><text:list>
+  <text:list-item><text:p>wincv.exe 只是 Win32Forth kernel,52 KB</text:p></text:list-item>
+  <text:list-item><text:p>WINCV.IMG 才是程式本體,1.52 MB</text:p></text:list-item>
+  <text:list-item><text:p>3663 個 word、9497 筆符號</text:p></text:list-item>
+  </text:list></draw:text-box></draw:frame>
+</draw:page>
+<draw:page draw:name="p3">
+ <draw:frame presentation:class="title" svg:x="1cm" svg:y="1cm" svg:width="20cm" svg:height="2cm">
+  <draw:text-box><text:p>沒有 oracle 就不寫解碼器</text:p></draw:text-box></draw:frame>
+ <draw:frame presentation:class="outline" svg:x="1cm" svg:y="4cm" svg:width="20cm" svg:height="8cm">
+  <draw:text-box><text:list>
+  <text:list-item><text:p>六個自寫的解碼器都逐檔比對 sha256</text:p></text:list-item>
+  <text:list-item><text:p>沒驗過的解碼器會安靜地解出錯的檔案</text:p></text:list-item>
+  <text:list-item><text:p>那比明講不支援更麻煩</text:p></text:list-item>
+  </text:list></draw:text-box></draw:frame>
+</draw:page>
+</office:presentation></office:body></office:document>
