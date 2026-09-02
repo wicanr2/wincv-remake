@@ -144,9 +144,22 @@ echo "校驗:cd dist-all && sha256sum -c SHA256SUMS-full"
 
 # 怎麼確認字型真的進去了(檔案大小差不算證據)
 # ------------------------------------------------------------------
-# Linux 版:把三條字型路徑都指到不存在的目錄,還畫得出中文就是內建生效。
+# 「位元組在裡面」也還不算 —— 要證明的是那些位元組真的被拿來畫字。
+# 做法是把系統字型整個遮掉,再看它畫不畫得出倚天沒有的字:
 #
-#   WINCV_FONT_DIR=/nope/ WINCV_ETEN_DIR=/nope/ ./dist-all/wincv-linux-amd64-full
+#   mkdir -p /tmp/none /tmp/d && cd /tmp/d
+#   : > 'Русский.txt'; : > 'ไทย.txt'; : > '한국어.txt'; : > '繁體中文.txt'
+#   docker run --rm --log-opt max-size=10m --log-opt max-file=3 \
+#     -u "$(id -u):$(id -g)" -e HOME=/tmp -e WINCV_HOME=/nonexistent \
+#     -v "$PWD/dist-all/wincv-linux-amd64-full:/app/wincv:ro" \
+#     -v /tmp/d:/work:ro -v /tmp/none:/usr/share/fonts:ro \
+#     -e LIBGL_ALWAYS_SOFTWARE=1 wincv-build:1 sh -c \
+#     "xvfb-run -a -s '-screen 0 640x400x24' /app/wincv -cols 60 -rows 18 /work"
+#
+# 完整版:六個檔名都畫得出來,一句警告都沒有。
+# 公開版:繁體中文與假名正常(倚天的 Big5 本來就含假名),西里爾、泰文、
+#        韓文變成缺字方塊,並印出「缺字」的警告 —— 那個對照組要一起跑,
+#        不然「完整版畫得出來」證明不了是內嵌字型的功勞。
 #
 # Android 版:沒有那個開關,改在原生庫裡找字庫的位元組。
 #
