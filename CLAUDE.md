@@ -190,7 +190,8 @@ internal/
   hexview/    16 進位檢視
   editor/     PE2 式區塊編輯器(矩形/整列區塊、虛擬空白、undo)
   syntax/     keyword_*.cfg 語法上色
-  imgview/    看圖   thumbs/ 縮圖列表   imgfmt/ 圖檔解碼
+  imgview/    看圖   thumbs/ 縮圖列表   imgfmt/ 圖檔解碼(含 SVG 的 <text>)
+  vecfont/    字型外框:要在任意字級畫字的地方用(SVG 文字)
   dict/       英漢字典 + KK 音標(.dat/.idx)
   textenc/    編碼判讀   convert/ 換行與編碼轉換、去 HTML/ANSI
   fileop/     拷貝 / 移動 / 改名 / 刪除 / 比對

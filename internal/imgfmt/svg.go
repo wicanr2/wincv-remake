@@ -22,7 +22,10 @@ const SVGMaxSide = 2048
 // 給一個預設值 —— 那種檔案在瀏覽器裡也是靠 CSS 決定大小,
 // 沒有「正確答案」可言。
 func DecodeSVG(d []byte) (image.Image, error) {
-	icon, err := oksvg.ReadIconStream(bytes.NewReader(d), oksvg.WarnErrorMode)
+	// IgnoreErrorMode:oksvg 對認不得的元素會 log.Println 一行到 stderr。
+	// 這是個檔案總管,開的是使用者隨手挑的檔案 —— 那行訊息使用者
+	// 幫不上忙,只會蓋掉畫面。XML 本身壞掉照樣回錯誤,那個要留。
+	icon, err := oksvg.ReadIconStream(bytes.NewReader(d), oksvg.IgnoreErrorMode)
 	if err != nil {
 		return nil, fmt.Errorf("SVG 解析失敗: %w", err)
 	}
@@ -50,5 +53,10 @@ func DecodeSVG(d []byte) (image.Image, error) {
 	img := image.NewRGBA(image.Rect(0, 0, iw, ih))
 	scanner := rasterx.NewScannerGV(iw, ih, img, img.Bounds())
 	icon.Draw(rasterx.NewDasher(iw, ih, scanner), 1.0)
+
+	// 文字 oksvg 不畫,自己補上。用它算好的那份變換,才會與剛剛畫下去的
+	// 路徑對齊。
+	t := icon.Transform
+	drawSVGText(img, parseSVGText(d), matrix2D{t.A, t.B, t.C, t.D, t.E, t.F})
 	return img, nil
 }

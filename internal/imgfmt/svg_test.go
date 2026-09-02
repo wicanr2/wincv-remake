@@ -33,7 +33,7 @@ func TestDecodeSVG(t *testing.T) {
 			t.Errorf("(%d,%d) = %v, 想要 %v", x, y, img.At(x, y), want)
 		}
 	}
-	near(5, 10, color.RGBA{0xFF, 0, 0, 0xFF})    // 左半紅
+	near(5, 10, color.RGBA{0xFF, 0, 0, 0xFF})        // 左半紅
 	near(30, 10, color.RGBA{0xFF, 0xFF, 0xFF, 0xFF}) // 右半白
 }
 

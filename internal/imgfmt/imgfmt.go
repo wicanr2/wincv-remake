@@ -46,7 +46,7 @@ var Formats = []Format{
 	{[]string{".koa"}, "Koala", true, "自寫,C64 多色點陣"},
 	// SVG 原版沒有(2011 年還不流行),但 markdown 裡很常見,
 	// 而且它是向量的 —— 縮到格點大小不會糊。
-	{[]string{".svg"}, "SVG", true, "oksvg/rasterx(原版沒有,markdown 用得到)"},
+	{[]string{".svg"}, "SVG", true, "oksvg/rasterx 畫路徑,<text> 自己畫"},
 	// Photo CD 是 Huffman 編碼的 YCC,還帶多組解析度,而且找不到可以
 	// 產生測試檔的工具。沒有 oracle 的解碼器不寫。
 	{[]string{".pcd"}, "PhotoCD", false, "Kodak Photo CD,造不出測試資料"},
