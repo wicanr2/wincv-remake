@@ -18,6 +18,7 @@ import (
 
 	"github.com/wicanr2/wincv-remake/internal/app"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/datadir"
 	"github.com/wicanr2/wincv-remake/internal/ebikeys"
 	"github.com/wicanr2/wincv-remake/internal/fontset"
 	"github.com/wicanr2/wincv-remake/internal/render"
@@ -456,9 +457,9 @@ func (g *game) Layout(outW, outH int) (int, int) {
 
 func main() {
 	var (
-		halfPath = flag.String("half", "original/app/cvga.fon", "半形 .FON")
-		stdPath  = flag.String("eten-std", "original/eten/STDFONT.15", "倚天漢字區")
-		spcPath  = flag.String("eten-spc", "original/eten/SPCFONT.15", "倚天符號區")
+		halfPath = flag.String("half", "", "半形 .FON;留空自動找(見下)")
+		stdPath  = flag.String("eten-std", "", "倚天漢字區;留空自動找")
+		spcPath  = flag.String("eten-spc", "", "倚天符號區;留空自動找")
 		cols     = flag.Int("cols", 80, "欄數")
 		rows     = flag.Int("rows", 30, "列數")
 		scale    = flag.Float64("scale", 2, "放大倍率,0.1 為一階")
@@ -491,6 +492,11 @@ func main() {
 			st.Dir, st.Cursor, st.Mode, st.File = abs, "", "", ""
 		}
 	}
+	// 原版素材放在哪裡由 datadir 決定,不是相對於工作目錄猜一個 ——
+	// 打包安裝之後工作目錄是什麼完全不可預測。
+	*halfPath = datadir.Resolve2(*halfPath, "cvga.fon")
+	*stdPath = datadir.Resolve2(*stdPath, "STDFONT.15")
+	*spcPath = datadir.Resolve2(*spcPath, "SPCFONT.15")
 	// 語法上色設定跟半形字型放在一起(原版是同一個安裝目錄)。
 	cfgDir := filepath.Dir(*halfPath)
 	a.LoadSyntax(cfgDir)
@@ -504,13 +510,16 @@ func main() {
 		levels = fontset.FromTTF(*stdPath, *spcPath, *fbFont, *noFB)
 		if len(levels) > 0 {
 			fmt.Fprintf(os.Stderr,
-				"提示:沒有原版的點陣字型(找過 %s),改用系統字型。\n"+
-					"      要與原版逐像素相同的畫面,用 -half 指定 cvga.fon。\n", cfgDir)
+				"提示:沒有原版的點陣字型,改用系統字型。\n"+
+					"      要與原版逐像素相同的畫面,把 cvga.fon 放進下列任一個目錄,\n"+
+					"      或用 -half 直接指定;也可以設 %s 指到素材目錄。\n%s",
+				datadir.EnvHome, datadir.Explain())
 		}
 	}
 	if len(levels) == 0 {
-		die(fmt.Errorf("一個半形字型都載不到:%s 底下沒有原版的 .FON,"+
-			"系統上也找不到可用的 TrueType。\n%s", cfgDir, ttf.MissingHint()))
+		die(fmt.Errorf("一個半形字型都載不到:找不到原版的 .FON,"+
+			"系統上也找不到可用的 TrueType。\n%s%s",
+			datadir.Explain(), ttf.MissingHint()))
 	}
 	a.MaxZoom = len(levels) - 1
 	if *zoom > a.MaxZoom {

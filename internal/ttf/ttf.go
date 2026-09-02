@@ -198,27 +198,64 @@ func (f *Font) render(r rune) *fnt.Glyph {
 	return g
 }
 
-// Candidates 是各平台常見的 CJK 字型位置。
+// host 是「這台機器長什麼樣」。抽出來是為了測試:字型放在哪裡完全由
+// 平台決定,而四個平台裡任何一台機器上都只驗得到一個。把 GOOS、環境變數
+// 與家目錄變成參數之後,Windows 與 macOS 的路徑組法在 Linux 上也驗得動。
+type host struct {
+	goos string
+	env  func(string) string
+	home string
+}
+
+func realHost() host {
+	h, _ := os.UserHomeDir()
+	return host{goos: runtime.GOOS, env: os.Getenv, home: h}
+}
+
+// join 把家目錄底下的路徑接起來。沒有家目錄就回空字串,由呼叫端濾掉。
+func (h host) join(parts ...string) string {
+	if h.home == "" {
+		return ""
+	}
+	return filepath.Join(append([]string{h.home}, parts...)...)
+}
+
+// winFontsDir 是 Windows 的系統字型目錄。
+//
+// [雷] 不能寫死 `C:\Windows\Fonts`。Windows 不一定裝在 C:(企業的
+// 重新導向、多重開機、WinPE 都會變),而症狀是「整台機器一個中文都沒有」
+// —— 看起來像沒裝字型,不像路徑猜錯。
+func (h host) winFontsDir() string {
+	for _, k := range []string{"SystemRoot", "windir"} {
+		if v := h.env(k); v != "" {
+			return filepath.Join(v, "Fonts")
+		}
+	}
+	return `C:\Windows\Fonts`
+}
+
+// Candidates 是各平台常見的 CJK 字型位置,後面接上目錄掃描的結果。
 // 第一個讀得起來的就用,都找不到就沒有後備字型。
-func Candidates() []string {
+func Candidates() []string { return candidatesFor(realHost()) }
+
+func candidatesFor(h host) []string {
 	var list []string
-	switch runtime.GOOS {
+	switch h.goos {
 	case "android":
-		// Android 的系統字型都在 /system/fonts,讀得到但不能改。
-		// Noto CJK 從 Android 7 起是標配;DroidSansMono 老機器上還在,
-		// 而且它**是等寬的** —— 半形字模拿它產出來的格點最整齊。
-		list = []string{
-			"/system/fonts/DroidSansMono.ttf",
-			"/system/fonts/CutiveMono.ttf",
-			"/system/fonts/NotoSansCJK-Regular.ttc",
-			"/system/fonts/NotoSansMonoCJKtc-Regular.otf",
-			"/system/fonts/NotoSansMonoCJKsc-Regular.otf",
-			"/system/fonts/NotoSansCJKtc-Regular.otf",
-			"/system/fonts/NotoSansKR-Regular.otf",
-			"/system/fonts/NotoSansJP-Regular.otf",
-			"/system/fonts/NotoSansSymbols-Regular-Subsetted.ttf",
-			"/system/fonts/DroidSansFallback.ttf",
-			"/system/fonts/Roboto-Regular.ttf",
+		// Android 的系統字型讀得到但不能改。Noto CJK 從 Android 7 起是
+		// 標配;DroidSansMono 老機器上還在,而且它**是等寬的** ——
+		// 半形字模拿它產出來的格點最整齊。
+		for _, dir := range h.fontDirs() {
+			for _, n := range []string{
+				"DroidSansMono.ttf", "CutiveMono.ttf",
+				"NotoSansCJK-Regular.ttc", "NotoSansMonoCJKtc-Regular.otf",
+				"NotoSansMonoCJKsc-Regular.otf", "NotoSansCJKtc-Regular.otf",
+				"NotoSansKR-Regular.otf", "NotoSansJP-Regular.otf",
+				"NotoSansSymbols-Regular-Subsetted.ttf",
+				"DroidSansFallback.ttf", "Roboto-Regular.ttf",
+			} {
+				list = append(list, filepath.Join(dir, n))
+			}
 		}
 	case "darwin":
 		list = []string{
@@ -228,18 +265,20 @@ func Candidates() []string {
 			"/System/Library/Fonts/AppleSDGothicNeo.ttc",
 			"/System/Library/Fonts/STHeiti Medium.ttc",
 			"/System/Library/Fonts/Apple Symbols.ttf",
+			// Catalina(10.15)把附帶的字型搬進 Supplemental,舊路徑
+			// 兩個都留著 —— 舊系統上在前面那個位置。
+			"/System/Library/Fonts/Supplemental/Songti.ttc",
+			"/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
 			"/Library/Fonts/Arial Unicode.ttf",
 		}
 	case "windows":
-		list = []string{
-			`C:\Windows\Fonts\consola.ttf`,
-			`C:\Windows\Fonts\msjh.ttc`,
-			`C:\Windows\Fonts\mingliu.ttc`,
-			`C:\Windows\Fonts\simsun.ttc`,
-			`C:\Windows\Fonts\msgothic.ttc`,
-			`C:\Windows\Fonts\malgun.ttf`,
-			`C:\Windows\Fonts\segoeui.ttf`,
-			`C:\Windows\Fonts\arialuni.ttf`,
+		d := h.winFontsDir()
+		for _, n := range []string{
+			"consola.ttf", "msjh.ttc", "mingliu.ttc", "simsun.ttc",
+			"msyh.ttc", "simhei.ttf", "msgothic.ttc", "malgun.ttf",
+			"segoeui.ttf", "seguisym.ttf", "arialuni.ttf",
+		} {
+			list = append(list, filepath.Join(d, n))
 		}
 	default:
 		// 路徑因發行版而異,列的是幾個常見的位置。真正管用的是
@@ -265,25 +304,55 @@ func Candidates() []string {
 }
 
 // fontDirs 是要掃的目錄。
-func fontDirs() []string {
-	switch runtime.GOOS {
-	case "android":
-		return []string{"/system/fonts"}
-	case "darwin":
-		dirs := []string{"/System/Library/Fonts", "/Library/Fonts"}
-		if h, err := os.UserHomeDir(); err == nil {
-			dirs = append(dirs, filepath.Join(h, "Library", "Fonts"))
+func fontDirs() []string { return realHost().fontDirs() }
+
+func (h host) fontDirs() []string {
+	var dirs []string
+	add := func(p string) {
+		if p != "" {
+			dirs = append(dirs, p)
 		}
+	}
+	switch h.goos {
+	case "android":
+		// Android 10 之後系統被拆成好幾個分割區,字型不再只在
+		// /system/fonts —— GSI 與部分機型放在 /product/fonts。
+		return []string{"/system/fonts", "/product/fonts", "/system_ext/fonts"}
+	case "darwin":
+		add("/System/Library/Fonts")
+		// Catalina 起附帶的字型都在這裡(Arial Unicode、Songti…)。
+		add("/System/Library/Fonts/Supplemental")
+		add("/Library/Fonts")
+		add(h.join("Library", "Fonts"))
 		return dirs
 	case "windows":
-		return []string{`C:\Windows\Fonts`}
+		add(h.winFontsDir())
+		// Windows 10 1803 起,「只為我安裝」的字型放在使用者自己的
+		// 目錄底下,系統字型目錄裡看不到。右鍵安裝預設就是這一種。
+		if v := h.env("LOCALAPPDATA"); v != "" {
+			add(filepath.Join(v, "Microsoft", "Windows", "Fonts"))
+		}
+		return dirs
 	}
-	dirs := []string{"/usr/share/fonts", "/usr/local/share/fonts"}
-	if h, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs,
-			filepath.Join(h, ".local", "share", "fonts"),
-			filepath.Join(h, ".fonts"))
+	add("/usr/share/fonts")
+	add("/usr/local/share/fonts")
+	// XDG:使用者自己裝的字型。$XDG_DATA_HOME 沒設才是 ~/.local/share。
+	if v := h.env("XDG_DATA_HOME"); v != "" {
+		add(filepath.Join(v, "fonts"))
+	} else {
+		add(h.join(".local", "share", "fonts"))
 	}
+	add(h.join(".fonts"))
+	for _, d := range filepath.SplitList(h.env("XDG_DATA_DIRS")) {
+		if d != "" {
+			add(filepath.Join(d, "fonts"))
+		}
+	}
+	// 容器裡跑的時候,主機的字型掛在這裡(Flatpak),
+	// 而 NixOS 的系統字型不在 /usr 底下。
+	add("/run/host/fonts")
+	add("/run/host/user-fonts")
+	add("/run/current-system/sw/share/X11/fonts")
 	return dirs
 }
 
@@ -292,13 +361,28 @@ func fontDirs() []string {
 // 為什麼要挑而不是全收:一台桌機的字型目錄裡有好幾百個檔,
 // 每一個都載進來要花數秒、吃掉數十 MB,而其中絕大多數
 // (裝飾字、單一語系的花體)補不到任何一個缺字。
+// [雷] 這份清單原本只有 Noto 與幾個 Linux 發行版的字型名。掃描於是在
+// Windows 與 macOS 上**一個字型都找不到** —— 那兩個平台只剩上面那份寫死的
+// 清單能用,而寫死清單追不上系統版本的變動,正是掃描存在的理由。
+// 症狀是「在我的 Linux 上好好的,同一份程式在 Windows 上缺一堆字」。
 var wanted = []string{
+	// 跨平台都可能裝到的,涵蓋面最廣的排前面。
 	"notosansmonocjk", "notosanscjk", "notoserifcjk", "notosansmono",
-	"sourcehansans", "sourcehanserif", "wqy-zenhei", "wqy-microhei",
-	"uming", "ukai", "notosanskr", "notosansjp", "notosanssc", "notosanstc",
+	"sourcehansans", "sourcehanserif",
+	// Windows
+	"consola", "msgothic", "msjh", "msyh", "mingliu", "simsun", "simhei",
+	"malgun", "gulim", "batang", "yugoth", "segoeui", "seguisym", "arialuni",
+	// macOS
+	"menlo", "pingfang", "hiraginosans", "stheiti", "songti", "heiti",
+	"applesdgothicneo", "applesymbols", "arialunicode",
+	// Linux
+	"wqy-zenhei", "wqy-microhei", "uming", "ukai",
+	"notosanskr", "notosansjp", "notosanssc", "notosanstc",
 	"notosanssymbols", "notosansmath", "notosansthai", "notosansdevanagari",
 	"notosansarabic", "notosanshebrew", "unifont",
 	"dejavusansmono", "dejavusans", "liberationmono", "freemono", "freeserif",
+	// Android
+	"droidsansmono", "droidsansfallback", "cutivemono", "roboto",
 }
 
 // scanCap 是掃描結果的數量上限。
@@ -354,7 +438,11 @@ func scanned() []string {
 					return nil
 				}
 				for i, w := range wanted {
-					if strings.Contains(base, strings.ReplaceAll(w, "-", "")) {
+					// 比開頭而不是「包含」。包含會把 Inconsolata 當成
+					// Windows 的 consola —— 而那是一份沒有中日韓的拉丁
+					// 字型,被當成等寬來源之後半形字會整個換一套字形,
+					// 畫面看起來仍然整齊,只是不再與原版對齊。
+					if strings.HasPrefix(base, strings.ReplaceAll(w, "-", "")) {
 						if !seen[p] {
 							seen[p] = true
 							hits = append(hits, hit{p, i})

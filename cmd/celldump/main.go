@@ -19,6 +19,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/bundled"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/datadir"
 	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
@@ -83,16 +84,16 @@ func browserModel(dir string) (*browser.Model, error) {
 
 func main() {
 	var (
-		halfPath  = flag.String("half", "original/app/cvga.fon", "半形 .FON")
-		stdPath   = flag.String("eten-std", "original/eten/STDFONT.15", "倚天漢字區")
-		spcPath   = flag.String("eten-spc", "original/eten/SPCFONT.15", "倚天符號區")
+		halfPath  = flag.String("half", "", "半形 .FON;留空自動找")
+		stdPath   = flag.String("eten-std", "", "倚天漢字區;留空自動找")
+		spcPath   = flag.String("eten-spc", "", "倚天符號區;留空自動找")
 		out       = flag.String("o", "screen.png", "輸出 PNG")
 		cols      = flag.Int("cols", 80, "欄數")
 		rows      = flag.Int("rows", 25, "列數")
 		dir       = flag.String("dir", "", "要瀏覽的目錄。留空則畫字型與配色的示範畫面")
 		file      = flag.String("file", "", "要檢視的檔案(文字或 16 進位,依內容自動判斷)")
 		edit      = flag.String("edit", "", "用編輯器開這個檔案(含語法上色)")
-		cfgDir    = flag.String("cfg", "original/app", "語法上色設定所在的目錄")
+		cfgDir    = flag.String("cfg", "", "語法上色設定所在的目錄;留空跟著 -half 走")
 		appDir    = flag.String("app", "", "跑完整的 app(含選單、模式切換)並瀏覽這個目錄")
 		keyStr    = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
 		fbFont    = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
@@ -105,9 +106,20 @@ func main() {
 	)
 	flag.Parse()
 
+	// 原版素材放在哪裡由 datadir 決定,不是相對於工作目錄猜一個。
+	*halfPath = datadir.Resolve2(*halfPath, "cvga.fon")
+	*stdPath = datadir.Resolve2(*stdPath, "STDFONT.15")
+	*spcPath = datadir.Resolve2(*spcPath, "SPCFONT.15")
+	if *cfgDir == "" {
+		*cfgDir = filepath.Dir(*halfPath)
+	}
+
 	half, err := loadHalf(*halfPath)
 	if err != nil {
-		die(err)
+		// 講出找過哪裡。只說「開不了 cvga.fon」的話,使用者連該把檔案
+		// 放去哪都不知道 —— 而那正是每個平台都不一樣的地方。
+		die(fmt.Errorf("%w\n找過這些目錄(可設 %s 指定):\n%s",
+			err, datadir.EnvHome, datadir.Explain()))
 	}
 	// eten.Load 的 w、h 是**字庫自己**的點陣尺寸(見 eten.NativeW),
 	// 不是要畫多大 —— 目標大小交給 render.ScaleCJK。-half 指到

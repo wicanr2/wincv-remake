@@ -24,19 +24,33 @@ cd docs/demo/office
 rm -rf .lo .cache          # LibreOffice 會在這裡留下使用者設定
 ```
 
-重拍截圖(游標從 `..` 往下數第幾個檔案就按幾次 `Down`):
+重拍截圖。`-keys` 是「游標從 `..` 往下按幾次 `Down` 再 `Enter`」,所以
+**在這個目錄裡增刪檔案就要重數** —— 數錯不會有錯誤訊息,只會拍到隔壁那個檔。
+先跑一次不帶 `-keys` 的看清單:
 
 ```bash
-tools/go.sh run ./cmd/celldump -app /src/docs/demo/office -cols 100 -rows 34 \
-    -keys "Down,Down,Down,Down,Enter" -o /src/docs/ui/shot-docx.png
-tools/go.sh run ./cmd/celldump -app /src/docs/demo/office -cols 100 -rows 30 \
-    -keys "Down,Down,Down,Down,Down,Down,Down,Down,Enter" -o /src/docs/ui/shot-pptx.png
-tools/go.sh run ./cmd/celldump -app /src/docs/demo/office -cols 100 -rows 30 \
+tools/go.sh run ./cmd/celldump -app /src/docs/demo/office -cols 100 -rows 22 -o /src/.cache/list.png
+```
+
+目前的順序是 `..` / formats.csv / formats.xlsx / README.md / wincv.doc /
+wincv.docx / wincv.fodp / wincv.html / wincv.pdf / wincv.pptx / wincv.rtf:
+
+```bash
+D=/src/docs/demo/office
+# formats.xlsx:2 個 Down
+tools/go.sh run ./cmd/celldump -app $D -cols 100 -rows 30 \
     -keys "Down,Down,Enter" -o /src/docs/ui/shot-xlsx.png
-tools/go.sh run ./cmd/celldump -app /src/docs/demo/office -cols 100 -rows 34 \
-    -keys "Down,Down,Down,Down,Down,Down,Down,Enter" -o /src/docs/ui/shot-pdf-text.png
-tools/go.sh run ./cmd/celldump -app /src/docs/demo/office -cols 100 -rows 40 \
-    -keys "Down,Down,Down,Down,Down,Down,Down,Enter,V" -o /src/docs/ui/shot-pdf-page.png
+# wincv.docx:5 個
+tools/go.sh run ./cmd/celldump -app $D -cols 100 -rows 34 \
+    -keys "Down,Down,Down,Down,Down,Enter" -o /src/docs/ui/shot-docx.png
+# wincv.pdf:8 個。加 V 就是整頁算繪
+tools/go.sh run ./cmd/celldump -app $D -cols 100 -rows 34 \
+    -keys "Down,Down,Down,Down,Down,Down,Down,Down,Enter" -o /src/docs/ui/shot-pdf-text.png
+tools/go.sh run ./cmd/celldump -app $D -cols 100 -rows 40 \
+    -keys "Down,Down,Down,Down,Down,Down,Down,Down,Enter,V" -o /src/docs/ui/shot-pdf-page.png
+# wincv.pptx:9 個
+tools/go.sh run ./cmd/celldump -app $D -cols 100 -rows 30 \
+    -keys "Down,Down,Down,Down,Down,Down,Down,Down,Down,Enter" -o /src/docs/ui/shot-pptx.png
 ```
 
 `wincv.pdf` 另外當 `internal/pdf` 的回歸樣本:它裡面有一份子集化的 TrueType,

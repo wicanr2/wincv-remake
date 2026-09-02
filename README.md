@@ -179,6 +179,47 @@ Marcel Lemke 1998 年的〈Technical information of the archiver ACE v1.2〉
 支援 stored、ACE 1.0 的 LZ77、ACE 2.0 的 blocked（含 LZ77 / DELTA / EXE
 三種子模式）；SOUND 與 PIC 兩種子模式、加密、跨片壓縮檔還沒做。
 
+## 字型放在哪裡
+
+字型有兩層,來源不同,找的地方也不同。
+
+**原版的點陣字與倚天字庫**(逐像素對齊的那一套)是第三方版權物。
+桌面的發行版把它們**內嵌在執行檔裡**,解開就能用;Android 的 APK 不內嵌,
+自己編譯的版本也沒有。要自備、或要用自己的一份蓋掉內嵌的那一份時,
+把 `cvga.fon`、`CVGA1018.FON`、`cvga1224.FON`、`STDFONT.15`、`SPCFONT.15`
+放進下列任一個位置(前面的贏)。語法上色設定 `keyword_*.cfg` 與字典資料
+也找同一批位置:
+
+| 位置 | 說明 |
+|---|---|
+| `$WINCV_HOME` | 環境變數。按兩下啟動、桌面捷徑都沒有地方打旗標,而那正是工作目錄最不可預測的時候 |
+| 執行檔所在的目錄 | 最多人會這樣做。底下的 `wincv/`、`original/app/`、`original/eten/` 也會看 |
+| 個人設定目錄 | Linux `~/.config/wincv`、macOS `~/Library/Application Support/wincv`、Windows `%AppData%\wincv`;與 `session.json` 同一套慣例 |
+| `~/.wincv` | 上一項取不到時的退路 |
+| 工作目錄 | 開發時從 repo 根目錄跑,素材就在 `original/` 底下 |
+
+Android 是外部儲存的 `wincv/`,與桌面的「執行檔旁邊的 `wincv/`」同一個名字。
+`-half` / `-eten-std` / `-eten-spc` 直接給路徑時永遠贏過以上全部。
+一個都找不到時,程式會把找過的目錄逐行印出來 —— 「檔案沒找到」的訊息
+不說找過哪裡的話,使用者只能猜,而這裡正是每個平台都不一樣的地方。
+
+**Big5 以外的字**靠系統字型補(簡體、日文、韓文、西里爾、希臘、阿拉伯、
+泰文與各種符號)。完整版另外內嵌 Noto 的幾份子集,不必依賴系統。
+系統字型的位置照平台找:
+
+| 平台 | 掃描的目錄 |
+|---|---|
+| Linux | `/usr/share/fonts`、`/usr/local/share/fonts`、`$XDG_DATA_HOME/fonts`(沒設就是 `~/.local/share/fonts`)、`~/.fonts`、`$XDG_DATA_DIRS` 底下的 `fonts/`、`/run/host/fonts`(Flatpak)、`/run/current-system/sw/share/X11/fonts`(NixOS) |
+| Windows | `%SystemRoot%\Fonts`(不是寫死 `C:\`——Windows 不一定裝在 C:)、`%LOCALAPPDATA%\Microsoft\Windows\Fonts`(Windows 10 1803 起「只為我安裝」的字型在這裡,系統目錄裡看不到) |
+| macOS | `/System/Library/Fonts`、`/System/Library/Fonts/Supplemental`(Catalina 起附帶的字型搬到這裡)、`/Library/Fonts`、`~/Library/Fonts` |
+| Android | `/system/fonts`、`/product/fonts`、`/system_ext/fonts`(Android 10 之後系統被拆成好幾個分割區) |
+
+掃到的字型再依檔名挑:一台桌機的字型目錄裡有好幾百個檔,全部載進來要花
+數秒、吃掉數十 MB,而其中絕大多數(裝飾字、單一語系的花體)補不到任何一個
+缺字。認得的名字涵蓋四個平台各自的內建字型,不是只有 Noto ——
+只認 Noto 的話,掃描在 Windows 與 macOS 上一個字型都找不到,
+而那正是掃描存在的理由。
+
 ## 建置與驗收
 
 ```bash
