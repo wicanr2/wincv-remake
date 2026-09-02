@@ -105,10 +105,13 @@ if [ "$WHAT" = all ] || [ "$WHAT" = android ]; then
     expect wincv-android-full.apk
 fi
 
-# 只列檔案。`./*-full*` 會連解開來的目錄一起吃進去,sha256sum 對目錄
-# 會印一行錯誤然後繼續 —— 校驗檔少一列,而腳本看起來跑完了。
-( cd "$OUT" && find . -maxdepth 1 -type f -name '*-full*' ! -name 'SHA256SUMS-full' \
-    -printf '%P\n' | sort | xargs sha256sum > SHA256SUMS-full )
+# 只列這支腳本自己產的裸執行檔。zip 是下一步 tools/package.sh 才產生的,
+# 列進來的話寫下的是**上一輪**那幾個 zip 的雜湊,而校驗檔看起來是完整的 ——
+# 要跑 `sha256sum -c` 才會發現。zip 有自己的 SHA256SUMS-zip-full,
+# 分法與公開版那邊一致(SHA256SUMS 只列執行檔,zip 歸 SHA256SUMS-zip)。
+( cd "$OUT" && ls wincv-linux-amd64-full wincv-windows-amd64-full.exe \
+    wincv-darwin-universal-full wincv-android-full.apk 2>/dev/null \
+    | xargs sha256sum > SHA256SUMS-full )
 
 cat > "$OUT/README-full.txt" <<EOF
 完整版(含字型)—— 本機保留,不對外散布
