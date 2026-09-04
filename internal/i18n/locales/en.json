@@ -255,6 +255,7 @@
   "已換成": "changed to",
   "已清掉 ": "cleared ",
   "已移動": "moved",
+  "已經是第 %d 頁": "Already at page %d",
   "已經是第一頁": "already at the first page",
   "已解出 %d 個檔案到 %s": "extracted %d files to %s",
   "建 SFV(.sfv)": "Build SFV (.sfv)",

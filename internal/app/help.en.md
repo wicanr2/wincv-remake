@@ -120,6 +120,10 @@ to window" and a fixed zoom level, and the arrow keys pan. When viewing a full P
 page with `V`, zooming in **re-renders** at a higher resolution rather than
 stretching the image — so zooming in reveals more detail.
 
+In PDF full-page view, `PgUp` / `PgDn` (or `Enter` / `BackSpace`) turn **pages**,
+not to the next image in the directory, and the zoom level carries over.
+`Esc` takes you back to the text of the same page.
+
 ## Filename Column Width
 
 The list defaults to the original's 8.3 layout. `Ctrl-→` / `Ctrl-←` widens or

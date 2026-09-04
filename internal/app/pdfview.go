@@ -285,6 +285,46 @@ func (a *App) renderPDFPage(path string, page int, zoom float64) (image.Image, e
 	return r.Img, nil
 }
 
+// pdfPageStep 在整頁模式下換頁。
+//
+// 為什麼要攔:看圖模式的「上一張 / 下一張」走的是**目錄裡的圖檔清單**
+// (`imageNeighbours`),而 PDF 的整頁圖不在那份清單上 —— 游標停在
+// 那個 .pdf 上,按下去會跳到目錄裡不相干的另一張圖,或什麼都不做。
+// 在整頁模式下,「下一張」的自然意思就是下一頁。
+//
+// 換頁時 bv 的內容也一起換掉:`Esc` 退回瀏覽模式時看到的要是**同一頁**
+// 的文字,不是進來之前那一頁。
+func (a *App) pdfPageStep(d int) bool {
+	path, page, ok := parsePDFURL(a.bv.url)
+	if !ok || page < 1 || a.pdf == nil {
+		return false
+	}
+	n := page + d
+	if n < 1 || n > a.pdf.Pages {
+		a.Message = i18n.Sprintf("已經是第 %d 頁", page)
+		return true
+	}
+	// 倍率跟著人走:放大到 2 倍在讀表格的人翻頁之後還在讀表格,
+	// 每翻一頁都要重新放大的話,放大這個功能等於只能用在一頁上。
+	zoom, fit := 1.0, true
+	if a.Image != nil {
+		zoom, fit = a.Image.Zoom, a.Image.Fit
+	}
+	a.showPDF(pdfURL(path, n))
+	if !a.showPDFPageImage() {
+		return false
+	}
+	if a.Image != nil && !fit {
+		a.Image.SetZoom(zoom)
+	}
+	return true
+}
+
+// inPDFPage 說現在看的是不是 PDF 的整頁圖。
+func (a *App) inPDFPage() bool {
+	return a.gReturn && strings.HasPrefix(a.bv.url, pdfScheme)
+}
+
 // pdfImage 讀 PDF 裡的一張圖。
 func (a *App) pdfImage(ref string) (image.Image, error) {
 	page, name, ok := parsePDFImgRef(ref)

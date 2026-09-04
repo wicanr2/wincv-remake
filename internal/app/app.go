@@ -891,6 +891,15 @@ func (a *App) stepImage(d int) bool {
 
 func (a *App) imageKey(k keys.Key) bool {
 	m := a.Image
+	// PDF 的整頁圖:上/下一「張」就是上/下一頁(見 pdfPageStep)。
+	if a.inPDFPage() {
+		switch k.Code {
+		case keys.Enter, keys.PgDn:
+			return a.pdfPageStep(1)
+		case keys.Backspace, keys.PgUp:
+			return a.pdfPageStep(-1)
+		}
+	}
 	switch k.Code {
 	case keys.Enter:
 		return a.stepImage(1)
