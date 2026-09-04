@@ -32,6 +32,12 @@ __pycache__/
 /android/.gradle/
 /dist-all/
 
+# ebitenmobile bind 的產物。.aar 一直是未追蹤的,-sources.jar 卻曾經被
+# 加進版控 —— 於是每建一次 Android,工作區就變髒,而 dist-all 的建置
+# 印記會標成 -dirty,看起來像「這個執行檔含未提交的程式碼」。
+# 兩個都是 tools/build-android.sh 產生的,一起排除。
+/android/app/libs/
+
 # 模擬器實跑的原始產物(每跑一次就重生)。留下來的是 android-emulator.png
 docs/ui/android-run-*.png
 docs/ui/android-logcat.txt
