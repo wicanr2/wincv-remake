@@ -95,6 +95,23 @@ func (d *Doc) Render(page int, dpi float64) (*Rendered, error) {
 	return p.Render(pdf.RenderOptions{DPI: dpi})
 }
 
+// PageSize 回傳一頁的尺寸,單位是 point(1/72 吋)。
+//
+// 給「這一頁放大到 N 倍會有多少像素」用 —— 那個判斷要在真的配置
+// 記憶體之前做完,所以不能靠畫完再看。
+func (d *Doc) PageSize(page int) (w, h float64, err error) {
+	if page < 1 || page > d.Pages {
+		return 0, 0, fmt.Errorf("沒有第 %d 頁", page)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	p, err := d.d.Page(page)
+	if err != nil {
+		return 0, 0, err
+	}
+	return p.Width(), p.Height(), nil
+}
+
 // Bookmark 是書籤裡的一筆。
 type Bookmark = pdf.Bookmark
 

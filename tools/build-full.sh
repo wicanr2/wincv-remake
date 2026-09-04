@@ -12,6 +12,16 @@
 #   tools/build-full.sh              # 四個平台
 #   tools/build-full.sh desktop      # 只做桌面三個
 #   tools/build-full.sh android      # 只做 APK
+#   tools/build-full.sh linux        # 只做 linux(平常自己要用的那一個)
+#
+# `linux` 是給「我現在就想跑最新版」用的:桌面三個要編兩輪 darwin 再 lipo,
+# APK 要跑 gradle,加起來二十分鐘;只要 linux 的話一分鐘出頭。
+# dist-all/wincv-linux-amd64-full 這個**固定名稱**就是拿來掛 alias 的:
+#
+#   alias wincv="$HOME/cht/wincv/dist-all/wincv-linux-amd64-full"
+#
+# 名稱固定,所以 alias 設一次就不用再改;tools/release.sh 跑完會自動
+# 更新它,發布出去的版本與自己手上跑的永遠是同一個 commit。
 #
 # 兩支腳本共用 dist-all/,但各自只動自己的檔案(這一支只碰 *-full*),
 # 所以先跑哪一支都可以。
@@ -64,13 +74,25 @@ DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
         -v $REPO:/src -w /src
         -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod"
 
-if [ "$WHAT" = all ] || [ "$WHAT" = desktop ]; then
+if [ "$WHAT" = all ] || [ "$WHAT" = desktop ] || [ "$WHAT" = linux ]; then
     echo "=== linux/amd64(含字型)==="
     $DOCKER "$BUILD_IMG" sh -c '
         CGO_ENABLED=1 go build -tags fonts -trimpath -ldflags "-s -w" \
             -o /src/dist-all/wincv-linux-amd64-full ./cmd/wincv'
     expect wincv-linux-amd64-full
+    # 記下這個執行檔是哪個 commit 建的。alias 指的是固定名稱,光看檔案
+    # 分不出它是今天建的還是三週前建的 —— 而那正是「改完卻沒生效」的來源。
+    #
+    # 工作區有未提交的改動時要標出來:那個執行檔含著 commit 裡沒有的東西,
+    # 只寫 commit 雜湊會讓人以為兩者相同。
+    ( cd "$REPO" && {
+        H=$(git rev-parse HEAD 2>/dev/null) || exit 0
+        [ -n "$(git status --porcelain)" ] && H="$H-dirty"
+        echo "$H"
+    } ) > "$OUT/BUILT-FROM-full" 2>/dev/null || true
+fi
 
+if [ "$WHAT" = all ] || [ "$WHAT" = desktop ]; then
     echo "=== windows/amd64(含字型)==="
     $DOCKER "$BUILD_IMG" sh -c '
         CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
@@ -103,6 +125,12 @@ if [ "$WHAT" = all ] || [ "$WHAT" = android ]; then
     echo "=== android(含字型)==="
     TAGS=fonts APK_OUT="$OUT/wincv-android-full.apk" "$REPO/tools/build-android.sh"
     expect wincv-android-full.apk
+fi
+
+if [ "$WHAT" = linux ]; then
+    echo
+    echo "本機用的完整版已更新:$OUT/wincv-linux-amd64-full"
+    exit 0
 fi
 
 # 只列這支腳本自己產的裸執行檔。zip 是下一步 tools/package.sh 才產生的,

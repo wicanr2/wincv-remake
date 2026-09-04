@@ -1,6 +1,11 @@
 package app
 
 import (
+	"bytes"
+	"image"
+	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -189,5 +194,61 @@ func TestListCursorRow(t *testing.T) {
 	a.Mode = ModeViewer
 	if got := a.ListCursorRow(); got != -1 {
 		t.Errorf("非瀏覽模式應該回 -1,得到 %d", got)
+	}
+}
+
+// imageApp 開一張圖進看圖模式。看圖模式的按鍵有幾顆要有「上一張」可走,
+// 所以目錄裡要有兩張圖。
+func imageApp(t *testing.T) *App {
+	t.Helper()
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 8, 8))); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"a.png", "b.png"} {
+		if err := os.WriteFile(filepath.Join(dir, n), buf.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := New(vfs.OS{}, dir)
+	a.Touch = true
+	a.Draw(cell.New(44, 20))
+	for i, e := range a.Browser.Entries {
+		if e.Name == "a.png" {
+			a.Browser.MoveTo(i, 16)
+		}
+	}
+	a.HandleKey(keys.Named(keys.Enter))
+	if a.Mode != ModeImage {
+		t.Fatalf("開圖之後的模式是 %v", a.Mode)
+	}
+	return a
+}
+
+// 看圖模式的功能列:每一格都要對應到**看圖模式真的認得**的按鍵。
+//
+// 這一列原本有兩顆按了沒反應的按鈕(上一張 / 下一張送 PgUp / PgDn,
+// 而 imageKey 當時只認 Backspace / Enter)。畫面完全正常,按下去就是
+// 沒事發生 —— 所以要有測試盯著「送出去的鍵會被接住」。
+func TestImageTouchBarKeysAreHandled(t *testing.T) {
+	for _, b := range imageApp(t).touchBar() {
+		a := imageApp(t)
+		if !a.HandleKey(b.key) {
+			t.Errorf("看圖模式不認得「%s」送出的 %v", b.label, b.key)
+		}
+	}
+}
+
+// 三十欄是手機直立時的寬度下限,標籤在那裡要畫得完。
+func TestImageTouchBarFitsNarrowScreen(t *testing.T) {
+	a := imageApp(t)
+	s := cell.New(30, 20)
+	a.Draw(s)
+	row := rowText(s, s.Rows-TouchRows)
+	for _, b := range a.touchBar() {
+		if !strings.Contains(row, b.label) {
+			t.Errorf("30 欄時畫不出「%s」:%q", b.label, row)
+		}
 	}
 }

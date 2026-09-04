@@ -239,6 +239,12 @@ func (a *App) showPDFPageImage() bool {
 	}
 	name := fmt.Sprintf("%s — 第 %d 頁", filepath.Base(path), page)
 	a.Image = imgview.FromImage(name, "PDF", r.Img, 0)
+	// PDF 是向量的:放大時用更高的解析度重畫,而不是把 150 dpi 的點陣圖
+	// 拉大。差別在放大之後看不看得到更多東西 —— 表格的細線、小字的註腳,
+	// 點陣放大只會讓它們變成更大的糊塊。
+	a.Image.Rerender = func(zoom float64) (image.Image, error) {
+		return a.renderPDFPage(path, page, zoom)
+	}
 	a.Mode = ModeImage
 	a.gReturn = true
 	// 字形不是原檔那一套時要講出來:畫面看起來正常,差別在字形,
@@ -250,6 +256,32 @@ func (a *App) showPDFPageImage() bool {
 		a.Message = "有字型畫不出來,那些字沒有顯示:" + strings.Join(r.Missing, "、")
 	}
 	return true
+}
+
+// MaxPageImagePixels 是重畫一頁的像素上限。
+//
+// 8 倍解析度的 A4 是一億三千萬個像素,一張 RGBA 就要 500 MB —— 手機會
+// 直接被系統殺掉,桌面也會卡住好幾秒。超過就不重畫,退回點陣放大:
+// 那時使用者看到的是糊的,但畫面還在動。
+const MaxPageImagePixels = 40 << 20
+
+// renderPDFPage 以指定倍率重畫一頁。
+func (a *App) renderPDFPage(path string, page int, zoom float64) (image.Image, error) {
+	if err := a.loadPDF(path); err != nil {
+		return nil, err
+	}
+	dpi := PageImageDPI * zoom
+	if w, h, err := a.pdf.PageSize(page); err == nil {
+		px := w / 72 * dpi * h / 72 * dpi
+		if px > MaxPageImagePixels {
+			return nil, fmt.Errorf("這一頁放大到 %g 倍會超過記憶體上限", zoom)
+		}
+	}
+	r, err := a.pdf.Render(page, dpi)
+	if err != nil {
+		return nil, err
+	}
+	return r.Img, nil
 }
 
 // pdfImage 讀 PDF 裡的一張圖。

@@ -173,6 +173,9 @@ type Overlay struct {
 	Fit  bool
 	// Pan 是 1:1 模式下的平移量(來源座標)。
 	Pan image.Point
+	// Zoom 是 1:1 模式下的放大倍率,0 或 1 表示原尺寸。Fit 為 true 時忽略。
+	// 用最近鄰取樣,理由同 Fit:這是點陣風格的介面,平滑縮放會跟點陣字打架。
+	Zoom float64
 }
 
 // Draw 把 s 畫成一張 RGBA。回傳的緩衝區會被下一次呼叫重用。
@@ -250,13 +253,17 @@ func (r *Rasterizer) blit(ov *Overlay) {
 		}
 		return
 	}
+	z := ov.Zoom
+	if z <= 0 {
+		z = 1
+	}
 	for dy := dst.Min.Y; dy < dst.Max.Y; dy++ {
-		sy := src.Min.Y + (dy - ov.Rect.Min.Y) + ov.Pan.Y
+		sy := src.Min.Y + int(float64(dy-ov.Rect.Min.Y)/z) + ov.Pan.Y
 		if sy < src.Min.Y || sy >= src.Max.Y {
 			continue
 		}
 		for dx := dst.Min.X; dx < dst.Max.X; dx++ {
-			sx := src.Min.X + (dx - ov.Rect.Min.X) + ov.Pan.X
+			sx := src.Min.X + int(float64(dx-ov.Rect.Min.X)/z) + ov.Pan.X
 			if sx < src.Min.X || sx >= src.Max.X {
 				continue
 			}

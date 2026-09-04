@@ -123,6 +123,20 @@ $(cd "$OUT" && ls -la --time-style=+ ./*.zip 2>/dev/null | grep -v -- "-full" | 
 校驗：sha256sum -c SHA256SUMS-zip
 EOF
 
+# 順手把本機自己要跑的那一個也更新掉。
+#
+# 為什麼放在這裡:dist-all/wincv-linux-amd64-full 是掛在使用者 shell alias
+# 上的固定名稱,而它由另一支腳本(build-full.sh)產生 —— 只發布不重建的話,
+# 手上跑的會是舊版,而檔案還在、名字也對,看起來完全正常。
+# 一分鐘出頭的事,不值得讓「發布過的版本」與「自己在跑的版本」分岔。
+#
+# WINCV_SKIP_LOCAL=1 可以跳過(只想快點做出發布物的時候)。
+if [ "${WINCV_SKIP_LOCAL:-}" != 1 ]; then
+    echo
+    echo "== 本機完整版(alias 指的那一個)=="
+    "$REPO/tools/build-full.sh" linux
+fi
+
 echo
 echo "dist-all/（commit $SHORT）:"
 ls -la --time-style=+ "$OUT" | tail -n +2 | awk '{printf "  %-46s %12s\n", $NF, $5}'

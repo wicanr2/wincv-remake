@@ -500,6 +500,12 @@ cmd/ internal/           Go 實作
 ```
 
 ```bash
+# 建自己要跑的那一個(含字型,約 30 秒)。名稱固定,掛 alias 用:
+#   alias wincv="$HOME/cht/wincv/dist-all/wincv-linux-amd64-full"
+# tools/release.sh 跑完也會自動更新它,發布的版本與手上跑的不會分岔。
+# dist-all/BUILT-FROM-full 記著它是哪個 commit 建的(工作區髒會標 -dirty)。
+tools/build-full.sh linux
+
 # 重建原版素材與 Wine prefix
 tools/setup-wine-oracle.sh
 

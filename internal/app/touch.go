@@ -41,11 +41,20 @@ func (a *App) touchBar() []touchButton {
 			{label: "返回", key: keys.Named(keys.Esc), wide: true},
 		}
 	case ModeImage:
+		// 標籤一律兩個字:功能列的格寬是 cols/units,30 欄時只有四格,
+		// 三個字的標籤畫不完 —— 而畫不完的症狀是「按鈕看起來少一個字」,
+		// 不是任何錯誤。放大縮小放在這裡是因為 PDF 的整頁圖也走看圖模式,
+		// 在手機上那是主要的操作。
+		//
+		// 五顆是上限:30 欄(手機直立)時格寬是 cols/units,再扣掉一欄
+		// 分隔線,兩個中文字剛好填滿。第六顆會讓每個標籤只剩一個字。
+		// 「資訊」因此讓位給放大縮小 —— `I` 鍵仍然可用。
 		return []touchButton{
-			{label: "上一張", key: keys.Named(keys.PgUp)},
-			{label: "下一張", key: keys.Named(keys.PgDn)},
-			{label: "原尺寸", key: k('1')},
-			{label: "資訊", key: k('I')},
+			{label: "上張", key: keys.Named(keys.PgUp)},
+			{label: "下張", key: keys.Named(keys.PgDn)},
+			{label: "縮小", key: k('-')},
+			{label: "放大", key: k('+')},
+			{label: "原寸", key: k('1')},
 			{label: "返回", key: keys.Named(keys.Esc), wide: true},
 		}
 	case ModeHex:

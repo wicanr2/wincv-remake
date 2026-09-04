@@ -886,8 +886,10 @@ func (a *App) imageKey(k keys.Key) bool {
 	switch k.Code {
 	case keys.Enter:
 		return a.stepImage(1)
-	case keys.Backspace:
+	case keys.Backspace, keys.PgUp:
 		return a.stepImage(-1)
+	case keys.PgDn:
+		return a.stepImage(1)
 	case keys.Esc:
 		// 從瀏覽模式進來的就退回瀏覽模式。
 		if a.gReturn {
@@ -915,6 +917,18 @@ func (a *App) imageKey(k keys.Key) bool {
 	case keys.Right:
 		m.PanBy(32, 0)
 		return true
+	}
+	// 放大 / 縮小 / 回到原尺寸。裸鍵沒有歧義 —— 看圖模式沒有文字輸入,
+	// 而帶修飾鍵的 Ctrl-+ 與 Alt-+ 已經是字級與整個畫面的放大倍率。
+	if k.Code == keys.Rune && !k.Ctrl && !k.Alt {
+		switch k.R {
+		case '+', '=':
+			return m.ZoomBy(1)
+		case '-', '_':
+			return m.ZoomBy(-1)
+		case '1':
+			return m.SetZoom(1)
+		}
 	}
 	if k.Code == keys.Rune && k.R == ' ' {
 		// 標記此檔,換看下一張(原版行為)。
