@@ -2,6 +2,7 @@ package doc97
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strings"
 
 	"github.com/wicanr2/wincv-remake/internal/markdown"
@@ -34,7 +35,7 @@ func (d *Doc) Blocks() []markdown.Block {
 	b.footnotes()
 	if len(b.out) == 0 {
 		return []markdown.Block{{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: "(這份文件沒有可以顯示的內容)"}}}}
+			Spans: []markdown.Span{{Text: i18n.T("(這份文件沒有可以顯示的內容)")}}}}
 	}
 	return b.out
 }
@@ -198,12 +199,12 @@ func (b *builder) spans(start, end int) []markdown.Span {
 		case chFootnoteRef:
 			flush()
 			b.footN++
-			out = append(out, markdown.Span{Text: fmt.Sprintf("[註 %d]", b.footN)})
+			out = append(out, markdown.Span{Text: fmt.Sprintf(i18n.T("[註 %d]"), b.footN)})
 		case chPictureInline, chDrawnObject:
 			flush()
 			// 圖片的內容在 Data 串流裡,是另一套結構,這裡沒有解。
 			// 標出位置比什麼都不顯示誠實。
-			out = append(out, markdown.Span{Text: "(圖片)", Style: markdown.Italic})
+			out = append(out, markdown.Span{Text: i18n.T("(圖片)"), Style: markdown.Italic})
 		case chNoBreakHyphen:
 			sb.WriteByte('-')
 		case chOptionalHyph, chAnnotationRef, 0x00, 0x0A:
@@ -282,7 +283,7 @@ func (b *builder) footnotes() {
 	}
 	b.out = append(b.out, markdown.Block{Kind: markdown.Rule})
 	b.out = append(b.out, markdown.Block{Kind: markdown.Heading, Level: 2,
-		Spans: []markdown.Span{{Text: "註腳"}}})
+		Spans: []markdown.Span{{Text: i18n.T("註腳")}}})
 	for i, t := range texts {
 		b.out = append(b.out, markdown.Block{Kind: markdown.List, Ordered: true,
 			Num: i + 1, Level: 1, Spans: []markdown.Span{{Text: t}}})

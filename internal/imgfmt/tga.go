@@ -3,6 +3,7 @@ package imgfmt
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 )
@@ -22,7 +23,7 @@ import (
 // 忘了處理就會整張上下顛倒 —— 而顛倒的圖看起來「有解出來」,很容易漏掉。
 func DecodeTGA(d []byte) (image.Image, error) {
 	if len(d) < 18 {
-		return nil, fmt.Errorf("不是 TGA:檔案太短")
+		return nil, fmt.Errorf(i18n.T("不是 TGA:檔案太短"))
 	}
 	idLen := int(d[0])
 	cmType := d[1]
@@ -35,7 +36,7 @@ func DecodeTGA(d []byte) (image.Image, error) {
 	topDown := d[17]&0x20 != 0
 
 	if w <= 0 || h <= 0 {
-		return nil, fmt.Errorf("TGA 尺寸不合理 %dx%d", w, h)
+		return nil, fmt.Errorf(i18n.T("TGA 尺寸不合理 %dx%d"), w, h)
 	}
 	p := 18 + idLen
 
@@ -44,7 +45,7 @@ func DecodeTGA(d []byte) (image.Image, error) {
 		bytesPer := (cmDepth + 7) / 8
 		need := cmLen * bytesPer
 		if p+need > len(d) {
-			return nil, fmt.Errorf("TGA 調色盤超出檔案")
+			return nil, fmt.Errorf(i18n.T("TGA 調色盤超出檔案"))
 		}
 		for i := 0; i < cmLen; i++ {
 			pal = append(pal, readColor(d[p+i*bytesPer:], cmDepth))

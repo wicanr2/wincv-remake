@@ -11,6 +11,7 @@ package ttf
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"io/fs"
 	"os"
@@ -84,7 +85,7 @@ func loadFrom(data []byte, halfW, fullW, h int) (*Font, error) {
 func build(data []byte, halfW, fullW, h int, fitHalf bool) (*Font, error) {
 	col, err := opentype.ParseCollection(data)
 	if err != nil {
-		return nil, fmt.Errorf("認不得的字型: %w", err)
+		return nil, fmt.Errorf(i18n.T("認不得的字型: %w"), err)
 	}
 	sf, err := col.Font(0)
 	if err != nil {
@@ -490,14 +491,14 @@ func otherWeight(base string) bool {
 func MissingHint() string {
 	switch runtime.GOOS {
 	case "linux":
-		return "缺字:裝一個涵蓋廣的字型就有(Debian/Ubuntu: fonts-noto-cjk、" +
+		return i18n.T("缺字:裝一個涵蓋廣的字型就有(Debian/Ubuntu: fonts-noto-cjk、") +
 			"Fedora: google-noto-sans-cjk-fonts、Arch: noto-fonts-cjk)"
 	case "windows":
-		return "缺字:控制台 → 地區 → 系統管理 → 安裝東亞語系字型"
+		return i18n.T("缺字:控制台 → 地區 → 系統管理 → 安裝東亞語系字型")
 	case "darwin":
-		return "缺字:系統內建的 PingFang 應該就夠,若仍缺字請用 -fallback 指定字型檔"
+		return i18n.T("缺字:系統內建的 PingFang 應該就夠,若仍缺字請用 -fallback 指定字型檔")
 	}
-	return "缺字:用 -fallback 指定一個涵蓋廣的字型檔"
+	return i18n.T("缺字:用 -fallback 指定一個涵蓋廣的字型檔")
 }
 
 // Chain 依序試多個字型,誰有這個字就用誰。

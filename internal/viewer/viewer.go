@@ -5,6 +5,7 @@
 package viewer
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strconv"
 	"strings"
 
@@ -508,9 +509,11 @@ func (m *Model) drawStatus(s *cell.Screen) {
 	if n := len(m.Lines); n > 0 {
 		pct = (m.Cur + 1) * 100 / n
 	}
-	left := m.Name + "  [" + m.Enc.String() + "]"
+	// 編碼名多半是 Big5 / UTF-8 這種不必翻的字,只有「未知」「二進位」
+	// 兩個是中文 —— 查不到目錄的會原樣回來,所以一律過一次就好。
+	left := m.Name + "  [" + i18n.T(m.Enc.String()) + "]"
 	if m.Wrap {
-		left += "  自動換行"
+		left += i18n.T("  自動換行")
 	}
 	if !m.Ansi {
 		left += "  ANSI off"
@@ -523,7 +526,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 		strconv.Itoa(pct) + "%"
 	if len(m.Hits) > 0 {
 		right = strconv.Itoa(m.HitIdx+1) + "/" + strconv.Itoa(len(m.Hits)) +
-			" 命中  " + right
+			i18n.T(" 命中  ") + right
 	}
 	x := s.Cols - len(right)
 	if x >= 0 {

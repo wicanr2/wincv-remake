@@ -16,6 +16,7 @@ package pdfdoc
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"os"
 	"sort"
@@ -64,7 +65,7 @@ type Line struct {
 // Text 取一頁的文字,依閱讀順序排好。頁碼從 1 起算。
 func (d *Doc) Text(page int) (lines []Line, err error) {
 	if page < 1 || page > d.Pages {
-		return nil, fmt.Errorf("沒有第 %d 頁", page)
+		return nil, fmt.Errorf(i18n.T("沒有第 %d 頁"), page)
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -84,7 +85,7 @@ type Rendered = pdf.Rendered
 // 兩邊不會分岔。
 func (d *Doc) Render(page int, dpi float64) (*Rendered, error) {
 	if page < 1 || page > d.Pages {
-		return nil, fmt.Errorf("沒有第 %d 頁", page)
+		return nil, fmt.Errorf(i18n.T("沒有第 %d 頁"), page)
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -101,7 +102,7 @@ func (d *Doc) Render(page int, dpi float64) (*Rendered, error) {
 // 記憶體之前做完,所以不能靠畫完再看。
 func (d *Doc) PageSize(page int) (w, h float64, err error) {
 	if page < 1 || page > d.Pages {
-		return 0, 0, fmt.Errorf("沒有第 %d 頁", page)
+		return 0, 0, fmt.Errorf(i18n.T("沒有第 %d 頁"), page)
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -144,7 +145,7 @@ func (d *Doc) Image(page int, name string) ([]byte, error) {
 	}
 	b, ok := m[name]
 	if !ok {
-		return nil, fmt.Errorf("第 %d 頁沒有 %s", page, name)
+		return nil, fmt.Errorf(i18n.T("第 %d 頁沒有 %s"), page, name)
 	}
 	return b, nil
 }
@@ -161,7 +162,7 @@ func (d *Doc) pageImages(page int) (m map[string][]byte, err error) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			m, err = nil, fmt.Errorf("第 %d 頁的圖抽不出來(%v)", page, r)
+			m, err = nil, fmt.Errorf(i18n.T("第 %d 頁的圖抽不出來(%v)"), page, r)
 		}
 	}()
 
@@ -175,7 +176,7 @@ func (d *Doc) pageImages(page int) (m map[string][]byte, err error) {
 	conf.ValidationMode = model.ValidationRelaxed
 	maps, err := api.ExtractImagesRaw(f, []string{fmt.Sprint(page)}, conf)
 	if err != nil {
-		return nil, fmt.Errorf("抽不出圖:%w", err)
+		return nil, fmt.Errorf(i18n.T("抽不出圖:%w"), err)
 	}
 	out := map[string][]byte{}
 	for _, pm := range maps {

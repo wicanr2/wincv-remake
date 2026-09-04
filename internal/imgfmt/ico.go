@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 	_ "image/png"
@@ -18,14 +19,14 @@ import (
 // 因為底下接著 AND 遮罩;而且沒有 BITMAPFILEHEADER,要自己補。
 func DecodeICO(d []byte) (image.Image, error) {
 	if len(d) < 6 {
-		return nil, fmt.Errorf("不是 ICO")
+		return nil, fmt.Errorf(i18n.T("不是 ICO"))
 	}
 	if binary.LittleEndian.Uint16(d[0:]) != 0 || binary.LittleEndian.Uint16(d[2:]) != 1 {
-		return nil, fmt.Errorf("不是 ICO")
+		return nil, fmt.Errorf(i18n.T("不是 ICO"))
 	}
 	n := int(binary.LittleEndian.Uint16(d[4:]))
 	if n == 0 {
-		return nil, fmt.Errorf("ICO 沒有任何圖")
+		return nil, fmt.Errorf(i18n.T("ICO 沒有任何圖"))
 	}
 
 	best, bestArea := -1, -1
@@ -46,14 +47,14 @@ func DecodeICO(d []byte) (image.Image, error) {
 		}
 	}
 	if best < 0 {
-		return nil, fmt.Errorf("ICO 目錄壞了")
+		return nil, fmt.Errorf(i18n.T("ICO 目錄壞了"))
 	}
 
 	o := 6 + best*16
 	size := int(binary.LittleEndian.Uint32(d[o+8:]))
 	off := int(binary.LittleEndian.Uint32(d[o+12:]))
 	if off < 0 || off+size > len(d) {
-		return nil, fmt.Errorf("ICO 圖片資料超出檔案")
+		return nil, fmt.Errorf(i18n.T("ICO 圖片資料超出檔案"))
 	}
 	body := d[off : off+size]
 
@@ -66,14 +67,14 @@ func DecodeICO(d []byte) (image.Image, error) {
 
 func decodeICOBMP(b []byte) (image.Image, error) {
 	if len(b) < 40 {
-		return nil, fmt.Errorf("ICO 內的 BMP 檔頭不完整")
+		return nil, fmt.Errorf(i18n.T("ICO 內的 BMP 檔頭不完整"))
 	}
 	w := int(int32(binary.LittleEndian.Uint32(b[4:])))
 	h2 := int(int32(binary.LittleEndian.Uint32(b[8:])))
 	bpp := int(binary.LittleEndian.Uint16(b[14:]))
 	h := h2 / 2 // 上半是圖、下半是 AND 遮罩
 	if w <= 0 || h <= 0 {
-		return nil, fmt.Errorf("ICO 內的 BMP 尺寸不合理 %dx%d", w, h)
+		return nil, fmt.Errorf(i18n.T("ICO 內的 BMP 尺寸不合理 %dx%d"), w, h)
 	}
 
 	hdr := int(binary.LittleEndian.Uint32(b[0:]))
@@ -142,7 +143,7 @@ func decodeICOBMP(b []byte) (image.Image, error) {
 					}
 				}
 			default:
-				return nil, fmt.Errorf("ICO: 還沒支援 %d bpp", bpp)
+				return nil, fmt.Errorf(i18n.T("ICO: 還沒支援 %d bpp"), bpp)
 			}
 			// 32bpp 自帶 alpha,其餘看 AND 遮罩:1 表示透明。
 			if bpp != 32 {

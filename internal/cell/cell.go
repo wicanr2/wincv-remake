@@ -50,9 +50,9 @@ const (
 	MildCyan
 	MildMagenta
 	// 以下不在 keyword_*.cfg 的顏色名清單上,但 image 裡有定義。
-	DirGreen             // 目錄
-	DirLtGreen           // 圖檔
-	DirCyan              // 壓縮檔
+	DirGreen   // 目錄
+	DirLtGreen // 圖檔
+	DirCyan    // 壓縮檔
 	DirLtCyan
 	DirYellow
 	LtGray1

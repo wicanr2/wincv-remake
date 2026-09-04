@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,88 +70,127 @@ func (a *App) Menuing() bool { return a.menu.active }
 // 設定是改變程式本身。
 func (a *App) menuCats() []menuCat {
 	return []menuCat{
-		{"檔案", a.fileMenuItems},
-		{"檢視", a.viewMenuItems},
-		{"工具", a.toolMenuItems},
-		{"設定", a.setupMenuItems},
-		{"說明", a.helpMenuItems},
+		{i18n.T("檔案"), a.fileMenuItems},
+		{i18n.T("檢視"), a.viewMenuItems},
+		{i18n.T("工具"), a.toolMenuItems},
+		{i18n.T("設定"), a.setupMenuItems},
+		{i18n.T("說明"), a.helpMenuItems},
 	}
 }
 
 func (a *App) fileMenuItems() []menuItem {
 	k, alt := keys.Ch, keys.AltCh
 	return []menuItem{
-		{label: "檢視", key: keys.Named(keys.Enter)},
-		{label: "編輯", key: k('E')},
-		{label: "開啟(系統預設程式)", key: k('O')},
-		{label: "執行", key: k('G')},
+		{label: i18n.T("檢視"), key: keys.Named(keys.Enter)},
+		{label: i18n.T("編輯"), key: k('E')},
+		{label: i18n.T("開啟(系統預設程式)"), key: k('O')},
+		{label: i18n.T("執行"), key: k('G')},
 		{sep: true},
-		{label: "拷貝", key: k('C')},
-		{label: "移動", key: k('M')},
-		{label: "更名", key: k('R')},
-		{label: "刪除", key: k('D')},
+		{label: i18n.T("拷貝"), key: k('C')},
+		{label: i18n.T("移動"), key: k('M')},
+		{label: i18n.T("更名"), key: k('R')},
+		{label: i18n.T("刪除"), key: k('D')},
 		{sep: true},
-		{label: "標記全部檔案", key: k('T')},
-		{label: "標記全部(含目錄)", key: alt('T')},
-		{label: "解除所有標記", key: k('U')},
-		{label: "比對兩個標記的檔案", key: alt('C')},
+		{label: i18n.T("標記全部檔案"), key: k('T')},
+		{label: i18n.T("標記全部(含目錄)"), key: alt('T')},
+		{label: i18n.T("解除所有標記"), key: k('U')},
+		{label: i18n.T("比對兩個標記的檔案"), key: alt('C')},
 		{sep: true},
-		{label: "解壓縮", key: k('Z')},
-		{label: "製作壓縮檔(.zip)", key: alt('Z')},
+		{label: i18n.T("解壓縮"), key: k('Z')},
+		{label: i18n.T("製作壓縮檔(.zip)"), key: alt('Z')},
 		{sep: true},
-		{label: "離開", key: alt('X')},
+		{label: i18n.T("離開"), key: alt('X')},
 	}
 }
 
 func (a *App) viewMenuItems() []menuItem {
 	k, alt := keys.Ch, keys.AltCh
 	return []menuItem{
-		{label: "改變路徑", key: k('P')},
-		{label: "排序方式", key: k('S')},
-		{label: "縮圖列表", key: k('5')},
+		{label: i18n.T("改變路徑"), key: k('P')},
+		{label: i18n.T("排序方式"), key: k('S')},
+		{label: i18n.T("縮圖列表"), key: k('5')},
 		{sep: true},
-		{label: "預視窗格", key: alt('P')},
-		{label: "磁碟窗格", key: alt('D')},
+		{label: i18n.T("預視窗格"), key: alt('P')},
+		{label: i18n.T("磁碟窗格"), key: alt('D')},
 		{sep: true},
-		{label: "尋找 檔名/字串/註解", key: k('W')},
-		{label: "註解", key: alt('E')},
+		{label: i18n.T("尋找 檔名/字串/註解"), key: k('W')},
+		{label: i18n.T("註解"), key: alt('E')},
 	}
 }
 
 func (a *App) toolMenuItems() []menuItem {
 	return []menuItem{
-		{label: "轉換(換行/編碼/去 HTML)", key: keys.CtrlCh('O')},
+		{label: i18n.T("轉換(換行/編碼/去 HTML)"), key: keys.CtrlCh('O')},
 		{sep: true},
-		{label: "算 MD5", run: a.runMD5},
-		{label: "建 SFV(.sfv)", run: a.runMakeSFV},
-		{label: "驗 SFV", run: a.runVerifySFV},
+		{label: i18n.T("算 MD5"), run: a.runMD5},
+		{label: i18n.T("建 SFV(.sfv)"), run: a.runMakeSFV},
+		{label: i18n.T("驗 SFV"), run: a.runVerifySFV},
 		{sep: true},
-		{label: "網路瀏覽(gopher / http)", key: keys.Named(keys.F2)},
+		{label: i18n.T("網路瀏覽(gopher / http)"), key: keys.Named(keys.F2)},
 	}
 }
 
 func (a *App) setupMenuItems() []menuItem {
 	return []menuItem{
-		{label: "切換 中英文顯示", key: keys.Named(keys.F8)},
-		{label: "全螢幕", key: keys.Named(keys.F11)},
+		{label: i18n.T("切換 中英文顯示"), key: keys.Named(keys.F8)},
+		{label: i18n.T("全螢幕"), key: keys.Named(keys.F11)},
 		{sep: true},
-		{label: "放大字體", key: keys.CtrlCh('+')},
-		{label: "縮小字體", key: keys.CtrlCh('-')},
+		{label: i18n.T("放大字體"), key: keys.CtrlCh('+')},
+		{label: i18n.T("縮小字體"), key: keys.CtrlCh('-')},
 		{sep: true},
-		{label: fmt.Sprintf("放大倍率 +%.1f(現在 %.1f×)", ScaleStep, a.Scale), key: keys.AltCh('+')},
-		{label: fmt.Sprintf("放大倍率 -%.1f", ScaleStep), key: keys.AltCh('-')},
-		{label: "視窗大小…", sub: a.sizeMenuItems},
+		{label: fmt.Sprintf(i18n.T("放大倍率 +%.1f(現在 %.1f×)"), ScaleStep, a.Scale), key: keys.AltCh('+')},
+		{label: fmt.Sprintf(i18n.T("放大倍率 -%.1f"), ScaleStep), key: keys.AltCh('-')},
+		{label: i18n.T("視窗大小…"), sub: a.sizeMenuItems},
 		{sep: true},
 		{label: a.menuZoomLabel(), sub: a.menuFontItems},
+		{sep: true},
+		{label: a.langLabel(), sub: a.langMenuItems},
+	}
+}
+
+// langLabel 說明現在用哪個語言。用該語言自己的名字 ——
+// 找自己母語的人認得的是「日本語」,不是翻譯過的「日文」。
+func (a *App) langLabel() string {
+	return i18n.T("語言…") + "(" + i18n.Name(i18n.Current()) + ")"
+}
+
+// langMenuItems 是語言的子選單。
+func (a *App) langMenuItems() []menuItem {
+	out := make([]menuItem, 0, len(i18n.Langs()))
+	for _, l := range i18n.Langs() {
+		label := i18n.Name(l)
+		if l == i18n.Current() {
+			label = "• " + label
+		}
+		out = append(out, menuItem{label: label, run: a.setLangFunc(l)})
+	}
+	return out
+}
+
+// setLangFunc 回傳一個「換成這個語言」的動作。
+//
+// 包成 closure 而不是在迴圈裡直接呼叫:選單項目的 run 是等使用者按下去
+// 才執行的,迴圈變數要在這裡就綁定。
+func (a *App) setLangFunc(l i18n.Lang) func() bool {
+	return func() bool {
+		if i18n.Current() == l {
+			return true
+		}
+		i18n.Set(l)
+		a.Lang = string(l)
+		// 選單標籤、觸控列、狀態列全部是每次繪製才組出來的,
+		// 所以換完語言不必自己去更新誰 —— 下一幀就是新語言。
+		a.Message = i18n.T("已換成") + " " + i18n.Name(l)
+		return true
 	}
 }
 
 // menuZoomLabel 說明選單現在用第幾級字。
 func (a *App) menuZoomLabel() string {
 	if a.MenuZoom < 0 {
-		return "選單字級…(跟著內容)"
+		return i18n.T("選單字級…(跟著內容)")
 	}
-	return fmt.Sprintf("選單字級…(第 %d 級)", a.MenuZoom+1)
+	return fmt.Sprintf(i18n.T("選單字級…(第 %d 級)"), a.MenuZoom+1)
 }
 
 // menuFontItems 是「選單字級」子選單。
@@ -158,13 +198,13 @@ func (a *App) menuZoomLabel() string {
 // 選單與內容各自選字級,不必動到對方 —— 這正是把選單那一層獨立出來
 // 光柵化換到的東西。
 func (a *App) menuFontItems() []menuItem {
-	out := []menuItem{{label: "跟著內容", run: func() bool {
+	out := []menuItem{{label: i18n.T("跟著內容"), run: func() bool {
 		return a.setMenuZoom(-1)
 	}}}
 	for i := 0; i <= a.MaxZoom; i++ {
 		n := i
 		out = append(out, menuItem{
-			label: fmt.Sprintf("第 %d 級", n+1),
+			label: fmt.Sprintf(i18n.T("第 %d 級"), n+1),
 			run:   func() bool { return a.setMenuZoom(n) },
 		})
 	}
@@ -184,17 +224,17 @@ func (a *App) setMenuZoom(n int) bool {
 	}
 	a.MenuZoom = n
 	if n < 0 {
-		a.Message = "選單字級跟著內容"
+		a.Message = i18n.T("選單字級跟著內容")
 	} else {
-		a.Message = fmt.Sprintf("選單字級 第 %d 級", n+1)
+		a.Message = fmt.Sprintf(i18n.T("選單字級 第 %d 級"), n+1)
 	}
 	return true
 }
 
 func (a *App) helpMenuItems() []menuItem {
 	return []menuItem{
-		{label: "使用說明", key: keys.Named(keys.F1)},
-		{label: "關於", run: a.openAbout},
+		{label: i18n.T("使用說明"), key: keys.Named(keys.F1)},
+		{label: i18n.T("關於"), run: a.openAbout},
 	}
 }
 
@@ -365,7 +405,7 @@ func (a *App) drawMenuBar(s *cell.Screen) {
 		x += w
 	}
 	// 右側提示。擠不下就不畫 —— 半條提示比沒有提示更難懂。
-	hint := "F9 選單  F1 說明  F2 網路"
+	hint := i18n.T("F9 選單  F1 說明  F2 網路")
 	if px := s.Cols - cellWidth(hint) - 1; px > x+2 {
 		s.Print(px, 0, hint, cell.Blue, cell.LtGray)
 	}
@@ -531,12 +571,12 @@ func cellWidth(s string) int {
 
 func (a *App) runMD5() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案要先解出來"
+		a.Message = i18n.T("壓縮檔裡的檔案要先解出來")
 		return true
 	}
 	names := a.targets()
 	if len(names) == 0 {
-		a.Message = "沒有選到檔案"
+		a.Message = i18n.T("沒有選到檔案")
 		return true
 	}
 	var sb strings.Builder
@@ -554,16 +594,16 @@ func (a *App) runMD5() bool {
 
 func (a *App) runMakeSFV() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案要先解出來"
+		a.Message = i18n.T("壓縮檔裡的檔案要先解出來")
 		return true
 	}
 	names := a.targets()
 	if len(names) == 0 {
-		a.Message = "沒有選到檔案"
+		a.Message = i18n.T("沒有選到檔案")
 		return true
 	}
 	def := filepath.Base(a.Browser.Dir) + ".sfv"
-	a.ask(fmt.Sprintf("把 %d 個檔案的 CRC 寫進:", len(names)), def, func(out string) {
+	a.ask(fmt.Sprintf(i18n.T("把 %d 個檔案的 CRC 寫進:"), len(names)), def, func(out string) {
 		if out == "" {
 			return
 		}
@@ -576,7 +616,7 @@ func (a *App) runMakeSFV() bool {
 		}
 		entries, err := checksum.MakeSFV(a.Browser.Dir, names)
 		if err != nil {
-			a.Message = "算 CRC 失敗: " + err.Error()
+			a.Message = i18n.T("算 CRC 失敗: ") + err.Error()
 			return
 		}
 		f, err := create(dst)
@@ -587,10 +627,10 @@ func (a *App) runMakeSFV() bool {
 		err = checksum.WriteSFV(f, entries)
 		f.Close()
 		if err != nil {
-			a.Message = "寫不進去: " + err.Error()
+			a.Message = i18n.T("寫不進去: ") + err.Error()
 			return
 		}
-		a.Message = fmt.Sprintf("已寫入 %d 筆到 %s", len(entries), filepath.Base(dst))
+		a.Message = fmt.Sprintf(i18n.T("已寫入 %d 筆到 %s"), len(entries), filepath.Base(dst))
 		a.Browser.Reload()
 		a.focusOn(filepath.Base(dst))
 	})
@@ -599,12 +639,12 @@ func (a *App) runMakeSFV() bool {
 
 func (a *App) runVerifySFV() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案要先解出來"
+		a.Message = i18n.T("壓縮檔裡的檔案要先解出來")
 		return true
 	}
 	e := a.Browser.Current()
 	if e == nil || e.IsDir || !strings.HasSuffix(strings.ToLower(e.Name), ".sfv") {
-		a.Message = "游標要停在 .sfv 檔上"
+		a.Message = i18n.T("游標要停在 .sfv 檔上")
 		return true
 	}
 	rs, err := checksum.VerifySFV(filepath.Join(a.Browser.Dir, e.Name))
@@ -614,18 +654,18 @@ func (a *App) runVerifySFV() bool {
 	}
 	ok, bad, missing := checksum.Summary(rs)
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%s:相符 %d,不符 %d,找不到 %d\n\n", e.Name, ok, bad, missing))
+	sb.WriteString(fmt.Sprintf(i18n.T("%s:相符 %d,不符 %d,找不到 %d\n\n"), e.Name, ok, bad, missing))
 	for _, r := range rs {
 		mark := "OK  "
 		switch {
 		case r.Missing:
-			mark = "缺檔"
+			mark = i18n.T("缺檔")
 		case !r.OK:
-			mark = "不符"
+			mark = i18n.T("不符")
 		}
 		sb.WriteString(fmt.Sprintf("%s  %s  %s\n", mark, r.Want, r.Name))
 	}
-	a.showText("SFV 驗證", sb.String())
+	a.showText(i18n.T("SFV 驗證"), sb.String())
 	return true
 }
 
@@ -643,7 +683,7 @@ func (a *App) showText(title, body string) {
 func create(p string) (*os.File, error) {
 	f, err := os.Create(p)
 	if err != nil {
-		return nil, fmt.Errorf("建不了 %s: %w", filepath.Base(p), err)
+		return nil, fmt.Errorf(i18n.T("建不了 %s: %w"), filepath.Base(p), err)
 	}
 	return f, nil
 }

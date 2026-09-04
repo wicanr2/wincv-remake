@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 
 	"github.com/wicanr2/wincv-remake/internal/editor"
 )
@@ -18,11 +19,11 @@ type findState struct {
 }
 
 func (a *App) startEditFind() bool {
-	a.ask("尋找:", a.editFind.pattern, func(pat string) {
+	a.ask(i18n.T("尋找:"), a.editFind.pattern, func(pat string) {
 		if pat == "" {
 			return
 		}
-		a.ask("取代為(直接按 Enter = 只尋找):", "", func(with string) {
+		a.ask(i18n.T("取代為(直接按 Enter = 只尋找):"), "", func(with string) {
 			a.editFind = findState{
 				pattern: pat,
 				with:    with,
@@ -40,7 +41,7 @@ func (a *App) startEditFind() bool {
 func (a *App) editFindNext(fromCursor bool) {
 	f := &a.editFind
 	if f.pattern == "" {
-		a.Message = "還沒設定要找什麼(F6)"
+		a.Message = i18n.T("還沒設定要找什麼(F6)")
 		return
 	}
 	from := f.at
@@ -49,7 +50,7 @@ func (a *App) editFindNext(fromCursor bool) {
 	}
 	at, ok := a.Editor.Find(f.pattern, from, false)
 	if !ok {
-		a.Message = fmt.Sprintf("找不到 %q(已到檔尾)", f.pattern)
+		a.Message = fmt.Sprintf(i18n.T("找不到 %q(已到檔尾)"), f.pattern)
 		f.at = editor.Pos{}
 		return
 	}
@@ -59,15 +60,15 @@ func (a *App) editFindNext(fromCursor bool) {
 	if !f.replace {
 		return
 	}
-	a.confirm(fmt.Sprintf("取代成 %q?", f.with), true, func(yes, all bool) {
+	a.confirm(fmt.Sprintf(i18n.T("取代成 %q?"), f.with), true, func(yes, all bool) {
 		switch {
 		case all && yes:
 			// 從這一處開始,剩下的全換掉
 			n := a.Editor.ReplaceAll(f.pattern, f.with, false)
-			a.Message = fmt.Sprintf("已取代 %d 處", n)
+			a.Message = fmt.Sprintf(i18n.T("已取代 %d 處"), n)
 			f.at = editor.Pos{}
 		case all: // Esc:停在這裡,不再問
-			a.Message = "已停止取代"
+			a.Message = i18n.T("已停止取代")
 		case yes:
 			a.Editor.Replace(at, len([]rune(f.pattern)), f.with)
 			f.at = editor.Pos{Line: at.Line, Col: at.Col + len([]rune(f.with))}
@@ -88,9 +89,9 @@ func (a *App) editComment() bool {
 	}
 	if !e.CommentLines(top, bot) {
 		if e.Syntax == nil {
-			a.Message = "這個副檔名沒有語法設定,不知道註解記號是什麼"
+			a.Message = i18n.T("這個副檔名沒有語法設定,不知道註解記號是什麼")
 		} else {
-			a.Message = e.Syntax.Name + " 沒有定義行註解記號"
+			a.Message = e.Syntax.Name + i18n.T(" 沒有定義行註解記號")
 		}
 	}
 	return true

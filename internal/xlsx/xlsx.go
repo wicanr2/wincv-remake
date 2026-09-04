@@ -17,6 +17,7 @@ package xlsx
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"math"
 	"strconv"
 	"strings"
@@ -79,7 +80,7 @@ func Open(name string) (*Book, error) {
 func New(p *ooxml.Package) (*Book, error) {
 	wb := wbPart(p)
 	if wb == "" {
-		return nil, fmt.Errorf("這不是 Excel 活頁簿(找不到 workbook.xml)")
+		return nil, fmt.Errorf(i18n.T("這不是 Excel 活頁簿(找不到 workbook.xml)"))
 	}
 	b := &Book{pkg: p, wbPart: wb, loaded: map[int][]markdown.Block{},
 		numFmts: map[int]string{}, epoch: time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC)}
@@ -87,7 +88,7 @@ func New(p *ooxml.Package) (*Book, error) {
 	b.readShared()
 	b.readStyles()
 	if len(b.Sheets) == 0 {
-		return nil, fmt.Errorf("這份活頁簿沒有工作表")
+		return nil, fmt.Errorf(i18n.T("這份活頁簿沒有工作表"))
 	}
 	return b, nil
 }
@@ -234,12 +235,12 @@ func (b *Book) sheetBlocks(sh Sheet) []markdown.Block {
 		Spans: []markdown.Span{{Text: sh.Name}}}}
 	if len(rows) == 0 {
 		return append(out, markdown.Block{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: "(這張工作表是空的)"}}})
+			Spans: []markdown.Span{{Text: i18n.T("(這張工作表是空的)")}}})
 	}
 	out = append(out, markdown.Block{Kind: markdown.Table, Rows: rows})
 	if more {
 		out = append(out, markdown.Block{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: fmt.Sprintf("(只顯示前 %d 列 × %d 欄)", MaxRows, MaxCols),
+			Spans: []markdown.Span{{Text: fmt.Sprintf(i18n.T("(只顯示前 %d 列 × %d 欄)"), MaxRows, MaxCols),
 				Style: markdown.Italic}}})
 	}
 	return out

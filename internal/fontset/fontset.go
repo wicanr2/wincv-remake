@@ -11,6 +11,7 @@ package fontset
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 
@@ -81,7 +82,7 @@ func Load(dir, stdPath, spcPath, fbPath string, noFB bool) []Level {
 		}
 		half, err := fnt.Parse(d)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "警告:%s 解不開 (%v)\n", name, err)
+			fmt.Fprintf(os.Stderr, i18n.T("警告:%s 解不開 (%v)\n"), name, err)
 			continue
 		}
 		cw, ch := half.PixWidth, half.PixHeight+render.LineGap
@@ -90,7 +91,7 @@ func Load(dir, stdPath, spcPath, fbPath string, noFB bool) []Level {
 		if err != nil {
 			// 每一個字級都要報。只報第一個的話,「只有某幾個字級沒有中文」
 			// 這種狀況會完全沒有訊息 —— 而使用者要按到那一級才看得到。
-			fmt.Fprintf(os.Stderr, "提示:%s 這一級沒有倚天字庫,全形字改用後備字型 (%v)\n",
+			fmt.Fprintf(os.Stderr, i18n.T("提示:%s 這一級沒有倚天字庫,全形字改用後備字型 (%v)\n"),
 				name, err)
 		}
 		var fb render.CJKSource
@@ -144,7 +145,7 @@ func FromTTF(stdPath, spcPath, fbPath string, noFB bool) []Level {
 			continue
 		}
 		cw, ch := s.w, s.h+render.LineGap
-		l := Level{Name: "系統字型 " + s.name, Half: hf}
+		l := Level{Name: i18n.T("系統字型 ") + s.name, Half: hf}
 		var fb render.CJKSource
 		if !noFB {
 			fb = Fallback(fbPath, cw, ch)
@@ -161,7 +162,7 @@ func FromTTF(stdPath, spcPath, fbPath string, noFB bool) []Level {
 		out = append(out, l)
 	}
 	for _, e := range lastErrs {
-		fmt.Fprintf(os.Stderr, "警告:字型載不起來 %v\n", e)
+		fmt.Fprintf(os.Stderr, i18n.T("警告:字型載不起來 %v\n"), e)
 	}
 	return out
 }
@@ -172,7 +173,7 @@ func Fallback(path string, cw, ch int) render.CJKSource {
 	if path != "" {
 		f, err := ttf.Load(path, cw, cw*2, ch)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "警告:載不到後備字型 %s (%v)\n", path, err)
+			fmt.Fprintf(os.Stderr, i18n.T("警告:載不到後備字型 %s (%v)\n"), path, err)
 			return nil
 		}
 		return f
@@ -193,8 +194,8 @@ func Fallback(path string, cw, ch int) render.CJKSource {
 		return chain
 	}
 	for _, e := range errs {
-		fmt.Fprintf(os.Stderr, "警告:字型載不起來 %v\n", e)
+		fmt.Fprintf(os.Stderr, i18n.T("警告:字型載不起來 %v\n"), e)
 	}
-	fmt.Fprintln(os.Stderr, "警告:"+ttf.MissingHint())
+	fmt.Fprintln(os.Stderr, i18n.T("警告:")+ttf.MissingHint())
 	return nil
 }

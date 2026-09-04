@@ -2,11 +2,9 @@ package lzh
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
-
 )
-
-
 
 // dicBits 是各壓縮法的滑動視窗大小(以位元數表示)。
 var dicBits = map[string]uint{
@@ -44,7 +42,7 @@ func Decode(src io.Reader, method string, origSize int64) ([]byte, error) {
 
 	bits, ok := dicBits[method]
 	if !ok {
-		return nil, fmt.Errorf("還不支援 %s", method)
+		return nil, fmt.Errorf(i18n.T("還不支援 %s"), method)
 	}
 	return DecodeBits(src, bits, origSize)
 }
@@ -55,7 +53,7 @@ func Decode(src io.Reader, method string, origSize int64) ([]byte, error) {
 // 視窗 13 位,參數與 -lh5- 相同,所以共用這個解碼器而不是抄一份。
 func DecodeBits(src io.Reader, bits uint, origSize int64) ([]byte, error) {
 	if origSize < 0 || origSize > 1<<32 {
-		return nil, fmt.Errorf("原始大小不合理: %d", origSize)
+		return nil, fmt.Errorf(i18n.T("原始大小不合理: %d"), origSize)
 	}
 
 	h := &huffman{np: int(bits) + 1, pbit: 4}
@@ -68,7 +66,7 @@ func DecodeBits(src io.Reader, bits uint, origSize int64) ([]byte, error) {
 	for int64(len(out)) < origSize {
 		c, err := h.decodeC(b)
 		if err != nil {
-			return out, fmt.Errorf("第 %d 區塊,已輸出 %d/%d: %w", h.Blocks(), len(out), origSize, err)
+			return out, fmt.Errorf(i18n.T("第 %d 區塊,已輸出 %d/%d: %w"), h.Blocks(), len(out), origSize, err)
 		}
 		if c <= 0xFF {
 			out = append(out, byte(c))
@@ -81,7 +79,7 @@ func DecodeBits(src io.Reader, bits uint, origSize int64) ([]byte, error) {
 		}
 		start := len(out) - dist - 1
 		if start < 0 {
-			return out, fmt.Errorf("距離超出視窗(%d,目前只有 %d 個位元組)", dist+1, len(out))
+			return out, fmt.Errorf(i18n.T("距離超出視窗(%d,目前只有 %d 個位元組)"), dist+1, len(out))
 		}
 		for i := 0; i < length && int64(len(out)) < origSize; i++ {
 			out = append(out, out[start+i])

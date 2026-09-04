@@ -1,6 +1,7 @@
 package gopher
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strings"
 
 	"github.com/wicanr2/wincv-remake/internal/markdown"
@@ -14,29 +15,29 @@ import (
 func Label(t byte) string {
 	switch t {
 	case TypeText:
-		return "文字"
+		return i18n.T("文字")
 	case TypeMenu:
-		return "目錄"
+		return i18n.T("目錄")
 	case TypeError:
-		return "錯誤"
+		return i18n.T("錯誤")
 	case TypeSearch:
-		return "查詢"
+		return i18n.T("查詢")
 	case TypeBinary, TypeDoc:
-		return "檔案"
+		return i18n.T("檔案")
 	case TypeGIF, TypeImage, TypePNG:
-		return "圖片"
+		return i18n.T("圖片")
 	case TypeHTML:
-		return "網頁"
+		return i18n.T("網頁")
 	case TypeSound:
-		return "音訊"
+		return i18n.T("音訊")
 	case '2':
-		return "電話簿"
+		return i18n.T("電話簿")
 	case '4', '5', '6':
-		return "封裝檔"
+		return i18n.T("封裝檔")
 	case '8', 'T':
-		return "終端機"
+		return i18n.T("終端機")
 	case '+':
-		return "備援"
+		return i18n.T("備援")
 	}
 	return "?"
 }

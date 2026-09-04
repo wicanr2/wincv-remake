@@ -3,6 +3,7 @@ package imgfmt
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 )
@@ -22,7 +23,7 @@ import (
 // 256 色調色盤在檔尾:最後 769 bytes,第一個 byte 是 0x0C。
 func DecodePCX(d []byte) (image.Image, error) {
 	if len(d) < 128 || d[0] != 0x0A {
-		return nil, fmt.Errorf("不是 PCX")
+		return nil, fmt.Errorf(i18n.T("不是 PCX"))
 	}
 	enc := d[2]
 	bpp := int(d[3])
@@ -35,7 +36,7 @@ func DecodePCX(d []byte) (image.Image, error) {
 
 	w, h := xmax-xmin+1, ymax-ymin+1
 	if w <= 0 || h <= 0 || w > 1<<16 || h > 1<<16 || planes == 0 || bpl == 0 {
-		return nil, fmt.Errorf("PCX 尺寸不合理: %dx%d planes=%d bpl=%d", w, h, planes, bpl)
+		return nil, fmt.Errorf(i18n.T("PCX 尺寸不合理: %dx%d planes=%d bpl=%d"), w, h, planes, bpl)
 	}
 
 	total := bpl * planes * h
@@ -114,7 +115,7 @@ func DecodePCX(d []byte) (image.Image, error) {
 					c = color.RGBA{}
 				}
 			default:
-				return nil, fmt.Errorf("PCX: 還沒支援 %d planes x %d bit", planes, bpp)
+				return nil, fmt.Errorf(i18n.T("PCX: 還沒支援 %d planes x %d bit"), planes, bpp)
 			}
 			img.Set(x, y, c)
 		}

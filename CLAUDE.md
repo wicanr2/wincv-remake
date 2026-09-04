@@ -198,6 +198,7 @@ internal/
   search/     尋找 檔名 / 字串 / 註解      note/ dir.doc 註解讀寫
   gopher/     Gopher(RFC 1436)客戶端 —— 原版沒有的功能,見 docs/ui/keymap.md
   web/        HTTP + HTML→區塊 —— 用 gopher 的方式看網頁,同上
+  i18n/       介面文字的語系目錄(繁中原文當 key);srcscan/ 掃原始碼找沒接上的字串
   session/    關掉時記下人在哪裡,下次開回同一個位置
   epub/       EPUB 電子書(ZIP + XHTML,借 web 的 HTML 解析器)
   pdf/        PDF 內容資料流解譯、字型編碼與 ToUnicode、書籤、頁面渲染
@@ -453,6 +454,26 @@ KK 音標)不因使用率低而砍。這類軟體的價值就在保全當年的�
 `docs/` 裡的斷言分兩級:**已驗證**(附重跑指令或 offset)與 **假設待驗**。
 兩者不可混寫。斷言被推翻時,正文直接改成正確答案,推翻紀錄集中記到
 `CONTEXT.md` 的「已被推翻的斷言」表,正文不留檢討敘述(`rulebook/63`)。
+
+### [HARD] 新增介面文字要接上語系目錄
+
+畫面上看得到的中文字串一律包 `i18n.T("…")`。沒包的會永遠是繁體中文,
+而症狀是「介面大部分翻了、幾個角落沒翻」—— 那要切到那個語言、走到
+那條路徑才看得見。
+
+```bash
+tools/go.sh run ./tools/i18nscan -mode count   # 看還有幾條沒接上
+tools/go.sh run ./tools/i18nscan -mode plan -root internal/xxx > plan.tsv
+python3 tools/i18n-apply.py plan.tsv           # 自動包 auto 的那幾條
+```
+
+**四種位置不能自動包**(工具會標成 `skip:*`,要人工處理):`const`、
+`switch` 的 `case`、套件層級的 `var`(在 init 時求值,會把啟動當下的
+語言凍進去)、map 的 key。資料表(`archive.Formats` 的 `Note`、
+`textenc` 的編碼名)的作法是**存中文原文當 key,顯示的那一刻才過 `i18n.T`**。
+
+原文改字等於換 key,對應的翻譯會失效並被 `TestNoOrphanKeys` 抓到 ——
+改字的時候要一併改四個 `locales/*.json`。
 
 ### [HARD] 量畫面尺寸要加 `-no-resume`
 

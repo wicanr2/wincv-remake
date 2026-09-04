@@ -10,6 +10,7 @@ package lzh
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 )
 
@@ -23,11 +24,11 @@ const (
 	// 讀碼長表的迴圈以 nc 為上限,少一格就漏掉最後一個字碼,
 	// Huffman 樹的權重和變成 65024 而不是 65536。小檔案全部正常,
 	// 只有大到需要完整字碼表的成員會壞。
-	nc        = 255 + maxMatch + 2 - threshold // 510
-	nt        = 16 + 3                         // 19
-	cbit      = 9
-	tbit      = 5
-	npt       = 0x80
+	nc   = 255 + maxMatch + 2 - threshold // 510
+	nt   = 16 + 3                         // 19
+	cbit = 9
+	tbit = 5
+	npt  = 0x80
 )
 
 // bitReader 是 LHA 的位元讀取器。
@@ -129,7 +130,7 @@ func makeTable(h *huffman, nchar int, bitlen []byte, tablebits uint, table []uin
 		start[i+1] = start[i] + (count[i] << (16 - i))
 	}
 	if start[17] != 1<<16 {
-		return fmt.Errorf("碼長表不合法(不是完整的 Huffman 樹,權重和 %d)", start[17])
+		return fmt.Errorf(i18n.T("碼長表不合法(不是完整的 Huffman 樹,權重和 %d)"), start[17])
 	}
 
 	jutbits := 16 - tablebits
@@ -157,7 +158,7 @@ func makeTable(h *huffman, nchar int, bitlen []byte, tablebits uint, table []uin
 		next := start[l] + weight[l]
 		if l <= tablebits {
 			if next > 1<<tablebits {
-				return fmt.Errorf("碼長表越界")
+				return fmt.Errorf(i18n.T("碼長表越界"))
 			}
 			for j := start[l]; j < next; j++ {
 				table[j] = uint16(ch)
@@ -166,7 +167,7 @@ func makeTable(h *huffman, nchar int, bitlen []byte, tablebits uint, table []uin
 			k := start[l]
 			idx := k >> jutbits
 			if int(idx) >= len(table) {
-				return fmt.Errorf("碼長表越界")
+				return fmt.Errorf(i18n.T("碼長表越界"))
 			}
 			p := &table[idx]
 			for j := l - tablebits; j != 0; j-- {
@@ -175,7 +176,7 @@ func makeTable(h *huffman, nchar int, bitlen []byte, tablebits uint, table []uin
 					*p = uint16(*avail)
 					*avail++
 					if *avail >= 2*nc {
-						return fmt.Errorf("碼長表節點用盡")
+						return fmt.Errorf(i18n.T("碼長表節點用盡"))
 					}
 				}
 				if k&mask != 0 {
@@ -217,7 +218,7 @@ func (h *huffman) readPtLen(b *bitReader, nn int, nbit uint, iSpecial int) error
 				mask >>= 1
 				c++
 				if c > 16 {
-					return fmt.Errorf("碼長超過 16")
+					return fmt.Errorf(i18n.T("碼長超過 16"))
 				}
 			}
 			b.fill(uint(c - 3))
@@ -269,7 +270,7 @@ func (h *huffman) readCLen(b *bitReader) error {
 				}
 				mask >>= 1
 				if mask == 0 {
-					return fmt.Errorf("碼長表解碼卡住")
+					return fmt.Errorf(i18n.T("碼長表解碼卡住"))
 				}
 			}
 		}
@@ -333,7 +334,7 @@ func (h *huffman) decodeC(b *bitReader) (int, error) {
 			}
 			mask >>= 1
 			if mask == 0 {
-				return 0, fmt.Errorf("字碼解碼卡住")
+				return 0, fmt.Errorf(i18n.T("字碼解碼卡住"))
 			}
 		}
 	}
@@ -353,7 +354,7 @@ func (h *huffman) decodeP(b *bitReader) (int, error) {
 			}
 			mask >>= 1
 			if mask == 0 {
-				return 0, fmt.Errorf("距離解碼卡住")
+				return 0, fmt.Errorf(i18n.T("距離解碼卡住"))
 			}
 		}
 	}

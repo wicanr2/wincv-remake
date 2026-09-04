@@ -3,6 +3,7 @@ package arj
 import (
 	"bytes"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 
 	"github.com/wicanr2/wincv-remake/internal/archive/lzh"
 )
@@ -61,10 +62,10 @@ func decodeM4(body []byte, origSize int64) ([]byte, error) {
 		dist := decodePtr()
 		start := len(out) - dist - 1
 		if start < 0 {
-			return out, fmt.Errorf("距離 %d 超出目前的 %d 個位元組", dist+1, len(out))
+			return out, fmt.Errorf(i18n.T("距離 %d 超出目前的 %d 個位元組"), dist+1, len(out))
 		}
 		if dist >= fdicSiz {
-			return out, fmt.Errorf("距離 %d 超過視窗 %d", dist+1, fdicSiz)
+			return out, fmt.Errorf(i18n.T("距離 %d 超過視窗 %d"), dist+1, fdicSiz)
 		}
 		for i := 0; i < length && int64(len(out)) < origSize; i++ {
 			out = append(out, out[start+i])

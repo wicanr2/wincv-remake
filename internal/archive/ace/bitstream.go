@@ -16,6 +16,7 @@ package ace
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 )
 
 // bitStream 是 ACE 的位元讀取器。
@@ -69,11 +70,11 @@ func (b *bitStream) peek(n uint) (uint32, error) {
 		return 0, nil
 	}
 	if n > 31 {
-		return 0, fmt.Errorf("一次讀 %d 位超過上限", n)
+		return 0, fmt.Errorf(i18n.T("一次讀 %d 位超過上限"), n)
 	}
 	if b.pos+int(n) > b.nbits {
 		if b.pos+int(n) > b.nbits+31 {
-			return 0, fmt.Errorf("位元流讀過頭")
+			return 0, fmt.Errorf(i18n.T("位元流讀過頭"))
 		}
 		if len(b.words)*32 == b.nbits {
 			b.words = append(b.words, 0)

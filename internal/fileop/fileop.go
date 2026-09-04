@@ -16,6 +16,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"os"
 	"path/filepath"
@@ -68,12 +69,12 @@ func (r *Result) Failed() bool { return len(r.Errors) > 0 }
 
 // Summary 給狀態列用的一行摘要。
 func (r *Result) Summary(verb string) string {
-	s := fmt.Sprintf("%s %d 個檔案", verb, len(r.Done))
+	s := fmt.Sprintf(i18n.T("%s %d 個檔案"), verb, len(r.Done))
 	if len(r.Skipped) > 0 {
-		s += fmt.Sprintf(",跳過 %d 個", len(r.Skipped))
+		s += fmt.Sprintf(i18n.T(",跳過 %d 個"), len(r.Skipped))
 	}
 	if len(r.Errors) > 0 {
-		s += fmt.Sprintf(",失敗 %d 個", len(r.Errors))
+		s += fmt.Sprintf(i18n.T(",失敗 %d 個"), len(r.Errors))
 	}
 	return s
 }
@@ -93,7 +94,7 @@ func batch(srcDir, dstDir string, names []string, o Options,
 
 	res := newResult()
 	if srcDir == dstDir {
-		res.Errors["*"] = errors.New("來源與目的是同一個目錄")
+		res.Errors["*"] = errors.New(i18n.T("來源與目的是同一個目錄"))
 		return res
 	}
 	for i, n := range names {
@@ -229,11 +230,11 @@ func moveOne(src, dst string, o *Options) error {
 // 改名不像拷貝,沒有「批次覆蓋」的合理情境。
 func Rename(dir, from, to string) error {
 	if to == "" || strings.ContainsAny(to, `/\`) {
-		return fmt.Errorf("檔名不合法: %q", to)
+		return fmt.Errorf(i18n.T("檔名不合法: %q"), to)
 	}
 	dst := filepath.Join(dir, to)
 	if _, err := os.Stat(dst); err == nil {
-		return fmt.Errorf("%s 已存在", to)
+		return fmt.Errorf(i18n.T("%s 已存在"), to)
 	}
 	return os.Rename(filepath.Join(dir, from), dst)
 }

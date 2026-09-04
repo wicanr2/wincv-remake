@@ -17,6 +17,7 @@ package pptx
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"path"
 	"sort"
 	"strconv"
@@ -64,7 +65,7 @@ func Open(name string) (*Deck, error) {
 func New(p *ooxml.Package) (*Deck, error) {
 	main := presPart(p)
 	if main == "" {
-		return nil, fmt.Errorf("這不是 PowerPoint 簡報(找不到 presentation.xml)")
+		return nil, fmt.Errorf(i18n.T("這不是 PowerPoint 簡報(找不到 presentation.xml)"))
 	}
 	d := &Deck{pkg: p, imgs: map[string]string{}}
 	d.Title = coreTitle(p)
@@ -74,7 +75,7 @@ func New(p *ooxml.Package) (*Deck, error) {
 		d.Slides = append(d.Slides, s)
 	}
 	if len(d.Slides) == 0 {
-		return nil, fmt.Errorf("這份簡報沒有投影片")
+		return nil, fmt.Errorf(i18n.T("這份簡報沒有投影片"))
 	}
 	return d, nil
 }
@@ -85,7 +86,7 @@ func (d *Deck) Close() error { return d.pkg.Close() }
 func (d *Deck) Image(ref string) ([]byte, error) {
 	part, ok := d.imgs[ref]
 	if !ok {
-		return nil, fmt.Errorf("這份簡報裡沒有 %s", ref)
+		return nil, fmt.Errorf(i18n.T("這份簡報裡沒有 %s"), ref)
 	}
 	return d.pkg.Bytes(part)
 }
@@ -235,13 +236,13 @@ func (d *Deck) slide(part string, num int) (string, []markdown.Block) {
 			Spans: []markdown.Span{{Text: title}}})
 	} else {
 		out = append(out, markdown.Block{Kind: markdown.Heading, Level: 1,
-			Spans: []markdown.Span{{Text: fmt.Sprintf("第 %d 張", num)}}})
+			Spans: []markdown.Span{{Text: fmt.Sprintf(i18n.T("第 %d 張"), num)}}})
 	}
 	out = append(out, rest...)
 	out = append(out, d.notes(part)...)
 	if len(out) == 1 {
 		out = append(out, markdown.Block{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: "(這一張沒有文字)"}}})
+			Spans: []markdown.Span{{Text: i18n.T("(這一張沒有文字)")}}})
 	}
 	return title, out
 }
@@ -629,7 +630,7 @@ func (d *Deck) frameOf(dec *xml.Decoder, part string) shape {
 				// 圖表的資料在另一個組件裡,畫成表格會是一份跟畫面
 				// 對不起來的數字。只標出這裡有一張圖表。
 				s.blocks = append(s.blocks, markdown.Block{Kind: markdown.Para,
-					Spans: []markdown.Span{{Text: "(圖表)", Style: markdown.Italic}}})
+					Spans: []markdown.Span{{Text: i18n.T("(圖表)"), Style: markdown.Italic}}})
 				return false, nil
 			}
 			return true, walk(dd)
@@ -713,7 +714,7 @@ func (d *Deck) notes(part string) []markdown.Block {
 	}
 	out := []markdown.Block{
 		{Kind: markdown.Rule},
-		{Kind: markdown.Heading, Level: 3, Spans: []markdown.Span{{Text: "備忘稿"}}},
+		{Kind: markdown.Heading, Level: 3, Spans: []markdown.Span{{Text: i18n.T("備忘稿")}}},
 	}
 	for _, b := range body {
 		// 備忘稿在畫面上用引言區塊,跟投影片本身的內容分開。

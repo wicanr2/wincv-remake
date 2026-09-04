@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,7 @@ func (a *App) startExtract() bool {
 			}
 		}
 		outer := filepath.Dir(af.Name())
-		a.ask(fmt.Sprintf("解 %d 個項目到:", len(inner)), outer, func(dst string) {
+		a.ask(fmt.Sprintf(i18n.T("解 %d 個項目到:"), len(inner)), outer, func(dst string) {
 			a.runExtract(af, dst, inner)
 		})
 		return true
@@ -41,7 +42,7 @@ func (a *App) startExtract() bool {
 
 	e := a.Browser.Current()
 	if e == nil || e.IsDir || !archive.IsArchive(e.Name) {
-		a.Message = "游標要停在壓縮檔上"
+		a.Message = i18n.T("游標要停在壓縮檔上")
 		return true
 	}
 	full := filepath.Join(a.Browser.Dir, e.Name)
@@ -51,7 +52,7 @@ func (a *App) startExtract() bool {
 		return true
 	}
 	base := strings.TrimSuffix(e.Name, filepath.Ext(e.Name))
-	a.ask("解壓縮到:", filepath.Join(a.Browser.Dir, base), func(dst string) {
+	a.ask(i18n.T("解壓縮到:"), filepath.Join(a.Browser.Dir, base), func(dst string) {
 		a.runExtract(af, dst, nil)
 	})
 	return true
@@ -62,14 +63,14 @@ func (a *App) runExtract(af *archive.FS, dst string, names []string) {
 		return
 	}
 	if err := os.MkdirAll(dst, 0o755); err != nil {
-		a.Message = "目的目錄建不起來: " + err.Error()
+		a.Message = i18n.T("目的目錄建不起來: ") + err.Error()
 		return
 	}
 	n, err := af.Extract(dst, names, nil)
 	if err != nil {
-		a.Message = fmt.Sprintf("解出 %d 個後失敗: %v", n, err)
+		a.Message = fmt.Sprintf(i18n.T("解出 %d 個後失敗: %v"), n, err)
 	} else {
-		a.Message = fmt.Sprintf("已解出 %d 個檔案到 %s", n, dst)
+		a.Message = fmt.Sprintf(i18n.T("已解出 %d 個檔案到 %s"), n, dst)
 	}
 	a.Browser.Reload()
 }
@@ -78,7 +79,7 @@ func (a *App) runExtract(af *archive.FS, dst string, names []string) {
 
 func (a *App) startCreateArchive() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡不能再建壓縮檔"
+		a.Message = i18n.T("壓縮檔裡不能再建壓縮檔")
 		return true
 	}
 	names := a.targets()
@@ -89,7 +90,7 @@ func (a *App) startCreateArchive() bool {
 	if len(names) == 1 {
 		def = strings.TrimSuffix(names[0], filepath.Ext(names[0])) + ".zip"
 	}
-	a.ask(fmt.Sprintf("把 %d 個項目打包成(只支援 .zip):", len(names)), def, func(out string) {
+	a.ask(fmt.Sprintf(i18n.T("把 %d 個項目打包成(只支援 .zip):"), len(names)), def, func(out string) {
 		if out == "" {
 			return
 		}
@@ -101,10 +102,10 @@ func (a *App) startCreateArchive() bool {
 			dst = filepath.Join(a.Browser.Dir, dst)
 		}
 		if err := archive.CreateZip(dst, a.Browser.Dir, names, nil); err != nil {
-			a.Message = "打包失敗: " + err.Error()
+			a.Message = i18n.T("打包失敗: ") + err.Error()
 			return
 		}
-		a.Message = fmt.Sprintf("已打包 %d 個項目到 %s", len(names), filepath.Base(dst))
+		a.Message = fmt.Sprintf(i18n.T("已打包 %d 個項目到 %s"), len(names), filepath.Base(dst))
 		a.Browser.Reload()
 		a.focusOn(filepath.Base(dst))
 	})
@@ -123,10 +124,10 @@ type FindResult struct {
 }
 
 func (a *App) startFind() bool {
-	a.confirm("尋找:N 檔名  S 字串  C 註解", false, func(bool, bool) {})
+	a.confirm(i18n.T("尋找:N 檔名  S 字串  C 註解"), false, func(bool, bool) {})
 	// confirm 只吃 Y/N/A,這裡要的是三選一,所以自己接一個小狀態機。
 	a.prompt.onAnswer = nil
-	a.prompt.title = "尋找  N)檔名  S)字串  C)註解"
+	a.prompt.title = i18n.T("尋找  N)檔名  S)字串  C)註解")
 	a.prompt.onDone = nil
 	a.findKindPending = true
 	return true
@@ -153,9 +154,9 @@ func (a *App) findKindKey(k keys.Key) bool {
 	a.findKindPending = false
 	a.closePrompt()
 	label := map[search.Kind]string{
-		search.ByName: "檔名", search.ByContent: "字串", search.ByComment: "註解",
+		search.ByName: i18n.T("檔名"), search.ByContent: i18n.T("字串"), search.ByComment: i18n.T("註解"),
 	}[kind]
-	a.ask("尋找 "+label+":", "", func(pattern string) {
+	a.ask(i18n.T("尋找 ")+label+":", "", func(pattern string) {
 		a.runFind(kind, pattern)
 	})
 	return true
@@ -166,18 +167,18 @@ func (a *App) runFind(kind search.Kind, pattern string) {
 		return
 	}
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡還不能搜尋"
+		a.Message = i18n.T("壓縮檔裡還不能搜尋")
 		return
 	}
 	hits, err := search.Run(a.Browser.Dir, pattern, search.Options{
 		Kind: kind, Recursive: true,
 	})
 	if err != nil {
-		a.Message = "搜尋失敗: " + err.Error()
+		a.Message = i18n.T("搜尋失敗: ") + err.Error()
 		return
 	}
 	if len(hits) == 0 {
-		a.Message = fmt.Sprintf("找不到 %q", pattern)
+		a.Message = fmt.Sprintf(i18n.T("找不到 %q"), pattern)
 		return
 	}
 	a.Find = &FindResult{Pattern: pattern, Kind: kind, Hits: hits}
@@ -248,10 +249,10 @@ func (a *App) drawFind(s *cell.Screen) int {
 	}
 
 	kindName := map[search.Kind]string{
-		search.ByName: "檔名", search.ByContent: "字串", search.ByComment: "註解",
+		search.ByName: i18n.T("檔名"), search.ByContent: i18n.T("字串"), search.ByComment: i18n.T("註解"),
 	}[f.Kind]
 	s.Fill(0, 0, s.Cols, 1, ' ', cell.LtCyan, cell.Blue)
-	s.Print(0, 0, fmt.Sprintf("尋找 %s: %q", kindName, f.Pattern), cell.LtCyan, cell.Blue)
+	s.Print(0, 0, fmt.Sprintf(i18n.T("尋找 %s: %q"), kindName, f.Pattern), cell.LtCyan, cell.Blue)
 	right := fmt.Sprintf("%d / %d", f.Cursor+1, len(f.Hits))
 	if x := s.Cols - len(right); x >= 0 {
 		s.Print(x, 0, right, cell.LtCyan, cell.Blue)
@@ -329,7 +330,7 @@ func relDir(base, dir string) string {
 
 func (a *App) startConvert() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案還不能轉換"
+		a.Message = i18n.T("壓縮檔裡的檔案還不能轉換")
 		return true
 	}
 	// 目錄轉不了(讀進來就是失敗),先濾掉再問要轉什麼,
@@ -341,14 +342,14 @@ func (a *App) startConvert() bool {
 		}
 	}
 	if len(names) == 0 {
-		a.Message = "沒有可以轉換的檔案(目錄不算)"
+		a.Message = i18n.T("沒有可以轉換的檔案(目錄不算)")
 		return true
 	}
 	a.convertPending = names
 	a.prompt = prompt{
 		active: true,
-		title: fmt.Sprintf("轉換 %d 個檔案  U)UNIX換行  P)PC換行  B)轉Big5  "+
-			"G)轉GBK  H)去HTML  A)去ANSI", len(names)),
+		title: fmt.Sprintf(i18n.T("轉換 %d 個檔案  U)UNIX換行  P)PC換行  B)轉Big5  ")+
+			i18n.T("G)轉GBK  H)去HTML  A)去ANSI"), len(names)),
 	}
 	return true
 }
@@ -384,9 +385,9 @@ func (a *App) convertKey(k keys.Key) bool {
 		}
 		ok++
 	}
-	a.Message = fmt.Sprintf("%s:成功 %d 個", label, ok)
+	a.Message = fmt.Sprintf(i18n.T("%s:成功 %d 個"), label, ok)
 	if failed > 0 {
-		a.Message += fmt.Sprintf(",失敗 %d 個", failed)
+		a.Message += fmt.Sprintf(i18n.T(",失敗 %d 個"), failed)
 	}
 	a.Browser.Reload()
 	return true
@@ -396,29 +397,29 @@ func (a *App) convertKey(k keys.Key) bool {
 func convertOp(letter rune) (func([]byte) []byte, string) {
 	switch letter {
 	case 'U':
-		return func(b []byte) []byte { return convert.ToEOL(b, convert.EOLUnix) }, "轉 UNIX 換行"
+		return func(b []byte) []byte { return convert.ToEOL(b, convert.EOLUnix) }, i18n.T("轉 UNIX 換行")
 	case 'P':
-		return func(b []byte) []byte { return convert.ToEOL(b, convert.EOLPC) }, "轉 PC 換行"
+		return func(b []byte) []byte { return convert.ToEOL(b, convert.EOLPC) }, i18n.T("轉 PC 換行")
 	case 'B':
 		return func(b []byte) []byte {
 			return convert.RecodeLossy(b, textenc.Detect(b), textenc.Big5, "?")
-		}, "轉 Big5"
+		}, i18n.T("轉 Big5")
 	case 'G':
 		return func(b []byte) []byte {
 			return convert.RecodeLossy(b, textenc.Detect(b), textenc.GBK, "?")
-		}, "轉 GBK"
+		}, i18n.T("轉 GBK")
 	case 'H':
 		return func(b []byte) []byte {
 			e := textenc.Detect(b)
 			s := convert.StripHTML(textenc.Decode(b, e))
 			return convert.RecodeLossy([]byte(s), textenc.UTF8, e, "?")
-		}, "去 HTML"
+		}, i18n.T("去 HTML")
 	case 'A':
 		return func(b []byte) []byte {
 			e := textenc.Detect(b)
 			s := convert.StripANSI(textenc.Decode(b, e))
 			return convert.RecodeLossy([]byte(s), textenc.UTF8, e, "?")
-		}, "去 ANSI 色碼"
+		}, i18n.T("去 ANSI 色碼")
 	}
 	return nil, ""
 }

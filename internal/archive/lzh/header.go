@@ -3,6 +3,7 @@ package lzh
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"strings"
 	"time"
@@ -41,7 +42,7 @@ func List(r io.ReadSeeker) ([]Entry, error) {
 			return out, err
 		}
 		if len(out) > 100000 {
-			return out, fmt.Errorf("成員數異常,可能不是 LZH 檔")
+			return out, fmt.Errorf(i18n.T("成員數異常,可能不是 LZH 檔"))
 		}
 	}
 }
@@ -79,7 +80,7 @@ func readHeader(r io.ReadSeeker, pos int64) (*Entry, int64, error) {
 	case 2:
 		return readHeaderLv2(r, pos)
 	default:
-		return nil, 0, fmt.Errorf("還不支援 level %d 的標頭", level)
+		return nil, 0, fmt.Errorf(i18n.T("還不支援 level %d 的標頭"), level)
 	}
 }
 
@@ -90,7 +91,7 @@ func readHeaderLv01(r io.ReadSeeker, pos int64, hsize int, level byte) (*Entry, 
 		return nil, 0, err
 	}
 	if _, err := io.ReadFull(r, full); err != nil {
-		return nil, 0, fmt.Errorf("標頭不完整: %w", err)
+		return nil, 0, fmt.Errorf(i18n.T("標頭不完整: %w"), err)
 	}
 	e := &Entry{
 		Method:   string(full[2:7]),
@@ -100,7 +101,7 @@ func readHeaderLv01(r io.ReadSeeker, pos int64, hsize int, level byte) (*Entry, 
 	}
 	nameLen := int(full[21])
 	if 22+nameLen+2 > len(full) {
-		return nil, 0, fmt.Errorf("標頭裡的檔名長度不合理")
+		return nil, 0, fmt.Errorf(i18n.T("標頭裡的檔名長度不合理"))
 	}
 	e.Name = normalizeName(string(full[22 : 22+nameLen]))
 	e.CRC = binary.LittleEndian.Uint16(full[22+nameLen : 24+nameLen])
@@ -131,7 +132,7 @@ func readHeaderLv01(r io.ReadSeeker, pos int64, hsize int, level byte) (*Entry, 
 				break
 			}
 			if n < 3 {
-				return nil, 0, fmt.Errorf("擴充標頭長度不合理: %d", n)
+				return nil, 0, fmt.Errorf(i18n.T("擴充標頭長度不合理: %d"), n)
 			}
 			ext := make([]byte, n-2)
 			if _, err := io.ReadFull(r, ext); err != nil {
@@ -161,7 +162,7 @@ func readHeaderLv2(r io.ReadSeeker, pos int64) (*Entry, int64, error) {
 	}
 	base := make([]byte, 26)
 	if _, err := io.ReadFull(r, base); err != nil {
-		return nil, 0, fmt.Errorf("標頭不完整: %w", err)
+		return nil, 0, fmt.Errorf(i18n.T("標頭不完整: %w"), err)
 	}
 	total := int(binary.LittleEndian.Uint16(base[0:2]))
 	e := &Entry{

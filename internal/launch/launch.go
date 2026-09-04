@@ -8,6 +8,7 @@ package launch
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"os/exec"
 	"runtime"
@@ -34,7 +35,7 @@ func Open(path string) error {
 // 不是一個程式名加一串已經切好的參數。
 func Run(dir, cmdline string) error {
 	if strings.TrimSpace(cmdline) == "" {
-		return fmt.Errorf("沒有命令")
+		return fmt.Errorf(i18n.T("沒有命令"))
 	}
 	var c *exec.Cmd
 	if runtime.GOOS == "windows" {

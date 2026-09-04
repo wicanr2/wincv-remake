@@ -7,6 +7,7 @@ package browser
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"path/filepath"
 	"strings"
 	"time"
@@ -429,7 +430,7 @@ func (m *Model) drawPathBar(s *cell.Screen) {
 		fg   cell.Color
 	}{
 		{fmt.Sprintf("%d/%4d  ", m.Cursor+1, m.countReal()), t.CountFG},
-		{"標記: ", t.PathFG},
+		{i18n.T("標記: "), t.PathFG},
 		{fmt.Sprintf("%d / %s / ", n, comma(bytes)), t.MarkStatFG},
 		{comma(m.TotalBytes), t.TotalFG},
 	}
@@ -657,7 +658,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 	}
 
 	if m.DiskBytes > 0 {
-		right := fmt.Sprintf("剩餘: %sMB / %sMB",
+		right := fmt.Sprintf(i18n.T("剩餘: %sMB / %sMB"),
 			comma(m.FreeBytes>>20), comma(m.DiskBytes>>20))
 		// 原版把「剩餘」接在時間欄之後,不是靠右對齊到畫面邊緣。
 		x := 1 + m.nameW() + 1 + colExt + 1 + colSize + 1 + colDate + 1 + colTime + 1

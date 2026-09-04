@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"path/filepath"
 	"strconv"
@@ -74,7 +75,7 @@ func (a *App) showPDF(raw string) {
 		a.bv.blocks = pdfTOC(a.pdf, path, name)
 		return
 	}
-	a.bv.title = fmt.Sprintf("%s — 第 %d/%d 頁", name, page, a.pdf.Pages)
+	a.bv.title = fmt.Sprintf(i18n.T("%s — 第 %d/%d 頁"), name, page, a.pdf.Pages)
 	a.bv.blocks = pdfPageBlocks(a.pdf, path, page)
 }
 
@@ -116,7 +117,7 @@ func pdfPageBlocks(d *pdfdoc.Doc, path string, page int) []markdown.Block {
 		out = append(out, markdown.Block{Kind: markdown.Pre, Lines: texts})
 	} else if err == nil {
 		out = append(out, markdown.Block{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: "(這一頁沒有可以取出的文字)"}}})
+			Spans: []markdown.Span{{Text: i18n.T("(這一頁沒有可以取出的文字)")}}})
 	}
 
 	// 圖片放在頁末,標明是這一頁的。
@@ -127,7 +128,7 @@ func pdfPageBlocks(d *pdfdoc.Doc, path string, page int) []markdown.Block {
 	if names, err := d.ImageNames(page); err == nil && len(names) > 0 {
 		out = append(out, markdown.Block{Kind: markdown.Rule})
 		out = append(out, markdown.Block{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: fmt.Sprintf("本頁圖片(%d 張)", len(names)),
+			Spans: []markdown.Span{{Text: fmt.Sprintf(i18n.T("本頁圖片(%d 張)"), len(names)),
 				Style: markdown.Bold}}})
 		for _, n := range names {
 			out = append(out, markdown.Block{
@@ -180,12 +181,12 @@ func pdfTOC(d *pdfdoc.Doc, path, name string) []markdown.Block {
 		}
 		out = append(out, markdown.Block{Kind: markdown.Rule})
 		out = append(out, markdown.Block{Kind: markdown.Heading, Level: 2,
-			Spans: []markdown.Span{{Text: "頁碼"}}})
+			Spans: []markdown.Span{{Text: i18n.T("頁碼")}}})
 	}
 	for i := 1; i <= d.Pages; i++ {
 		out = append(out, markdown.Block{
 			Kind: markdown.List, Marker: "  ",
-			Spans: []markdown.Span{{Text: fmt.Sprintf("第 %d 頁", i),
+			Spans: []markdown.Span{{Text: fmt.Sprintf(i18n.T("第 %d 頁"), i),
 				Style: markdown.Link, Href: pdfURL(path, i)}},
 		})
 	}
@@ -195,13 +196,13 @@ func pdfTOC(d *pdfdoc.Doc, path, name string) []markdown.Block {
 func pdfNav(d *pdfdoc.Doc, path string, page int) []markdown.Block {
 	var links []markdown.Span
 	if page > 1 {
-		links = append(links, markdown.Span{Text: "← 上一頁",
+		links = append(links, markdown.Span{Text: i18n.T("← 上一頁"),
 			Style: markdown.Link, Href: pdfURL(path, page-1)})
 	}
-	links = append(links, markdown.Span{Text: "頁碼清單",
+	links = append(links, markdown.Span{Text: i18n.T("頁碼清單"),
 		Style: markdown.Link, Href: pdfURL(path, 0)})
 	if page < d.Pages {
-		links = append(links, markdown.Span{Text: "下一頁 →",
+		links = append(links, markdown.Span{Text: i18n.T("下一頁 →"),
 			Style: markdown.Link, Href: pdfURL(path, page+1)})
 	}
 	out := []markdown.Block{{Kind: markdown.Rule}}
@@ -225,7 +226,7 @@ const PageImageDPI = 150
 func (a *App) showPDFPageImage() bool {
 	path, page, ok := parsePDFURL(a.bv.url)
 	if !ok || page < 1 {
-		a.bv.status = "這裡沒有可以畫的頁面"
+		a.bv.status = i18n.T("這裡沒有可以畫的頁面")
 		return true
 	}
 	if err := a.loadPDF(path); err != nil {
@@ -237,7 +238,7 @@ func (a *App) showPDFPageImage() bool {
 		a.bv.status = err.Error()
 		return true
 	}
-	name := fmt.Sprintf("%s — 第 %d 頁", filepath.Base(path), page)
+	name := fmt.Sprintf(i18n.T("%s — 第 %d 頁"), filepath.Base(path), page)
 	a.Image = imgview.FromImage(name, "PDF", r.Img, 0)
 	// PDF 是向量的:放大時用更高的解析度重畫,而不是把 150 dpi 的點陣圖
 	// 拉大。差別在放大之後看不看得到更多東西 —— 表格的細線、小字的註腳,
@@ -250,10 +251,10 @@ func (a *App) showPDFPageImage() bool {
 	// 字形不是原檔那一套時要講出來:畫面看起來正常,差別在字形,
 	// 不講的話使用者會以為看到的就是原樣。
 	if len(r.Substituted) > 0 {
-		a.Message = "有字型畫不出來,改用系統字型:" + strings.Join(r.Substituted, "、")
+		a.Message = i18n.T("有字型畫不出來,改用系統字型:") + strings.Join(r.Substituted, "、")
 	}
 	if len(r.Missing) > 0 {
-		a.Message = "有字型畫不出來,那些字沒有顯示:" + strings.Join(r.Missing, "、")
+		a.Message = i18n.T("有字型畫不出來,那些字沒有顯示:") + strings.Join(r.Missing, "、")
 	}
 	return true
 }
@@ -274,7 +275,7 @@ func (a *App) renderPDFPage(path string, page int, zoom float64) (image.Image, e
 	if w, h, err := a.pdf.PageSize(page); err == nil {
 		px := w / 72 * dpi * h / 72 * dpi
 		if px > MaxPageImagePixels {
-			return nil, fmt.Errorf("這一頁放大到 %g 倍會超過記憶體上限", zoom)
+			return nil, fmt.Errorf(i18n.T("這一頁放大到 %g 倍會超過記憶體上限"), zoom)
 		}
 	}
 	r, err := a.pdf.Render(page, dpi)
@@ -288,7 +289,7 @@ func (a *App) renderPDFPage(path string, page int, zoom float64) (image.Image, e
 func (a *App) pdfImage(ref string) (image.Image, error) {
 	page, name, ok := parsePDFImgRef(ref)
 	if !ok || a.pdf == nil {
-		return nil, fmt.Errorf("不是這份 PDF 的圖")
+		return nil, fmt.Errorf(i18n.T("不是這份 PDF 的圖"))
 	}
 	data, err := a.pdf.Image(page, name)
 	if err != nil {

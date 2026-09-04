@@ -9,6 +9,7 @@ package officedoc
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,22 +34,22 @@ const (
 func (k Kind) String() string {
 	switch k {
 	case Presentation:
-		return "簡報"
+		return i18n.T("簡報")
 	case Spreadsheet:
-		return "試算表"
+		return i18n.T("試算表")
 	}
-	return "文件"
+	return i18n.T("文件")
 }
 
 // PartWord 是分段在畫面上的稱呼。
 func (k Kind) PartWord() string {
 	switch k {
 	case Presentation:
-		return "投影片"
+		return i18n.T("投影片")
 	case Spreadsheet:
-		return "工作表"
+		return i18n.T("工作表")
 	}
-	return "章節"
+	return i18n.T("章節")
 }
 
 // Part 是文件裡可以分別打開的一段。
@@ -94,7 +95,7 @@ func Open(path string) (*Doc, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	kind, ok := Formats[ext]
 	if !ok {
-		return nil, fmt.Errorf("不認得的格式:%s", ext)
+		return nil, fmt.Errorf(i18n.T("不認得的格式:%s"), ext)
 	}
 	switch ext {
 	case ".pptx", ".pptm", ".ppsx", ".ppsm", ".potx":
@@ -161,7 +162,7 @@ type doc97Doc struct{ d *doc97.Doc }
 
 func (w doc97Doc) blocks(int) []markdown.Block { return w.d.Blocks() }
 func (w doc97Doc) image(string) ([]byte, error) {
-	return nil, fmt.Errorf("這個格式的圖片尚未支援")
+	return nil, fmt.Errorf(i18n.T("這個格式的圖片尚未支援"))
 }
 func (w doc97Doc) close() error { return w.d.Close() }
 
@@ -209,7 +210,7 @@ func openPPTX(path string) (*Doc, error) {
 	for i, s := range p.Slides {
 		t := s.Title
 		if t == "" {
-			t = fmt.Sprintf("第 %d 張", i+1)
+			t = fmt.Sprintf(i18n.T("第 %d 張"), i+1)
 		}
 		d.Parts = append(d.Parts, Part{Title: t})
 	}
@@ -219,8 +220,10 @@ func openPPTX(path string) (*Doc, error) {
 type xlsxDoc struct{ d *xlsx.Book }
 
 func (w xlsxDoc) blocks(i int) []markdown.Block { return w.d.Blocks(i) }
-func (w xlsxDoc) image(string) ([]byte, error)  { return nil, fmt.Errorf("試算表裡沒有圖") }
-func (w xlsxDoc) close() error                  { return w.d.Close() }
+func (w xlsxDoc) image(string) ([]byte, error) {
+	return nil, fmt.Errorf(i18n.T("試算表裡沒有圖"))
+}
+func (w xlsxDoc) close() error { return w.d.Close() }
 
 func openXLSX(path string) (*Doc, error) {
 	b, err := xlsx.Open(path)
@@ -231,10 +234,10 @@ func openXLSX(path string) (*Doc, error) {
 	for i, s := range b.Sheets {
 		t := s.Name
 		if t == "" {
-			t = fmt.Sprintf("工作表 %d", i+1)
+			t = fmt.Sprintf(i18n.T("工作表 %d"), i+1)
 		}
 		if s.Hidden {
-			t += "(隱藏)"
+			t += i18n.T("(隱藏)")
 		}
 		d.Parts = append(d.Parts, Part{Title: t})
 	}

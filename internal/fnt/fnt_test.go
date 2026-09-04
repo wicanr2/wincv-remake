@@ -39,10 +39,10 @@ func render(g *Glyph) string {
 
 func TestMetrics(t *testing.T) {
 	for _, tc := range []struct {
-		file             string
-		face             string
-		w, h, asc        int
-		first, last      byte
+		file        string
+		face        string
+		w, h, asc   int
+		first, last byte
 	}{
 		{"cvga.fon", "cvga", 8, 15, 11, 0x00, 0xFF},
 		{"CVGA1018.FON", "cvga1018", 10, 18, 16, 0x00, 0xFF},

@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"net"
 	"strings"
@@ -66,11 +67,11 @@ type URL struct {
 func ParseURL(s string) (URL, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return URL{}, errors.New("位址是空的")
+		return URL{}, errors.New(i18n.T("位址是空的"))
 	}
 	if i := strings.Index(s, "://"); i >= 0 {
 		if !strings.EqualFold(s[:i], "gopher") {
-			return URL{}, fmt.Errorf("只支援 gopher://,不是 %s://", s[:i])
+			return URL{}, fmt.Errorf(i18n.T("只支援 gopher://,不是 %s://"), s[:i])
 		}
 		s = s[i+3:]
 	}
@@ -84,7 +85,7 @@ func ParseURL(s string) (URL, error) {
 
 	host, path, _ := strings.Cut(s, "/")
 	if host == "" {
-		return URL{}, errors.New("沒有主機名")
+		return URL{}, errors.New(i18n.T("沒有主機名"))
 	}
 	// IPv6 的字面位址寫成 [::1]:70,冒號不能當埠的分隔。
 	if strings.HasPrefix(host, "[") {
@@ -94,7 +95,7 @@ func ParseURL(s string) (URL, error) {
 				u.Port = rest[1:]
 			}
 		} else {
-			return URL{}, errors.New("IPv6 位址少了 ]")
+			return URL{}, errors.New(i18n.T("IPv6 位址少了 ]"))
 		}
 	} else if h, p, ok := strings.Cut(host, ":"); ok {
 		u.Host, u.Port = h, p
@@ -102,7 +103,7 @@ func ParseURL(s string) (URL, error) {
 		u.Host = host
 	}
 	if u.Host == "" {
-		return URL{}, errors.New("沒有主機名")
+		return URL{}, errors.New(i18n.T("沒有主機名"))
 	}
 
 	if path != "" {
@@ -250,7 +251,7 @@ var ErrTooLarge = errors.New("內容超過上限,已截斷")
 // 圖片交給 internal/imgfmt。這一層不猜內容是什麼。
 func (c *Client) Fetch(ctx context.Context, u URL) ([]byte, error) {
 	if u.Host == "" {
-		return nil, errors.New("沒有主機名")
+		return nil, errors.New(i18n.T("沒有主機名"))
 	}
 	to := c.Timeout
 	if to <= 0 {
@@ -270,7 +271,7 @@ func (c *Client) Fetch(ctx context.Context, u URL) ([]byte, error) {
 	}
 	conn, err := dial(ctx, "tcp", u.addr())
 	if err != nil {
-		return nil, fmt.Errorf("連不上 %s: %w", u.addr(), err)
+		return nil, fmt.Errorf(i18n.T("連不上 %s: %w"), u.addr(), err)
 	}
 	defer conn.Close()
 	if dl, ok := ctx.Deadline(); ok {
@@ -283,13 +284,13 @@ func (c *Client) Fetch(ctx context.Context, u URL) ([]byte, error) {
 		req += "\t" + u.Search
 	}
 	if _, err := io.WriteString(conn, req+"\r\n"); err != nil {
-		return nil, fmt.Errorf("送出 selector 失敗: %w", err)
+		return nil, fmt.Errorf(i18n.T("送出 selector 失敗: %w"), err)
 	}
 
 	// 多讀一個位元組,才分得出「剛好等於上限」與「超過上限」。
 	data, err := io.ReadAll(io.LimitReader(conn, max+1))
 	if err != nil {
-		return nil, fmt.Errorf("讀取失敗: %w", err)
+		return nil, fmt.Errorf(i18n.T("讀取失敗: %w"), err)
 	}
 	if int64(len(data)) > max {
 		return data[:max], ErrTooLarge

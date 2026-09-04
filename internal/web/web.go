@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"net/http"
 	"net/url"
@@ -92,7 +93,7 @@ func (c *Client) client() *http.Client {
 		Timeout: to,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {
-				return fmt.Errorf("重導向超過 %d 次", maxRedirects)
+				return fmt.Errorf(i18n.T("重導向超過 %d 次"), maxRedirects)
 			}
 			return nil
 		},
@@ -103,13 +104,13 @@ func (c *Client) client() *http.Client {
 func (c *Client) Fetch(ctx context.Context, raw string) (*Doc, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
-		return nil, fmt.Errorf("位址解不開: %w", err)
+		return nil, fmt.Errorf(i18n.T("位址解不開: %w"), err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("只支援 http 與 https,不是 %s", u.Scheme)
+		return nil, fmt.Errorf(i18n.T("只支援 http 與 https,不是 %s"), u.Scheme)
 	}
 	if u.Host == "" {
-		return nil, errors.New("沒有主機名")
+		return nil, errors.New(i18n.T("沒有主機名"))
 	}
 
 	max := c.MaxBytes
@@ -156,7 +157,7 @@ func (c *Client) FetchImage(ctx context.Context, raw string) ([]byte, error) {
 		return nil, err
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("不是 http 位址:%s", raw)
+		return nil, fmt.Errorf(i18n.T("不是 http 位址:%s"), raw)
 	}
 	max := c.MaxImageBytes
 	if max <= 0 {
@@ -189,7 +190,7 @@ func (c *Client) get(ctx context.Context, u *url.URL, max int64) ([]byte, string
 
 	resp, err := c.client().Do(req)
 	if err != nil {
-		return nil, "", u, fmt.Errorf("連不上 %s: %w", u.Host, err)
+		return nil, "", u, fmt.Errorf(i18n.T("連不上 %s: %w"), u.Host, err)
 	}
 	defer resp.Body.Close()
 
@@ -198,13 +199,13 @@ func (c *Client) get(ctx context.Context, u *url.URL, max int64) ([]byte, string
 		final = u
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, "", final, fmt.Errorf("伺服器回 %s", resp.Status)
+		return nil, "", final, fmt.Errorf(i18n.T("伺服器回 %s"), resp.Status)
 	}
 
 	// 多讀一個位元組,才分得出「剛好等於上限」與「超過上限」。
 	b, err := io.ReadAll(io.LimitReader(resp.Body, max+1))
 	if err != nil {
-		return nil, "", final, fmt.Errorf("讀取失敗: %w", err)
+		return nil, "", final, fmt.Errorf(i18n.T("讀取失敗: %w"), err)
 	}
 	ctype := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
 	if int64(len(b)) > max {

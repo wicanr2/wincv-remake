@@ -110,10 +110,10 @@ var (
 	// Go 的 RE2 沒有 backreference,script 與 style 只能各寫一條。
 	scriptRe = regexp.MustCompile(`(?is)<script\b[^>]*>.*?</\s*script\s*>`)
 	styleRe  = regexp.MustCompile(`(?is)<style\b[^>]*>.*?</\s*style\s*>`)
-	brRe      = regexp.MustCompile(`(?i)<br\s*/?>`)
-	pRe       = regexp.MustCompile(`(?i)</p\s*>`)
-	spaceRe   = regexp.MustCompile(`[ \t]+`)
-	blankRe   = regexp.MustCompile(`\n{3,}`)
+	brRe     = regexp.MustCompile(`(?i)<br\s*/?>`)
+	pRe      = regexp.MustCompile(`(?i)</p\s*>`)
+	spaceRe  = regexp.MustCompile(`[ \t]+`)
+	blankRe  = regexp.MustCompile(`\n{3,}`)
 )
 
 // StripANSI 去掉 ANSI 控制碼。

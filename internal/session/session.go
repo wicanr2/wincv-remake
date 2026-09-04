@@ -9,6 +9,7 @@ package session
 import (
 	"encoding/json"
 	"errors"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 )
@@ -51,6 +52,10 @@ type State struct {
 	// 有這個功能(「自動記錄上次看檔、編輯位置,下次看或編同一檔時自動
 	// 回到上次的位置」)。上限見 MaxPositions,滿了丟最久沒用的。
 	Positions map[string]DocPos `json:"positions,omitempty"`
+	// Lang 是介面語言(BCP 47 標籤)。空的表示沒選過 —— 那時要看系統
+	// 語系,而不是套一個預設值:「沒選過」與「選了繁中」是兩件事,
+	// 前者會跟著系統走,後者不會。
+	Lang string `json:"lang,omitempty"`
 	// NameW 是檔案清單主檔名欄的寬度,0 表示預設。
 	NameW int `json:"namew,omitempty"`
 	// URL 是關掉時瀏覽模式停在哪一頁。空的表示沒在瀏覽。
@@ -137,7 +142,7 @@ func (s State) Save() error { return s.SaveTo(Path()) }
 // 而不是這一次沒存到。
 func (s State) SaveTo(path string) error {
 	if path == "" {
-		return errors.New("沒有可以寫的位置")
+		return errors.New(i18n.T("沒有可以寫的位置"))
 	}
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {

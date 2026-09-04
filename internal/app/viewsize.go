@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"math"
 
 	"github.com/wicanr2/wincv-remake/internal/render"
@@ -44,14 +45,21 @@ func shiftOverlays(ov []*render.Overlay, dy int) {
 // 第一個檔位是 93×22 而不是 93×21:選單列自己吃掉一列(原版那條是
 // Win32 的原生選單,掛在 client area 之外,不佔字元格),多給一列
 // 之後內容區才是原版的 21 列。
-var sizePresets = []struct {
+//
+// 函式而不是 var:名稱要翻譯,而套件層級的 var 在語言設定之前就求值了。
+func sizePresets() []struct {
 	name       string
 	cols, rows int
-}{
-	{"原版版面 93×21(+選單列)", 93, 22},
-	{"80×25", 80, 25},
-	{"100×30", 100, 30},
-	{"120×40", 120, 40},
+} {
+	return []struct {
+		name       string
+		cols, rows int
+	}{
+		{i18n.T("原版版面 93×21(+選單列)"), 93, 22},
+		{"80×25", 80, 25},
+		{"100×30", 100, 30},
+		{"120×40", 120, 40},
+	}
 }
 
 // setScale 換放大倍率。回傳是否真的變了。
@@ -75,7 +83,7 @@ func (a *App) setScale(n float64) bool {
 		return false
 	}
 	a.Scale = n
-	a.Message = fmt.Sprintf("放大倍率 %.1f×", n)
+	a.Message = fmt.Sprintf(i18n.T("放大倍率 %.1f×"), n)
 	return true
 }
 
@@ -85,33 +93,34 @@ func (a *App) setScale(n float64) bool {
 // 所以只留下請求,由 cmd/wincv 每幀檢查後執行 —— 跟 Fullscreen 同一個作法。
 func (a *App) requestSize(cols, rows int) bool {
 	a.WantCols, a.WantRows = cols, rows
-	a.Message = fmt.Sprintf("視窗調成 %d×%d 格", cols, rows)
+	a.Message = fmt.Sprintf(i18n.T("視窗調成 %d×%d 格"), cols, rows)
 	return true
 }
 
 // sizeMenuItems 是「視窗大小」子選單的內容。
 func (a *App) sizeMenuItems() []menuItem {
-	out := make([]menuItem, 0, len(sizePresets)+4)
-	for _, p := range sizePresets {
+	presets := sizePresets()
+	out := make([]menuItem, 0, len(presets)+4)
+	for _, p := range presets {
 		cols, rows := p.cols, p.rows
 		out = append(out, menuItem{label: p.name, run: func() bool {
 			return a.requestSize(cols, rows)
 		}})
 	}
 	out = append(out, menuItem{sep: true})
-	out = append(out, menuItem{label: "放大倍率 +", run: func() bool {
+	out = append(out, menuItem{label: i18n.T("放大倍率 +"), run: func() bool {
 		return a.setScale(a.Scale + ScaleStep)
 	}})
-	out = append(out, menuItem{label: "放大倍率 -", run: func() bool {
+	out = append(out, menuItem{label: i18n.T("放大倍率 -"), run: func() bool {
 		return a.setScale(a.Scale - ScaleStep)
 	}})
-	out = append(out, menuItem{label: "自訂欄列數…", run: a.startCustomSize})
+	out = append(out, menuItem{label: i18n.T("自訂欄列數…"), run: a.startCustomSize})
 	return out
 }
 
 // startCustomSize 問使用者要幾欄幾列。
 func (a *App) startCustomSize() bool {
-	a.ask("欄×列", fmt.Sprintf("%d×%d", a.thumbCols, a.rows+3), func(s string) {
+	a.ask(i18n.T("欄×列"), fmt.Sprintf("%d×%d", a.thumbCols, a.rows+3), func(s string) {
 		var c, r int
 		// 逗號、x、×、空白都收 —— 使用者不會記得該用哪一個。
 		norm := make([]rune, 0, len(s))
@@ -124,11 +133,11 @@ func (a *App) startCustomSize() bool {
 			}
 		}
 		if _, err := fmt.Sscanf(string(norm), "%d %d", &c, &r); err != nil {
-			a.Message = "看不懂,格式是「欄×列」,例如 100×30"
+			a.Message = i18n.T("看不懂,格式是「欄×列」,例如 100×30")
 			return
 		}
 		if c < 20 || r < 5 || c > 500 || r > 200 {
-			a.Message = "超出範圍(欄 20-500、列 5-200)"
+			a.Message = i18n.T("超出範圍(欄 20-500、列 5-200)")
 			return
 		}
 		a.requestSize(c, r)

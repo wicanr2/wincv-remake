@@ -3,6 +3,7 @@ package imgfmt
 import (
 	"bytes"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 
 	"github.com/srwiley/oksvg"
@@ -27,7 +28,7 @@ func DecodeSVG(d []byte) (image.Image, error) {
 	// 幫不上忙,只會蓋掉畫面。XML 本身壞掉照樣回錯誤,那個要留。
 	icon, err := oksvg.ReadIconStream(bytes.NewReader(d), oksvg.IgnoreErrorMode)
 	if err != nil {
-		return nil, fmt.Errorf("SVG 解析失敗: %w", err)
+		return nil, fmt.Errorf(i18n.T("SVG 解析失敗: %w"), err)
 	}
 	w, h := icon.ViewBox.W, icon.ViewBox.H
 	if w <= 0 || h <= 0 {

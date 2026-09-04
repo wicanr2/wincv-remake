@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"path"
 	"strings"
@@ -67,7 +68,7 @@ type Package struct {
 func Open(name string) (*Package, error) {
 	zr, err := zip.OpenReader(name)
 	if err != nil {
-		return nil, fmt.Errorf("打不開:%w", err)
+		return nil, fmt.Errorf(i18n.T("打不開:%w"), err)
 	}
 	p, err := New(&zr.Reader, zr)
 	if err != nil {
@@ -134,10 +135,10 @@ func (p *Package) Names() []string { return p.names }
 func (p *Package) Bytes(name string) ([]byte, error) {
 	f, ok := p.files[Clean(name)]
 	if !ok {
-		return nil, fmt.Errorf("包裡沒有 %s", name)
+		return nil, fmt.Errorf(i18n.T("包裡沒有 %s"), name)
 	}
 	if f.UncompressedSize64 > MaxPartBytes {
-		return nil, fmt.Errorf("%s 太大(%d 位元組)", name, f.UncompressedSize64)
+		return nil, fmt.Errorf(i18n.T("%s 太大(%d 位元組)"), name, f.UncompressedSize64)
 	}
 	rc, err := f.Open()
 	if err != nil {
@@ -150,7 +151,7 @@ func (p *Package) Bytes(name string) ([]byte, error) {
 		return nil, err
 	}
 	if len(b) > MaxPartBytes {
-		return nil, fmt.Errorf("%s 太大", name)
+		return nil, fmt.Errorf(i18n.T("%s 太大"), name)
 	}
 	return b, nil
 }

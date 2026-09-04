@@ -11,6 +11,7 @@ package imgfmt
 import (
 	"bytes"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -76,7 +77,7 @@ func IsImage(name string) bool {
 func Decode(name string, data []byte) (image.Image, string, error) {
 	f, ok := DetectFormat(name)
 	if ok && !f.Supported {
-		return nil, f.Name, fmt.Errorf("%s: %s 格式還沒實作(%s)", path.Base(name), f.Name, f.Note)
+		return nil, f.Name, fmt.Errorf(i18n.T("%s: %s 格式還沒實作(%s)"), path.Base(name), f.Name, i18n.T(f.Note))
 	}
 	switch f.Name {
 	case "PCX":

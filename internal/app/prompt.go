@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"github.com/wicanr2/wincv-remake/internal/keys"
 )
 
@@ -140,9 +141,9 @@ func (a *App) drawPrompt(s *cell.Screen) {
 
 	x := s.Print(0, y, p.title, cell.Black, cell.LtCyan)
 	if p.onAnswer != nil {
-		opts := "  Y 是   N 否"
+		opts := i18n.T("  Y 是   N 否")
 		if p.askAll {
-			opts += "   A 全部"
+			opts += i18n.T("   A 全部")
 		}
 		s.Print(x, y, opts, cell.Blue, cell.LtCyan)
 		return

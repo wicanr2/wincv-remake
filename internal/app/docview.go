@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"path/filepath"
 	"strconv"
@@ -148,13 +149,13 @@ func docNav(d *officedoc.Doc, path string, part int) []markdown.Block {
 	word := d.Kind.PartWord()
 	var links []markdown.Span
 	if part > 1 {
-		links = append(links, markdown.Span{Text: "← 上一" + word,
+		links = append(links, markdown.Span{Text: i18n.T("← 上一") + word,
 			Style: markdown.Link, Href: docURL(path, part-1)})
 	}
-	links = append(links, markdown.Span{Text: word + "清單",
+	links = append(links, markdown.Span{Text: word + i18n.T("清單"),
 		Style: markdown.Link, Href: docURL(path, 0)})
 	if part < len(d.Parts) {
-		links = append(links, markdown.Span{Text: "下一" + word + " →",
+		links = append(links, markdown.Span{Text: i18n.T("下一") + word + " →",
 			Style: markdown.Link, Href: docURL(path, part+1)})
 	}
 	out := []markdown.Block{{Kind: markdown.Rule}}
@@ -169,7 +170,7 @@ func docNav(d *officedoc.Doc, path string, part int) []markdown.Block {
 func (a *App) officeImage(src string) (image.Image, error) {
 	ref, ok := parseDocImgRef(src)
 	if !ok || a.office == nil {
-		return nil, fmt.Errorf("不是這份文件的圖")
+		return nil, fmt.Errorf(i18n.T("不是這份文件的圖"))
 	}
 	data, err := a.office.Image(ref)
 	if err != nil {

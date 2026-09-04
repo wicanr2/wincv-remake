@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strings"
 	"time"
 
@@ -74,15 +75,15 @@ func Read(data []byte) ([]File, error) {
 			IsDir:   h.fileType == typeDir,
 		}
 		if h.flags&flagGarbled != 0 {
-			return out, fmt.Errorf("%s: 有密碼,還不支援", h.name)
+			return out, fmt.Errorf(i18n.T("%s: 有密碼,還不支援"), h.name)
 		}
 		if h.flags&flagExtFile != 0 {
-			return out, fmt.Errorf("%s: 是跨片壓縮檔的續檔,還不支援", h.name)
+			return out, fmt.Errorf(i18n.T("%s: 是跨片壓縮檔的續檔,還不支援"), h.name)
 		}
 		if !f.IsDir {
 			end := next + int(h.compSize)
 			if end > len(data) {
-				return out, fmt.Errorf("%s: 資料被截斷", h.name)
+				return out, fmt.Errorf(i18n.T("%s: 資料被截斷"), h.name)
 			}
 			body, derr := decode(data[next:end], h.method, h.origSize)
 			if derr != nil {
@@ -97,13 +98,13 @@ func Read(data []byte) ([]File, error) {
 }
 
 type header struct {
-	flags     byte
-	method    byte
-	fileType  byte
-	modTime   time.Time
-	compSize  int64
-	origSize  int64
-	name      string
+	flags    byte
+	method   byte
+	fileType byte
+	modTime  time.Time
+	compSize int64
+	origSize int64
+	name     string
 }
 
 // readBlock 讀一個標頭區塊,回傳資料的起點。
@@ -112,10 +113,10 @@ type header struct {
 // 一連串擴充標頭(各自是 長度(2) + 內容 + CRC(4),長度 0 表示結束)。
 func readBlock(data []byte, at int) (int, *header, error) {
 	if at+4 > len(data) {
-		return 0, nil, fmt.Errorf("在 %d 讀不到標頭", at)
+		return 0, nil, fmt.Errorf(i18n.T("在 %d 讀不到標頭"), at)
 	}
 	if data[at] != magic0 || data[at+1] != magic1 {
-		return 0, nil, fmt.Errorf("在 %d 找不到 ARJ 的標記", at)
+		return 0, nil, fmt.Errorf(i18n.T("在 %d 找不到 ARJ 的標記"), at)
 	}
 	le := binary.LittleEndian
 	basic := int(le.Uint16(data[at+2 : at+4]))
@@ -123,11 +124,11 @@ func readBlock(data []byte, at int) (int, *header, error) {
 		return at + 4, nil, nil // 檔尾
 	}
 	if basic > 2600 || at+4+basic+4 > len(data) {
-		return 0, nil, fmt.Errorf("標頭長度 %d 不合理", basic)
+		return 0, nil, fmt.Errorf(i18n.T("標頭長度 %d 不合理"), basic)
 	}
 	b := data[at+4 : at+4+basic]
 	if len(b) < 30 {
-		return 0, nil, fmt.Errorf("標頭太短(%d)", len(b))
+		return 0, nil, fmt.Errorf(i18n.T("標頭太短(%d)"), len(b))
 	}
 	firstHdr := int(b[0])
 	h := &header{
@@ -159,7 +160,7 @@ func readBlock(data []byte, at int) (int, *header, error) {
 	next := at + 4 + basic + 4 // 基本標頭 + 它的 CRC
 	for {
 		if next+2 > len(data) {
-			return 0, nil, fmt.Errorf("擴充標頭被截斷")
+			return 0, nil, fmt.Errorf(i18n.T("擴充標頭被截斷"))
 		}
 		n := int(le.Uint16(data[next : next+2]))
 		next += 2
@@ -168,7 +169,7 @@ func readBlock(data []byte, at int) (int, *header, error) {
 		}
 		next += n + 4 // 內容 + CRC
 		if next > len(data) {
-			return 0, nil, fmt.Errorf("擴充標頭被截斷")
+			return 0, nil, fmt.Errorf(i18n.T("擴充標頭被截斷"))
 		}
 	}
 	return next, h, nil
@@ -180,7 +181,7 @@ func decode(body []byte, method byte, origSize int64) ([]byte, error) {
 		out := make([]byte, origSize)
 		n := copy(out, body)
 		if int64(n) < origSize {
-			return out[:n], fmt.Errorf("不壓縮的資料只有 %d 個位元組,期望 %d", n, origSize)
+			return out[:n], fmt.Errorf(i18n.T("不壓縮的資料只有 %d 個位元組,期望 %d"), n, origSize)
 		}
 		return out, nil
 	case 1, 2, 3:
@@ -188,7 +189,7 @@ func decode(body []byte, method byte, origSize int64) ([]byte, error) {
 	case 4:
 		return decodeM4(body, origSize)
 	}
-	return nil, fmt.Errorf("還不支援壓縮方法 %d", method)
+	return nil, fmt.Errorf(i18n.T("還不支援壓縮方法 %d"), method)
 }
 
 func dosTime(v uint32) time.Time {

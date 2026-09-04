@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/wicanr2/wincv-remake/internal/browser"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 
@@ -19,6 +20,7 @@ func (a *App) Snapshot() session.State {
 		Cols:     a.thumbCols,
 		Rows:     a.rows,
 		Zoom:     a.Zoom,
+		Lang:     a.Lang,
 		NameW:    a.Browser.NameW,
 		Scale:    a.Scale,
 		MenuBar:  session.Bool(a.MenuBar),
@@ -97,6 +99,10 @@ func (a *App) Restore(st session.State) {
 	}
 	if len(st.Positions) > 0 {
 		a.positions = st.Positions
+	}
+	if l, ok := i18n.Valid(st.Lang); ok {
+		i18n.Set(l)
+		a.Lang = st.Lang
 	}
 	if st.Cursor != "" {
 		a.focusOn(st.Cursor)

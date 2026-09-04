@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"strings"
 
@@ -193,7 +194,7 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 			if pic.Img == nil {
 				// 載不到就把 alt 與原因寫出來。留白的話使用者只會覺得
 				// 「這裡本來就沒東西」,而事實是「有圖但畫不出來」。
-				txt := "[圖] " + pic.Alt
+				txt := i18n.T("[圖] ") + pic.Alt
 				if pic.Err != "" {
 					txt += " —— " + pic.Err
 				}
@@ -208,7 +209,7 @@ func loadPic(src, alt string, cols, cellW, cellH int, load Loader) *Pic {
 	p := &Pic{Src: src, Alt: alt}
 	switch {
 	case load == nil:
-		p.Err = "沒有載圖器"
+		p.Err = i18n.T("沒有載圖器")
 	default:
 		img, err := load(src)
 		if err != nil {
@@ -222,7 +223,7 @@ func loadPic(src, alt string, cols, cellW, cellH int, load Loader) *Pic {
 	}
 	b := p.Img.Bounds()
 	if b.Dx() <= 0 || b.Dy() <= 0 || cellW <= 0 || cellH <= 0 {
-		p.Img, p.Err = nil, "尺寸不合理"
+		p.Img, p.Err = nil, i18n.T("尺寸不合理")
 		return p
 	}
 	// 先照原尺寸換算成格數,再縮到畫面容得下。

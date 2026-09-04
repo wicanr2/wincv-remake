@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"math"
 	"sort"
@@ -40,7 +41,7 @@ type Rendered struct {
 func (p *Page) Render(opt RenderOptions) (r *Rendered, err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			r, err = nil, fmt.Errorf("這一頁畫不出來(%v)", e)
+			r, err = nil, fmt.Errorf(i18n.T("這一頁畫不出來(%v)"), e)
 		}
 	}()
 
@@ -54,7 +55,7 @@ func (p *Page) Render(opt RenderOptions) (r *Rendered, err error) {
 	}
 	pw, ph := p.Width(), p.Height()
 	if pw <= 0 || ph <= 0 {
-		return nil, fmt.Errorf("這一頁沒有尺寸")
+		return nil, fmt.Errorf(i18n.T("這一頁沒有尺寸"))
 	}
 	s := dpi / 72
 	capped := false
@@ -73,7 +74,7 @@ func (p *Page) Render(opt RenderOptions) (r *Rendered, err error) {
 	w := int(round(pw * s))
 	h := int(round(ph * s))
 	if w < 1 || h < 1 {
-		return nil, fmt.Errorf("這一頁太小")
+		return nil, fmt.Errorf(i18n.T("這一頁太小"))
 	}
 
 	// 基底變換:PDF 的 Y 軸由下往上,圖的 Y 軸由上往下,所以縱向要翻,

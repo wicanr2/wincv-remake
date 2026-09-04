@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,7 @@ import (
 // --- P 改變路徑 -----------------------------------------------------------
 
 func (a *App) startChangeDir() bool {
-	a.ask("改變路徑:", a.Browser.Dir, func(p string) {
+	a.ask(i18n.T("改變路徑:"), a.Browser.Dir, func(p string) {
 		if p == "" {
 			return
 		}
@@ -55,7 +56,7 @@ func expandHome(p string) string {
 // startOpen 用系統預設的程式開啟游標上的項目。
 func (a *App) startOpen() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案要先解出來才能開啟"
+		a.Message = i18n.T("壓縮檔裡的檔案要先解出來才能開啟")
 		return true
 	}
 	e := a.Browser.Current()
@@ -64,17 +65,17 @@ func (a *App) startOpen() bool {
 	}
 	p := filepath.Join(a.Browser.Dir, e.Name)
 	if err := launch.Open(p); err != nil {
-		a.Message = "開不起來: " + err.Error()
+		a.Message = i18n.T("開不起來: ") + err.Error()
 		return true
 	}
-	a.Message = "已交給系統開啟: " + e.Name
+	a.Message = i18n.T("已交給系統開啟: ") + e.Name
 	return true
 }
 
 // startRun 執行一行命令,預設帶入游標上的檔案。
 func (a *App) startRun() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案不能直接執行"
+		a.Message = i18n.T("壓縮檔裡的檔案不能直接執行")
 		return true
 	}
 	def := ""
@@ -86,15 +87,15 @@ func (a *App) startRun() bool {
 			def = " " + shellQuote(e.Name)
 		}
 	}
-	a.ask("執行:", def, func(line string) {
+	a.ask(i18n.T("執行:"), def, func(line string) {
 		if strings.TrimSpace(line) == "" {
 			return
 		}
 		if err := launch.Run(a.Browser.Dir, line); err != nil {
-			a.Message = "執行失敗: " + err.Error()
+			a.Message = i18n.T("執行失敗: ") + err.Error()
 			return
 		}
-		a.Message = "已執行: " + line
+		a.Message = i18n.T("已執行: ") + line
 	})
 	return true
 }
@@ -149,7 +150,7 @@ func (a *App) diskStat(dir string) (free, total int64) {
 
 func (a *App) startNote() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡不能加註解"
+		a.Message = i18n.T("壓縮檔裡不能加註解")
 		return true
 	}
 	e := a.Browser.Current()
@@ -157,20 +158,20 @@ func (a *App) startNote() bool {
 		return false
 	}
 	dir, name := a.Browser.Dir, e.Name
-	a.ask("註解 "+name+":", a.Browser.Notes[name], func(text string) {
+	a.ask(i18n.T("註解 ")+name+":", a.Browser.Notes[name], func(text string) {
 		s, err := note.Load(dir)
 		if err != nil {
-			a.Message = "讀不到註解檔: " + err.Error()
+			a.Message = i18n.T("讀不到註解檔: ") + err.Error()
 			return
 		}
 		s.Set(name, text)
 		if err := s.Save(dir); err != nil {
-			a.Message = "寫不進註解檔: " + err.Error()
+			a.Message = i18n.T("寫不進註解檔: ") + err.Error()
 			return
 		}
 		a.Browser.Reload()
 		if strings.TrimSpace(text) == "" {
-			a.Message = "已清掉 " + name + " 的註解"
+			a.Message = i18n.T("已清掉 ") + name + i18n.T(" 的註解")
 		}
 	})
 	return true
@@ -190,9 +191,9 @@ func (a *App) toggleCJK() bool {
 		a.Viewer.SetAnsi(a.Viewer.Ansi, a.viewRaw)
 	}
 	if a.EnglishOnly {
-		a.Message = "英文顯示(一個位元組一格)"
+		a.Message = i18n.T("英文顯示(一個位元組一格)")
 	} else {
-		a.Message = "中文顯示"
+		a.Message = i18n.T("中文顯示")
 	}
 	return true
 }

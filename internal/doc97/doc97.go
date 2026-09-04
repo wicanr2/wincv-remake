@@ -27,6 +27,7 @@ package doc97
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"unicode/utf16"
 
 	"golang.org/x/text/encoding/charmap"
@@ -70,24 +71,24 @@ func Open(name string) (*Doc, error) {
 func New(f *cfb.File) (*Doc, error) {
 	wd, err := f.Stream("WordDocument")
 	if err != nil {
-		return nil, fmt.Errorf("這不是 Word 文件(沒有 WordDocument 串流)")
+		return nil, fmt.Errorf(i18n.T("這不是 Word 文件(沒有 WordDocument 串流)"))
 	}
 	if len(wd) < 0x200 {
-		return nil, fmt.Errorf("WordDocument 串流太短")
+		return nil, fmt.Errorf(i18n.T("WordDocument 串流太短"))
 	}
 	if magic := binary.LittleEndian.Uint16(wd); magic != 0xA5EC {
-		return nil, fmt.Errorf("這不是 Word 文件(識別碼 0x%04X)", magic)
+		return nil, fmt.Errorf(i18n.T("這不是 Word 文件(識別碼 0x%04X)"), magic)
 	}
 	nFib := int(binary.LittleEndian.Uint16(wd[0x02:]))
 	flags := binary.LittleEndian.Uint16(wd[0x0A:])
 	if flags&0x0100 != 0 {
-		return nil, fmt.Errorf("這份文件有密碼保護")
+		return nil, fmt.Errorf(i18n.T("這份文件有密碼保護"))
 	}
 	if nFib < 193 {
 		// Word 6/95 的 FIB 版面不同,對照表的位置也不一樣。
 		// 照 Word 97 的位置去讀會拿到別的欄位,而那些數字都是
 		// 合法的偏移量 —— 解出來是垃圾而不是錯誤。
-		return nil, fmt.Errorf("這是 Word 6/95 的格式(nFib=%d),尚未支援", nFib)
+		return nil, fmt.Errorf(i18n.T("這是 Word 6/95 的格式(nFib=%d),尚未支援"), nFib)
 	}
 
 	tableName := "0Table"
@@ -96,7 +97,7 @@ func New(f *cfb.File) (*Doc, error) {
 	}
 	tbl, err := f.Stream(tableName)
 	if err != nil {
-		return nil, fmt.Errorf("找不到 %s 串流", tableName)
+		return nil, fmt.Errorf(i18n.T("找不到 %s 串流"), tableName)
 	}
 
 	d := &Doc{
@@ -149,7 +150,7 @@ type piece struct {
 func (d *Doc) readText(wd, tbl []byte) error {
 	fcClx, lcbClx := fibFC(wd, fibClx)
 	if fcClx < 0 || lcbClx <= 0 || fcClx+lcbClx > len(tbl) {
-		return fmt.Errorf("piece table 的位置不合理(fc=%d lcb=%d)", fcClx, lcbClx)
+		return fmt.Errorf(i18n.T("piece table 的位置不合理(fc=%d lcb=%d)"), fcClx, lcbClx)
 	}
 	pieces, err := parseCLX(tbl[fcClx : fcClx+lcbClx])
 	if err != nil {
@@ -200,7 +201,7 @@ func (d *Doc) readText(wd, tbl []byte) error {
 		}
 	}
 	if len(d.chars) == 0 {
-		return fmt.Errorf("這份文件沒有文字")
+		return fmt.Errorf(i18n.T("這份文件沒有文字"))
 	}
 	if d.ccpText < 0 || d.ccpText > len(d.chars) {
 		d.ccpText = len(d.chars)
@@ -218,13 +219,13 @@ func parseCLX(clx []byte) ([]piece, error) {
 		switch clx[i] {
 		case 1: // Prc
 			if i+3 > len(clx) {
-				return nil, fmt.Errorf("piece table 被截斷")
+				return nil, fmt.Errorf(i18n.T("piece table 被截斷"))
 			}
 			cb := int(int16(binary.LittleEndian.Uint16(clx[i+1:])))
 			i += 3 + cb
 		case 2: // Pcdt
 			if i+5 > len(clx) {
-				return nil, fmt.Errorf("piece table 被截斷")
+				return nil, fmt.Errorf(i18n.T("piece table 被截斷"))
 			}
 			lcb := int(binary.LittleEndian.Uint32(clx[i+1:]))
 			if lcb < 0 || i+5+lcb > len(clx) {
@@ -232,20 +233,20 @@ func parseCLX(clx []byte) ([]piece, error) {
 			}
 			return parsePlcPcd(clx[i+5 : i+5+lcb])
 		default:
-			return nil, fmt.Errorf("piece table 裡有看不懂的項目(0x%02X)", clx[i])
+			return nil, fmt.Errorf(i18n.T("piece table 裡有看不懂的項目(0x%02X)"), clx[i])
 		}
 	}
-	return nil, fmt.Errorf("piece table 裡沒有片段表")
+	return nil, fmt.Errorf(i18n.T("piece table 裡沒有片段表"))
 }
 
 // parsePlcPcd 解片段表:n+1 個 CP 之後接 n 個 8 位元組的描述。
 func parsePlcPcd(b []byte) ([]piece, error) {
 	if len(b) < 16 {
-		return nil, fmt.Errorf("片段表太短")
+		return nil, fmt.Errorf(i18n.T("片段表太短"))
 	}
 	n := (len(b) - 4) / 12
 	if n <= 0 {
-		return nil, fmt.Errorf("片段表是空的")
+		return nil, fmt.Errorf(i18n.T("片段表是空的"))
 	}
 	cps := make([]int, n+1)
 	for i := 0; i <= n; i++ {

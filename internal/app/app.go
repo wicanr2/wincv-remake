@@ -6,6 +6,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"os"
 	"path"
@@ -131,6 +132,9 @@ type App struct {
 	rows int
 	// thumbCols 是最近一次繪製時的欄數,縮圖列表算格位要用。
 	thumbCols int
+	// Lang 是目前的介面語言(BCP 47 標籤)。空的表示還沒決定過,
+	// 由外殼在啟動時填 —— app 這一層不去讀環境變數,那是平台的事。
+	Lang string
 	// positions 是逐檔的位置記憶(見 session.DocPos):開檔時查、
 	// 每次按鍵之後寫。存在 App 上而不是每次去讀檔,Snapshot 時一起帶出去。
 	positions map[string]session.DocPos
@@ -458,12 +462,16 @@ func (a *App) handleKey(k keys.Key) bool {
 // 原版也問(image 裡有「檔案已修改,要先存檔才離開嗎?」)。
 func (a *App) quit() bool {
 	if a.Editor != nil && a.Editor.Dirty {
-		a.ask("檔案已修改,要先存檔才離開嗎?(y/n)", "y", func(ans string) {
-			switch strings.ToLower(strings.TrimSpace(ans)) {
-			case "y", "yes", "是":
+		a.ask(i18n.T("檔案已修改,要先存檔才離開嗎?(y/n)"), "y", func(ans string) {
+			// 「是 / 否」是使用者打進來的字,不是畫面上的字:兩邊都要
+			// 翻才對得起來,所以在 case 之前先取翻譯,不能寫在 case 裡
+			// (那會變成「翻譯過的期望值」對上「沒翻的輸入」)。
+			yes, no := i18n.T("是"), i18n.T("否")
+			switch s := strings.ToLower(strings.TrimSpace(ans)); s {
+			case "y", "yes", yes:
 				a.SaveEditor()
 				a.Quit = true
-			case "n", "no", "否":
+			case "n", "no", no:
 				a.Quit = true
 			}
 			// 其他答案:當作取消,留在原地。
@@ -631,7 +639,7 @@ func (a *App) browserKey(k keys.Key) bool {
 			// 先給一個明確可用的排序切換。
 			b.SortKey = (b.SortKey + 1) % 4
 			b.Resort()
-			a.Message = "排序:" + sortName(b.SortKey)
+			a.Message = i18n.T("排序:") + sortName(b.SortKey)
 			return true
 		}
 	}
@@ -641,13 +649,13 @@ func (a *App) browserKey(k keys.Key) bool {
 func sortName(k vfs.SortKey) string {
 	switch k {
 	case vfs.ByExt:
-		return "副檔名"
+		return i18n.T("副檔名")
 	case vfs.BySize:
-		return "大小"
+		return i18n.T("大小")
 	case vfs.ByTime:
-		return "時間"
+		return i18n.T("時間")
 	}
-	return "檔名"
+	return i18n.T("檔名")
 }
 
 // enter 進入目錄或開啟檔案。
@@ -662,7 +670,7 @@ func (a *App) enter() bool {
 		}
 		dir := a.joinDir(e.Name)
 		if err := a.Browser.Load(dir); err != nil {
-			a.Message = "無法進入 " + dir + ": " + err.Error()
+			a.Message = i18n.T("無法進入 ") + dir + ": " + err.Error()
 		}
 		return true
 	}
@@ -768,7 +776,7 @@ func (a *App) goParent() bool {
 	}
 	prev := filepath.Base(a.Browser.Dir)
 	if err := a.Browser.Load(p); err != nil {
-		a.Message = "無法回上一層: " + err.Error()
+		a.Message = i18n.T("無法回上一層: ") + err.Error()
 		return true
 	}
 	a.focusOn(prev)
@@ -790,12 +798,12 @@ func (a *App) focusOn(name string) {
 func (a *App) readCurrent(name string) ([]byte, error) {
 	rc, err := a.Browser.FS.Open(a.joinDir(name))
 	if err != nil {
-		return nil, fmt.Errorf("開不了 %s: %w", name, err)
+		return nil, fmt.Errorf(i18n.T("開不了 %s: %w"), name, err)
 	}
 	defer rc.Close()
 	data, err := io.ReadAll(io.LimitReader(rc, MaxViewBytes))
 	if err != nil {
-		return nil, fmt.Errorf("讀取失敗: %w", err)
+		return nil, fmt.Errorf(i18n.T("讀取失敗: %w"), err)
 	}
 	return data, nil
 }
@@ -992,18 +1000,18 @@ func (a *App) readOnlyHere() bool {
 // startTransfer 開始拷貝(move=false)或移動(move=true)。
 func (a *App) startTransfer(move bool) bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案還不能拷貝或移動"
+		a.Message = i18n.T("壓縮檔裡的檔案還不能拷貝或移動")
 		return true
 	}
 	names := a.targets()
 	if len(names) == 0 {
 		return false
 	}
-	verb := "拷貝"
+	verb := i18n.T("拷貝")
 	if move {
-		verb = "移動"
+		verb = i18n.T("移動")
 	}
-	title := fmt.Sprintf("%s %d 個檔案到:", verb, len(names))
+	title := fmt.Sprintf(i18n.T("%s %d 個檔案到:"), verb, len(names))
 	a.ask(title, a.Browser.Dir, func(dst string) {
 		a.runTransfer(move, names, dst)
 	})
@@ -1015,7 +1023,7 @@ func (a *App) runTransfer(move bool, names []string, dst string) {
 		return
 	}
 	if err := os.MkdirAll(dst, 0o755); err != nil {
-		a.Message = "目的目錄建不起來: " + err.Error()
+		a.Message = i18n.T("目的目錄建不起來: ") + err.Error()
 		return
 	}
 	// 覆蓋詢問走同一個輸入列。因為輸入列是非同步的(要等使用者按鍵),
@@ -1027,14 +1035,14 @@ func (a *App) runTransfer(move bool, names []string, dst string) {
 	} else {
 		res = fileop.Copy(a.Browser.Dir, dst, names, opt)
 	}
-	verb := "已拷貝"
+	verb := i18n.T("已拷貝")
 	if move {
-		verb = "已移動"
+		verb = i18n.T("已移動")
 	}
 	if len(res.Skipped) > 0 {
 		skipped := res.Skipped
 		done := res.Summary(verb)
-		a.confirm(fmt.Sprintf("%d 個檔案已存在,要覆蓋嗎?", len(skipped)), false,
+		a.confirm(fmt.Sprintf(i18n.T("%d 個檔案已存在,要覆蓋嗎?"), len(skipped)), false,
 			func(yes, _ bool) {
 				if !yes {
 					a.Message = done
@@ -1048,7 +1056,7 @@ func (a *App) runTransfer(move bool, names []string, dst string) {
 				} else {
 					r2 = fileop.Copy(a.Browser.Dir, dst, skipped, o)
 				}
-				a.Message = done + ";覆蓋 " + r2.Summary(verb)
+				a.Message = done + i18n.T(";覆蓋 ") + r2.Summary(verb)
 				a.Browser.Reload()
 			})
 		return
@@ -1059,7 +1067,7 @@ func (a *App) runTransfer(move bool, names []string, dst string) {
 
 func (a *App) startRename() bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案還不能改名"
+		a.Message = i18n.T("壓縮檔裡的檔案還不能改名")
 		return true
 	}
 	e := a.Browser.Current()
@@ -1067,12 +1075,12 @@ func (a *App) startRename() bool {
 		return false
 	}
 	old := e.Name
-	a.ask("改名為:", old, func(to string) {
+	a.ask(i18n.T("改名為:"), old, func(to string) {
 		if to == "" || to == old {
 			return
 		}
 		if err := fileop.Rename(a.Browser.Dir, old, to); err != nil {
-			a.Message = "改名失敗: " + err.Error()
+			a.Message = i18n.T("改名失敗: ") + err.Error()
 			return
 		}
 		a.Browser.Reload()
@@ -1085,21 +1093,21 @@ func (a *App) startRename() bool {
 // startDelete 刪除。zero 為 true 時先把內容填 0 再刪。
 func (a *App) startDelete(zero bool) bool {
 	if a.readOnlyHere() {
-		a.Message = "壓縮檔裡的檔案還不能刪除"
+		a.Message = i18n.T("壓縮檔裡的檔案還不能刪除")
 		return true
 	}
 	names := a.targets()
 	if len(names) == 0 {
 		return false
 	}
-	what := fmt.Sprintf("刪除 %d 個檔案?", len(names))
+	what := fmt.Sprintf(i18n.T("刪除 %d 個檔案?"), len(names))
 	if zero {
-		what = fmt.Sprintf("徹底刪除 %d 個檔案(先填 0)?", len(names))
+		what = fmt.Sprintf(i18n.T("徹底刪除 %d 個檔案(先填 0)?"), len(names))
 	}
 	if len(names) == 1 {
-		what = "刪除 " + names[0] + "?"
+		what = i18n.T("刪除 ") + names[0] + "?"
 		if zero {
-			what = "徹底刪除 " + names[0] + "(先填 0)?"
+			what = i18n.T("徹底刪除 ") + names[0] + i18n.T("(先填 0)?")
 		}
 	}
 	a.confirm(what, false, func(yes, _ bool) {
@@ -1107,7 +1115,7 @@ func (a *App) startDelete(zero bool) bool {
 			return
 		}
 		res := fileop.Delete(a.Browser.Dir, names, fileop.Options{ZeroFill: zero})
-		a.Message = res.Summary("已刪除")
+		a.Message = res.Summary(i18n.T("已刪除"))
 		a.Browser.Reload()
 	})
 	return true
@@ -1122,7 +1130,7 @@ func (a *App) compareMarked() bool {
 		}
 	}
 	if len(names) != 2 {
-		a.Message = "請先標記剛好兩個檔案"
+		a.Message = i18n.T("請先標記剛好兩個檔案")
 		return true
 	}
 	same, at, err := fileop.Compare(
@@ -1130,11 +1138,11 @@ func (a *App) compareMarked() bool {
 		filepath.Join(a.Browser.Dir, names[1]))
 	switch {
 	case err != nil:
-		a.Message = "比對失敗: " + err.Error()
+		a.Message = i18n.T("比對失敗: ") + err.Error()
 	case same:
-		a.Message = names[0] + " 與 " + names[1] + " 內容相同"
+		a.Message = names[0] + i18n.T(" 與 ") + names[1] + i18n.T(" 內容相同")
 	default:
-		a.Message = fmt.Sprintf("內容不同,第一個相異位移 0x%X", at)
+		a.Message = fmt.Sprintf(i18n.T("內容不同,第一個相異位移 0x%X"), at)
 	}
 	return true
 }
@@ -1150,7 +1158,7 @@ func (a *App) openThumbs() bool {
 		}
 	}
 	if len(names) == 0 {
-		a.Message = "這個目錄沒有圖檔"
+		a.Message = i18n.T("這個目錄沒有圖檔")
 		return true
 	}
 	a.Thumbs = thumbs.New(names, a.readCurrent)
@@ -1242,7 +1250,7 @@ func (a *App) drawDict(s *cell.Screen) {
 	if a.dict == nil && a.dictErr == "" {
 		d, err := dict.Load(a.DictDir)
 		if err != nil {
-			a.dictErr = "載不到字典: " + err.Error()
+			a.dictErr = i18n.T("載不到字典: ") + err.Error()
 		} else {
 			a.dict = d
 		}
@@ -1258,12 +1266,12 @@ func (a *App) drawDict(s *cell.Screen) {
 	}
 	w := a.wordUnderCursor()
 	if w == "" {
-		s.Print(1, top, "字典:把游標移到英文單字上", cell.LtGray, cell.Blue)
+		s.Print(1, top, i18n.T("字典:把游標移到英文單字上"), cell.LtGray, cell.Blue)
 		return
 	}
 	e, ok := a.dict.Lookup(w)
 	if !ok {
-		s.Print(1, top, w+" — 查無此字", cell.LtGray, cell.Blue)
+		s.Print(1, top, w+i18n.T(" — 查無此字"), cell.LtGray, cell.Blue)
 		return
 	}
 	head := e.Word
@@ -1271,7 +1279,7 @@ func (a *App) drawDict(s *cell.Screen) {
 		head += "  [" + e.KK + "]"
 	}
 	if e.Base != "" && e.Base != e.Word {
-		head += "  (原形 " + e.Base + ")"
+		head += i18n.T("  (原形 ") + e.Base + ")"
 	}
 	s.Print(1, top, head, cell.LtYellow, cell.Blue)
 	// 解釋可能很長,換行塞進剩下的幾列。
@@ -1337,16 +1345,16 @@ func (a *App) SaveEditor() bool {
 		return false
 	}
 	if _, ok := a.Browser.FS.(*archive.FS); ok {
-		a.Message = "壓縮檔裡的檔案還不能直接存回去"
+		a.Message = i18n.T("壓縮檔裡的檔案還不能直接存回去")
 		return true
 	}
 	path := filepath.Join(a.Browser.Dir, a.Editor.Name)
 	if err := os.WriteFile(path, a.Editor.Bytes(), 0o644); err != nil {
-		a.Message = "存檔失敗: " + err.Error()
+		a.Message = i18n.T("存檔失敗: ") + err.Error()
 		return true
 	}
 	a.Editor.Dirty = false
-	a.Message = "已存檔 " + a.Editor.Name
+	a.Message = i18n.T("已存檔 ") + a.Editor.Name
 	return true
 }
 

@@ -2,6 +2,8 @@ package arc
 
 import "fmt"
 
+import "github.com/wicanr2/wincv-remake/internal/i18n"
+
 const (
 	unused     = -1
 	realMaxStr = 65536
@@ -210,7 +212,7 @@ func lzwDynamic(in []byte, maxBits int, useRLE bool, origSize int64) ([]byte, er
 	}
 
 	if int64(len(w.out)) != origSize {
-		return w.out, fmt.Errorf("解出 %d 個位元組,期望 %d", len(w.out), origSize)
+		return w.out, fmt.Errorf(i18n.T("解出 %d 個位元組,期望 %d"), len(w.out), origSize)
 	}
 	return w.out, nil
 }

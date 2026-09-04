@@ -13,9 +13,9 @@ import (
 // 欄位對齊原版的 DISKBUF:它每一筆存 >DISKBUF-PATH / >DISKBUF-ATTRIB /
 // >DISKBUF-LABEL 三樣(見 docs/re/symbols.tsv)。
 type Drive struct {
-	Label string // 顯示用的短名,如 "C:" 或 "/" 或 "usb-stick"
-	Path  string // 切過去要用的路徑
-	Volume bool  // 是不是可卸除/外接的(原版用不同顏色畫)
+	Label  string // 顯示用的短名,如 "C:" 或 "/" 或 "usb-stick"
+	Path   string // 切過去要用的路徑
+	Volume bool   // 是不是可卸除/外接的(原版用不同顏色畫)
 }
 
 // pseudoFS 是不該出現在磁碟窗格裡的檔案系統型別。

@@ -25,6 +25,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/fnt"
 	"github.com/wicanr2/wincv-remake/internal/fontset"
 	"github.com/wicanr2/wincv-remake/internal/hexview"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"github.com/wicanr2/wincv-remake/internal/imgfmt"
 	"github.com/wicanr2/wincv-remake/internal/imgview"
 	"github.com/wicanr2/wincv-remake/internal/keys"
@@ -99,12 +100,20 @@ func main() {
 		fbFont    = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB      = flag.Bool("no-fallback", false, "不要後備字型")
 		bitmapCJ  = flag.Bool("bitmap-cjk", false, "所有字級的全形字都用倚天字模縮放")
+		lang      = flag.String("lang", "", "介面語言:zh-Hant / zh-Hans / en / ja")
 		touch     = flag.Bool("touch", false, "顯示觸控功能列(Android 版介面草案)")
 		gopherURL = flag.String("gopher", "", "開一個 gopher 位址(會真的連外)")
 		menuFont  = flag.String("menu-font", "", "選單專用字型(TTF/TTC/OTF)")
 		menuSize  = flag.Int("menu-size", 0, "選單字高(像素)")
 	)
 	flag.Parse()
+
+	// 語言要在畫任何東西之前定下來:選單標籤與狀態列都是繪製時才組出來的。
+	if l, ok := i18n.Valid(*lang); ok {
+		i18n.Set(l)
+	} else if *lang != "" {
+		die(fmt.Errorf("不認得的語言 %q", *lang))
+	}
 
 	// 原版素材放在哪裡由 datadir 決定,不是相對於工作目錄猜一個。
 	*halfPath = datadir.Resolve2(*halfPath, "cvga.fon")

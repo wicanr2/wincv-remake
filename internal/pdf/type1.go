@@ -3,6 +3,7 @@ package pdf
 import (
 	"bytes"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strconv"
 )
 
@@ -27,7 +28,7 @@ type type1Font struct {
 func parseType1(b []byte) (f *type1Font, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			f, err = nil, fmt.Errorf("Type1 解析失敗(%v)", r)
+			f, err = nil, fmt.Errorf(i18n.T("Type1 解析失敗(%v)"), r)
 		}
 	}()
 	if !bytes.HasPrefix(b, []byte("%!")) {
@@ -38,7 +39,7 @@ func parseType1(b []byte) (f *type1Font, err error) {
 	}
 	i := bytes.Index(b, []byte("eexec"))
 	if i < 0 {
-		return nil, fmt.Errorf("找不到 eexec")
+		return nil, fmt.Errorf(i18n.T("找不到 eexec"))
 	}
 	f = &type1Font{chars: map[string][]byte{}, enc: map[byte]string{},
 		matrix: [6]float64{0.001, 0, 0, 0.001, 0, 0}}
@@ -55,7 +56,7 @@ func parseType1(b []byte) (f *type1Font, err error) {
 	}
 	priv := eexecDecrypt(enc, 55665, 4)
 	if len(priv) == 0 {
-		return nil, fmt.Errorf("eexec 解不開")
+		return nil, fmt.Errorf(i18n.T("eexec 解不開"))
 	}
 	lenIV := 4
 	if v, ok := intAfter(priv, []byte("/lenIV")); ok && v >= 0 && v <= 16 {
@@ -64,7 +65,7 @@ func parseType1(b []byte) (f *type1Font, err error) {
 	f.readSubrs(priv, lenIV)
 	f.readCharStrings(priv, lenIV)
 	if len(f.chars) == 0 {
-		return nil, fmt.Errorf("Type1 裡沒有字形")
+		return nil, fmt.Errorf(i18n.T("Type1 裡沒有字形"))
 	}
 	return f, nil
 }

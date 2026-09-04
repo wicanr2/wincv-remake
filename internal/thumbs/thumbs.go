@@ -9,6 +9,7 @@ package thumbs
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 	"sync"
@@ -222,7 +223,7 @@ func (m *Model) Draw(s *cell.Screen, cellW, cellH int) *render.Overlay {
 			s.Fill(cx, ny, m.CellCols, 1, ' ', fg, bg)
 			s.Print(cx, ny, name, fg, bg)
 			if it.Img == nil && it.Err != nil {
-				s.Print(cx+1, cy+1, "解不開", cell.LtRed, bg)
+				s.Print(cx+1, cy+1, i18n.T("解不開"), cell.LtRed, bg)
 			}
 		}
 	}
@@ -234,7 +235,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 	t := m.Theme
 	y := s.Rows - 1
 	s.Fill(0, y, s.Cols, 1, ' ', t.StatusFG, t.StatusBG)
-	left := "縮圖列表"
+	left := i18n.T("縮圖列表")
 	if it := m.Current(); it != nil {
 		left = it.Name
 		if it.W > 0 {

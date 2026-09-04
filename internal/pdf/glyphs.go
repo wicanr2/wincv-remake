@@ -1,6 +1,7 @@
 package pdf
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"sync"
 
@@ -339,7 +340,7 @@ func (d *rasterDevice) glyph(g Glyph, f *Font, trm matrix, gs *gstate) {
 		return
 	}
 	segs, origin := d.glyphs.segments(f, g)
-	name := "(未具名字型)"
+	name := i18n.T("(未具名字型)")
 	if f != nil && f.baseFont != "" {
 		name = f.baseFont
 	}

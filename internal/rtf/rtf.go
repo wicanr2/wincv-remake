@@ -17,6 +17,7 @@ package rtf
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"strconv"
 	"strings"
@@ -40,7 +41,7 @@ func Open(name string) (*Doc, error) {
 		return nil, err
 	}
 	if st.Size() > MaxBytes {
-		return nil, fmt.Errorf("這份 RTF 太大(%d 位元組)", st.Size())
+		return nil, fmt.Errorf(i18n.T("這份 RTF 太大(%d 位元組)"), st.Size())
 	}
 	b, err := os.ReadFile(name)
 	if err != nil {
@@ -55,7 +56,7 @@ func Parse(src []byte) (*Doc, error) {
 		src = src[i:]
 	}
 	if !strings.HasPrefix(strings.TrimLeft(string(firstBytes(src, 16)), " \r\n\t"), "{\\rt") {
-		return nil, fmt.Errorf("這不是 RTF 檔")
+		return nil, fmt.Errorf(i18n.T("這不是 RTF 檔"))
 	}
 	p := &parser{src: src, imgs: map[string][]byte{}}
 	p.cur = state{cp: 1252, uc: 1}
@@ -64,7 +65,7 @@ func Parse(src []byte) (*Doc, error) {
 	d := &Doc{blocks: p.out, imgs: p.imgs}
 	if len(d.blocks) == 0 {
 		d.blocks = []markdown.Block{{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: "(這份文件沒有可以顯示的內容)"}}}}
+			Spans: []markdown.Span{{Text: i18n.T("(這份文件沒有可以顯示的內容)")}}}}
 	}
 	return d, nil
 }
@@ -90,7 +91,7 @@ func (d *Doc) Blocks() []markdown.Block { return d.blocks }
 func (d *Doc) Image(ref string) ([]byte, error) {
 	b, ok := d.imgs[ref]
 	if !ok {
-		return nil, fmt.Errorf("這份文件裡沒有 %s", ref)
+		return nil, fmt.Errorf(i18n.T("這份文件裡沒有 %s"), ref)
 	}
 	return b, nil
 }

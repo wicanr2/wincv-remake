@@ -3,6 +3,7 @@ package rtf
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strings"
 	"unicode/utf16"
 
@@ -60,7 +61,7 @@ func (p *parser) word(w string, num int, hasNum bool) {
 		p.instr.Reset()
 	case "footnote":
 		p.footN++
-		p.emitText(fmt.Sprintf("[註 %d]", p.footN))
+		p.emitText(fmt.Sprintf(i18n.T("[註 %d]"), p.footN))
 		p.cur.dest = destFootnote
 		p.pushSink()
 
@@ -326,7 +327,7 @@ func (p *parser) headingLevel() int {
 
 func headingByName(name string) int {
 	s := strings.ToLower(strings.TrimSpace(name))
-	for _, pre := range []string{"heading ", "heading", "標題 ", "標題", "标题 ", "标题"} {
+	for _, pre := range []string{"heading ", "heading", i18n.T("標題 "), i18n.T("標題"), i18n.T("标题 "), i18n.T("标题")} {
 		if rest, ok := strings.CutPrefix(s, pre); ok {
 			rest = strings.TrimSpace(rest)
 			if len(rest) == 1 && rest[0] >= '1' && rest[0] <= '9' {
@@ -470,7 +471,7 @@ func (p *parser) endPict() {
 	// 交出去只會變成一個解不開的檔案。
 	if kind != "png" && kind != "jpg" {
 		p.emitBlock(markdown.Block{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: "(內嵌圖片:" + kindName(kind) + ",無法顯示)", Style: markdown.Italic}}})
+			Spans: []markdown.Span{{Text: i18n.T("(內嵌圖片:") + kindName(kind) + i18n.T(",無法顯示)"), Style: markdown.Italic}}})
 		return
 	}
 	p.picN++
@@ -488,7 +489,7 @@ func kindName(k string) string {
 	case "bmp":
 		return "DIB"
 	}
-	return "未知格式"
+	return i18n.T("未知格式")
 }
 
 // --- 樣式表 ---
@@ -516,7 +517,7 @@ func (p *parser) finish() {
 	if len(p.footnotes) > 0 {
 		p.out = append(p.out, markdown.Block{Kind: markdown.Rule})
 		p.out = append(p.out, markdown.Block{Kind: markdown.Heading, Level: 2,
-			Spans: []markdown.Span{{Text: "註腳"}}})
+			Spans: []markdown.Span{{Text: i18n.T("註腳")}}})
 		p.out = append(p.out, p.footnotes...)
 	}
 }

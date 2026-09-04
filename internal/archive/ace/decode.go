@@ -2,6 +2,8 @@ package ace
 
 import "fmt"
 
+import "github.com/wicanr2/wincv-remake/internal/i18n"
+
 type decoder struct{ lz *lz77 }
 
 // dicSize 由標頭的 params 欄位算出這個成員要多大的字典。
@@ -21,15 +23,15 @@ func (d *decoder) member(data []byte, h *header) (File, error) {
 	}
 	switch {
 	case h.flags&flagPassword != 0:
-		return f, fmt.Errorf("有密碼,還不支援")
+		return f, fmt.Errorf(i18n.T("有密碼,還不支援"))
 	case h.flags&(flagContPrev|flagContNext) != 0:
-		return f, fmt.Errorf("跨片壓縮檔,還不支援")
+		return f, fmt.Errorf(i18n.T("跨片壓縮檔,還不支援"))
 	}
 	if f.IsDir || h.origSize == 0 {
 		return f, nil
 	}
 	if h.dataAt+int(h.packSize) > len(data) {
-		return f, fmt.Errorf("資料被截斷")
+		return f, fmt.Errorf(i18n.T("資料被截斷"))
 	}
 	body := data[h.dataAt : h.dataAt+int(h.packSize)]
 
@@ -39,7 +41,7 @@ func (d *decoder) member(data []byte, h *header) (File, error) {
 	switch h.compType {
 	case compStored:
 		if int64(len(body)) < h.origSize {
-			return f, fmt.Errorf("不壓縮的資料只有 %d 個位元組,期望 %d", len(body), h.origSize)
+			return f, fmt.Errorf(i18n.T("不壓縮的資料只有 %d 個位元組,期望 %d"), len(body), h.origSize)
 		}
 		out = body[:h.origSize]
 		d.lz.register(out)
@@ -48,14 +50,14 @@ func (d *decoder) member(data []byte, h *header) (File, error) {
 	case compBlocked:
 		out, err = d.decodeBlocked(body, h.origSize)
 	default:
-		err = fmt.Errorf("還不支援壓縮法 %d", h.compType)
+		err = fmt.Errorf(i18n.T("還不支援壓縮法 %d"), h.compType)
 	}
 	if err != nil {
 		return f, err
 	}
 	f.Data = out
 	if got := aceCRC32(out); got != h.crc32 {
-		return f, fmt.Errorf("CRC 不符(算出 %08X,標頭寫 %08X)", got, h.crc32)
+		return f, fmt.Errorf(i18n.T("CRC 不符(算出 %08X,標頭寫 %08X)"), got, h.crc32)
 	}
 	return f, nil
 }
@@ -71,10 +73,10 @@ func (d *decoder) decodeLZ77(body []byte, size int64) ([]byte, error) {
 			return out, err
 		}
 		if next != nil {
-			return out, fmt.Errorf("ACE 1.0 的 LZ77 不該出現模式切換碼")
+			return out, fmt.Errorf(i18n.T("ACE 1.0 的 LZ77 不該出現模式切換碼"))
 		}
 		if len(chunk) == 0 {
-			return out, fmt.Errorf("沒有進展,可能是壞檔")
+			return out, fmt.Errorf(i18n.T("沒有進展,可能是壞檔"))
 		}
 		out = append(out, chunk...)
 	}
@@ -118,7 +120,7 @@ func (d *decoder) decodeBlocked(body []byte, size int64) ([]byte, error) {
 			}
 			want := int(size) - len(out) - len(buf)
 			if want <= 0 {
-				return out, fmt.Errorf("沒有進展,可能是壞檔")
+				return out, fmt.Errorf(i18n.T("沒有進展,可能是壞檔"))
 			}
 			c, nm, err := d.lz.read(b, want)
 			if err != nil {
@@ -132,14 +134,14 @@ func (d *decoder) decodeBlocked(body []byte, size int64) ([]byte, error) {
 			chunk = buf
 
 		case modeSound8, modeSound16, modeSound32A, modeSound32B, modePic:
-			return out, fmt.Errorf("還不支援 %s 模式", modeName(mode.mode))
+			return out, fmt.Errorf(i18n.T("還不支援 %s 模式"), modeName(mode.mode))
 
 		default:
-			return out, fmt.Errorf("認不得的模式 %d", mode.mode)
+			return out, fmt.Errorf(i18n.T("認不得的模式 %d"), mode.mode)
 		}
 
 		if len(chunk) == 0 && next == nil {
-			return out, fmt.Errorf("沒有進展,可能是壞檔")
+			return out, fmt.Errorf(i18n.T("沒有進展,可能是壞檔"))
 		}
 		out = append(out, chunk...)
 	}
@@ -159,7 +161,7 @@ func (d *decoder) readDelta(b *bitStream, mode *aceMode, last *byte) ([]byte, *a
 		delta = append(delta, chunk...)
 		if nm != nil {
 			if next != nil {
-				return nil, nil, fmt.Errorf("DELTA 區塊裡出現兩個模式切換碼")
+				return nil, nil, fmt.Errorf(i18n.T("DELTA 區塊裡出現兩個模式切換碼"))
 			}
 			next = nm
 			if len(delta) == 0 {
@@ -168,7 +170,7 @@ func (d *decoder) readDelta(b *bitStream, mode *aceMode, last *byte) ([]byte, *a
 			break
 		}
 		if len(chunk) == 0 {
-			return nil, nil, fmt.Errorf("DELTA 沒有進展")
+			return nil, nil, fmt.Errorf(i18n.T("DELTA 沒有進展"))
 		}
 	}
 	for i := range delta {
@@ -176,7 +178,7 @@ func (d *decoder) readDelta(b *bitStream, mode *aceMode, last *byte) ([]byte, *a
 		*last = delta[i]
 	}
 	if mode.deltaDist == 0 {
-		return nil, nil, fmt.Errorf("DELTA 的 dist 是 0")
+		return nil, nil, fmt.Errorf(i18n.T("DELTA 的 dist 是 0"))
 	}
 	planeSize := mode.deltaLen / mode.deltaDist
 	out := make([]byte, 0, len(delta))

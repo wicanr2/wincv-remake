@@ -19,6 +19,7 @@ package eten
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 	"sync"
@@ -119,11 +120,11 @@ func rawIndex(hi, lo byte) int {
 // Font 是一組同尺寸的倚天字庫。
 type Font struct {
 	std, spc, supp []byte
-	W, H     int
-	stride   int
+	W, H           int
+	stride         int
 
-	mu    sync.Mutex
-	b5    map[rune][2]byte // rune -> Big5 的快取
+	mu sync.Mutex
+	b5 map[rune][2]byte // rune -> Big5 的快取
 }
 
 // Load 讀入漢字區與符號區。spcPath 可以留空,但那樣全形標點會缺字。
@@ -132,12 +133,12 @@ type Font struct {
 func Load(stdPath, spcPath string, w, h int) (*Font, error) {
 	std, err := os.ReadFile(stdPath)
 	if err != nil {
-		return nil, fmt.Errorf("讀 STDFONT: %w", err)
+		return nil, fmt.Errorf(i18n.T("讀 STDFONT: %w"), err)
 	}
 	var spc, supp []byte
 	if spcPath != "" {
 		if spc, err = os.ReadFile(spcPath); err != nil {
-			return nil, fmt.Errorf("讀 SPCFONT: %w", err)
+			return nil, fmt.Errorf(i18n.T("讀 SPCFONT: %w"), err)
 		}
 		// 找不到補充區不是錯 —— 那一區當缺字就好。
 		supp, _ = os.ReadFile(suppPathFor(spcPath))
@@ -152,14 +153,14 @@ func Load(stdPath, spcPath string, w, h int) (*Font, error) {
 func LoadBytes(std, spc, supp []byte, w, h int) (*Font, error) {
 	f := &Font{std: std, W: w, H: h, stride: (w + 7) / 8 * h, b5: map[rune][2]byte{}}
 	if len(std)%f.stride != 0 {
-		return nil, fmt.Errorf("STDFONT 大小 %d 不是 stride %d 的整數倍", len(std), f.stride)
+		return nil, fmt.Errorf(i18n.T("STDFONT 大小 %d 不是 stride %d 的整數倍"), len(std), f.stride)
 	}
 	f.spc = spc
 	if len(supp) > 0 {
 		if len(supp)%f.stride == 0 && len(supp)/f.stride == suppCount {
 			f.supp = supp
 		} else {
-			return nil, fmt.Errorf("SPCFSUPP 有 %d 個字模,但 Big5 在 C6A1-C8FE 只定義 %d 個碼位",
+			return nil, fmt.Errorf(i18n.T("SPCFSUPP 有 %d 個字模,但 Big5 在 C6A1-C8FE 只定義 %d 個碼位"),
 				len(supp)/f.stride, suppCount)
 		}
 	}

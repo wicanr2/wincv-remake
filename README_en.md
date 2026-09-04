@@ -215,6 +215,7 @@ Things the original doesn't have, that this version does:
 | Word | Reads all three of `.docx`, `.doc` (Word 97-2003), and `.rtf`: headings, bold/italic, ordered/unordered lists, tables, embedded images |
 | PowerPoint | Each `.pptx` slide is one block, speaker notes included; it opens on a slide list |
 | Excel | Each `.xlsx` sheet is one block, cells laid out as a table |
+| Localization | The interface is available in 繁體中文, 简体中文, English, and 日本語. It follows the system locale at startup; `F9` → Settings → Language switches at any time and the choice is remembered. The `F1` help text has a version per language |
 | Separate menu font | The menu layer has its own character cell grid and can use a **different font and size** from the content (`F9` → Settings → Menu Font Size, or `-menu-font` at launch). Content needs to be pixel-aligned to the original; the menu is just interface |
 | Per-file resume position | Leaving and returning to a text view, hex view, markdown view, or the editor goes back to the last position (the editor even remembers the cursor's row and column). One entry per file, up to 500 entries. The original had this setting back in 0.5x; the remake keeps it on by default |
 | Resizable filename column | The original's list is always laid out for 8.3 filenames, dumping long filenames into the rightmost column. Here the main filename column can be widened (`Ctrl-→` / `Ctrl-←`, or hold the left button and drag horizontally over the list), showing long filenames directly in the list. The width is remembered |

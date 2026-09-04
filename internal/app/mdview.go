@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"io"
 	"path"
@@ -62,24 +63,24 @@ func (a *App) openMarkdown(name string, data []byte) {
 // 把那個檔案讀進記憶體。
 func (a *App) mdImage(src string) (image.Image, error) {
 	if src == "" {
-		return nil, errors.New("沒有路徑")
+		return nil, errors.New(i18n.T("沒有路徑"))
 	}
 	// 遠端圖片不抓 —— 開一份 .md 不該變成連外行為,而那份 .md
 	// 可能是從壓縮檔或別人給的目錄裡來的。瀏覽模式是另一回事:
 	// 那是使用者自己輸入位址進去的,連外是他要的動作。
 	for _, p := range []string{"http://", "https://", "//", "data:"} {
 		if strings.HasPrefix(strings.ToLower(src), p) {
-			return nil, errors.New("遠端圖片不下載")
+			return nil, errors.New(i18n.T("遠端圖片不下載"))
 		}
 	}
 	clean := path.Clean(strings.ReplaceAll(src, "\\", "/"))
 	if path.IsAbs(clean) || strings.HasPrefix(clean, "../") || clean == ".." {
-		return nil, errors.New("只能引用文件所在目錄底下的圖")
+		return nil, errors.New(i18n.T("只能引用文件所在目錄底下的圖"))
 	}
 	full := path.Join(a.md.dir, clean)
 	rc, err := a.FS.Open(full)
 	if err != nil {
-		return nil, errors.New("找不到")
+		return nil, errors.New(i18n.T("找不到"))
 	}
 	defer rc.Close()
 	// 上限用讀的位元組數把關,不靠 Stat —— 壓縮檔成員的 vfs 沒有 Stat,
@@ -89,7 +90,7 @@ func (a *App) mdImage(src string) (image.Image, error) {
 		return nil, err
 	}
 	if len(data) > MaxMDImageBytes {
-		return nil, fmt.Errorf("超過 %s", comma(MaxMDImageBytes))
+		return nil, fmt.Errorf(i18n.T("超過 %s"), comma(MaxMDImageBytes))
 	}
 	img, _, err := imgfmt.Decode(path.Base(clean), data)
 	if err != nil {
@@ -173,9 +174,11 @@ func (a *App) drawMDStatus(s *cell.Screen) {
 			pct = 100
 		}
 	}
-	left := fmt.Sprintf("%s  %d 列  %d%%", a.md.name, len(a.md.lines), pct)
+	// 名字過一次 T:一般檔名查不到目錄會原樣回來,而「使用說明」是
+	// 內嵌文件的識別字,顯示時要翻(見 help.go 的 helpName)。
+	left := fmt.Sprintf(i18n.T("%s  %d 列  %d%%"), i18n.T(a.md.name), len(a.md.lines), pct)
 	s.Print(0, y, left, cell.LtGray2, cell.Blue)
-	right := "Enter 看圖  Esc 離開"
+	right := i18n.T("Enter 看圖  Esc 離開")
 	if x := s.Cols - len(right); x > len(left) {
 		s.Print(x, y, right, cell.Gray, cell.Blue)
 	}
@@ -240,6 +243,6 @@ func (a *App) openFirstVisiblePic() bool {
 			return true
 		}
 	}
-	a.Message = "這一頁沒有可以放大的圖"
+	a.Message = i18n.T("這一頁沒有可以放大的圖")
 	return true
 }

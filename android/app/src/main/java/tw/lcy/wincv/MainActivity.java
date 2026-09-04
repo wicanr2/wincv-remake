@@ -1,5 +1,6 @@
 package tw.lcy.wincv;
 
+import java.util.Locale;
 import android.app.Activity;
 import android.os.Build;
 import android.os.Bundle;
@@ -45,6 +46,9 @@ public class MainActivity extends Activity {
                 root = f.getAbsolutePath();
             }
         }
+        // 語系在 Resources 裡,Go 那一側讀不到(Android 沒有 LANG)。
+        // 要在 setRoot 之前送,畫面第一幀就會是對的語言。
+        Mobile.setLocale(Locale.getDefault().toLanguageTag());
         Mobile.setRoot(root);
 
         setContentView(R.layout.activity_main);

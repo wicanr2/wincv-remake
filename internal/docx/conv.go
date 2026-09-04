@@ -3,6 +3,7 @@ package docx
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"path"
 	"strings"
 
@@ -217,7 +218,7 @@ func (c *conv) emitPara(pr pProps, spans []markdown.Span) {
 
 func isQuoteStyle(name string) bool {
 	s := strings.ToLower(name)
-	return strings.Contains(s, "quote") || strings.Contains(s, "引文") || strings.Contains(s, "引言")
+	return strings.Contains(s, "quote") || strings.Contains(s, i18n.T("引文")) || strings.Contains(s, i18n.T("引言"))
 }
 
 // listBlock 把一個段落變成清單項目,並推進計數器。
@@ -383,11 +384,11 @@ func (c *conv) run(dec *xml.Decoder, owner string, base markdown.Style) ([]markd
 		case "footnoteReference":
 			id := ooxml.Attr(se, "id")
 			c.notesSeen = append(c.notesSeen, id)
-			add(fmt.Sprintf("[註 %d]", len(c.notesSeen)))
+			add(fmt.Sprintf(i18n.T("[註 %d]"), len(c.notesSeen)))
 		case "endnoteReference":
 			id := ooxml.Attr(se, "id")
 			c.endSeen = append(c.endSeen, id)
-			add(fmt.Sprintf("[尾註 %d]", len(c.endSeen)))
+			add(fmt.Sprintf(i18n.T("[尾註 %d]"), len(c.endSeen)))
 		case "instrText":
 			c.fieldInstr.WriteString(ooxml.Text(dec))
 			return true, nil
@@ -652,8 +653,8 @@ func blocksText(bs []markdown.Block) string {
 
 // notes 把引用到的註腳排在文件最後。
 func (c *conv) notes() {
-	c.notesFrom("/footnotes", "footnote", c.notesSeen, "註腳")
-	c.notesFrom("/endnotes", "endnote", c.endSeen, "尾註")
+	c.notesFrom("/footnotes", "footnote", c.notesSeen, i18n.T("註腳"))
+	c.notesFrom("/endnotes", "endnote", c.endSeen, i18n.T("尾註"))
 }
 
 func (c *conv) notesFrom(relType, elem string, seen []string, title string) {

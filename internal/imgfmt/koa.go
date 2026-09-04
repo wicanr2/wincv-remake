@@ -2,6 +2,7 @@ package imgfmt
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 )
@@ -58,7 +59,7 @@ func DecodeKOA(data []byte) (image.Image, error) {
 	case 10001:
 		// 沒有載入位址的變體
 	default:
-		return nil, fmt.Errorf("KOA: 長度是 %d,應該是 10003 或 10001", len(data))
+		return nil, fmt.Errorf(i18n.T("KOA: 長度是 %d,應該是 10003 或 10001"), len(data))
 	}
 
 	bitmap := data[:bitmapLen]

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"path/filepath"
 	"strings"
@@ -53,9 +54,9 @@ func (a *App) previewFor(cols int) *preview {
 	p := preview{key: key}
 	switch {
 	case e.Up:
-		p.err = "上一層"
+		p.err = i18n.T("上一層")
 	case e.IsDir:
-		p.err = "<目錄>"
+		p.err = i18n.T("<目錄>")
 	default:
 		p = a.readPreview(key, e.Name, cols)
 	}
@@ -77,7 +78,7 @@ func (a *App) readPreview(key, name string, cols int) preview {
 		return p
 	}
 	if len(data) == 0 {
-		p.err = "(空檔案)"
+		p.err = i18n.T("(空檔案)")
 		return p
 	}
 	if _, ok := imgfmt.DetectFormat(name); ok {

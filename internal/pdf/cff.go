@@ -3,6 +3,7 @@ package pdf
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"math"
 )
 
@@ -47,19 +48,19 @@ type cffFont struct {
 func parseCFF(b []byte) (f *cffFont, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			f, err = nil, fmt.Errorf("CFF 解析失敗(%v)", r)
+			f, err = nil, fmt.Errorf(i18n.T("CFF 解析失敗(%v)"), r)
 		}
 	}()
 	if len(b) < 4 {
-		return nil, fmt.Errorf("CFF 太短")
+		return nil, fmt.Errorf(i18n.T("CFF 太短"))
 	}
 	if b[0] != 1 {
 		// 第 2 版(CFF2)是可變字型用的,結構不同。
-		return nil, fmt.Errorf("不支援的 CFF 版本 %d", b[0])
+		return nil, fmt.Errorf(i18n.T("不支援的 CFF 版本 %d"), b[0])
 	}
 	hdrSize := int(b[2])
 	if hdrSize < 4 || hdrSize > len(b) {
-		return nil, fmt.Errorf("CFF 標頭長度不合理")
+		return nil, fmt.Errorf(i18n.T("CFF 標頭長度不合理"))
 	}
 
 	pos := hdrSize
@@ -68,7 +69,7 @@ func parseCFF(b []byte) (f *cffFont, err error) {
 	}
 	topDicts, pos, err := readIndex(b, pos)
 	if err != nil || len(topDicts) == 0 {
-		return nil, fmt.Errorf("CFF 沒有 Top DICT")
+		return nil, fmt.Errorf(i18n.T("CFF 沒有 Top DICT"))
 	}
 	if _, pos, err = readIndex(b, pos); err != nil { // String INDEX
 		return nil, err
@@ -87,7 +88,7 @@ func parseCFF(b []byte) (f *cffFont, err error) {
 
 	csOff := dictInt(top, cffCharStrings)
 	if csOff <= 0 || csOff >= len(b) {
-		return nil, fmt.Errorf("CFF 沒有字形資料")
+		return nil, fmt.Errorf(i18n.T("CFF 沒有字形資料"))
 	}
 	if f.charStrings, _, err = readIndex(b, csOff); err != nil {
 		return nil, err
@@ -328,23 +329,23 @@ func (f *cffFont) gidForCID(cid uint32) (uint16, bool) {
 // readIndex 讀一個 INDEX 結構。
 func readIndex(b []byte, pos int) ([][]byte, int, error) {
 	if pos < 0 || pos+2 > len(b) {
-		return nil, pos, fmt.Errorf("INDEX 超出範圍")
+		return nil, pos, fmt.Errorf(i18n.T("INDEX 超出範圍"))
 	}
 	count := int(binary.BigEndian.Uint16(b[pos:]))
 	if count == 0 {
 		return nil, pos + 2, nil
 	}
 	if pos+3 > len(b) {
-		return nil, pos, fmt.Errorf("INDEX 被截斷")
+		return nil, pos, fmt.Errorf(i18n.T("INDEX 被截斷"))
 	}
 	offSize := int(b[pos+2])
 	if offSize < 1 || offSize > 4 {
-		return nil, pos, fmt.Errorf("INDEX 的位移大小不合理(%d)", offSize)
+		return nil, pos, fmt.Errorf(i18n.T("INDEX 的位移大小不合理(%d)"), offSize)
 	}
 	offBase := pos + 3
 	end := offBase + (count+1)*offSize
 	if end > len(b) {
-		return nil, pos, fmt.Errorf("INDEX 被截斷")
+		return nil, pos, fmt.Errorf(i18n.T("INDEX 被截斷"))
 	}
 	off := func(i int) int {
 		v := 0
@@ -359,7 +360,7 @@ func readIndex(b []byte, pos int) ([][]byte, int, error) {
 	for i := 0; i < count; i++ {
 		lo, hi := dataStart+off(i), dataStart+off(i+1)
 		if lo < dataStart || hi > len(b) || hi < lo {
-			return nil, pos, fmt.Errorf("INDEX 的第 %d 筆位移不合理", i)
+			return nil, pos, fmt.Errorf(i18n.T("INDEX 的第 %d 筆位移不合理"), i)
 		}
 		items = append(items, b[lo:hi])
 	}

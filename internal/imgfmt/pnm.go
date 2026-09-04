@@ -3,6 +3,7 @@ package imgfmt
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 )
@@ -15,11 +16,11 @@ import (
 // PBM 的 1 是**黑**、0 是白 —— 跟直覺相反,弄錯會整張反相。
 func DecodePNM(d []byte) (image.Image, error) {
 	if len(d) < 2 || d[0] != 'P' {
-		return nil, fmt.Errorf("不是 PNM")
+		return nil, fmt.Errorf(i18n.T("不是 PNM"))
 	}
 	kind := d[1]
 	if kind < '1' || kind > '6' {
-		return nil, fmt.Errorf("不認得的 PNM 類型 P%c", kind)
+		return nil, fmt.Errorf(i18n.T("不認得的 PNM 類型 P%c"), kind)
 	}
 	p := 2
 
@@ -39,7 +40,7 @@ func DecodePNM(d []byte) (image.Image, error) {
 			break
 		}
 		if p >= len(d) {
-			return 0, fmt.Errorf("PNM 檔頭不完整")
+			return 0, fmt.Errorf(i18n.T("PNM 檔頭不完整"))
 		}
 		v := 0
 		got := false
@@ -49,7 +50,7 @@ func DecodePNM(d []byte) (image.Image, error) {
 			got = true
 		}
 		if !got {
-			return 0, fmt.Errorf("PNM 檔頭讀不到數字")
+			return 0, fmt.Errorf(i18n.T("PNM 檔頭讀不到數字"))
 		}
 		return v, nil
 	}
@@ -69,7 +70,7 @@ func DecodePNM(d []byte) (image.Image, error) {
 		}
 	}
 	if w <= 0 || h <= 0 || maxv <= 0 {
-		return nil, fmt.Errorf("PNM 尺寸不合理 %dx%d maxv=%d", w, h, maxv)
+		return nil, fmt.Errorf(i18n.T("PNM 尺寸不合理 %dx%d maxv=%d"), w, h, maxv)
 	}
 	// binary 格式在 maxval 之後**剛好一個** whitespace,然後就是資料。
 	if kind >= '4' && p < len(d) {

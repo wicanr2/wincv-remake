@@ -6,6 +6,7 @@ package imgview
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 
 	"github.com/wicanr2/wincv-remake/internal/cell"
@@ -221,7 +222,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 
 	right := "1:1"
 	if m.Fit {
-		right = "縮放"
+		right = i18n.T("縮放")
 	} else if z := m.Zoom; z > 0 && z != 1 {
 		right = fmt.Sprintf("%g×", z)
 	}
@@ -236,10 +237,10 @@ func (m *Model) drawInfo(s *cell.Screen) {
 	t := m.Theme
 	b := m.Img.Bounds()
 	lines := []string{
-		"檔名: " + m.Name,
-		fmt.Sprintf("格式: %s", m.Kind),
-		fmt.Sprintf("尺寸: %d x %d", b.Dx(), b.Dy()),
-		fmt.Sprintf("大小: %s", humanSize(m.Size)),
+		i18n.T("檔名: ") + m.Name,
+		fmt.Sprintf(i18n.T("格式: %s"), m.Kind),
+		fmt.Sprintf(i18n.T("尺寸: %d x %d"), b.Dx(), b.Dy()),
+		fmt.Sprintf(i18n.T("大小: %s"), humanSize(m.Size)),
 	}
 	w := 0
 	for _, l := range lines {

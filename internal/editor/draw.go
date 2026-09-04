@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
@@ -227,13 +228,13 @@ func (m *Model) drawStatus(s *cell.Screen) {
 	mark := ""
 	switch m.Block.Kind {
 	case BlockRect:
-		mark = "  區塊"
+		mark = i18n.T("  區塊")
 	case BlockLine:
-		mark = "  整列"
+		mark = i18n.T("  整列")
 	}
-	mode := "插入"
+	mode := i18n.T("插入")
 	if !m.Insert {
-		mode = "覆蓋"
+		mode = i18n.T("覆蓋")
 	}
 	dirty := ""
 	if m.Dirty {
@@ -242,7 +243,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 	left := fmt.Sprintf("%s%s  [%s]  %s%s", m.Name, dirty, m.Enc, mode, mark)
 	s.Print(0, y, left, t.StatusFG, t.StatusBG)
 
-	right := fmt.Sprintf("%d 行 %d 欄 / %d", m.Cur.Line+1, m.Cur.Col+1, len(m.Lines))
+	right := fmt.Sprintf(i18n.T("%d 行 %d 欄 / %d"), m.Cur.Line+1, m.Cur.Col+1, len(m.Lines))
 	if x := s.Cols - len(right); x >= 0 {
 		s.Print(x, y, right, t.StatusFG, t.StatusBG)
 	}

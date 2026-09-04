@@ -3,6 +3,7 @@ package ace
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"hash/crc32"
 	"strings"
 	"time"
@@ -33,7 +34,7 @@ func modeName(m int) string {
 	if m >= 0 && m < len(names) {
 		return names[m]
 	}
-	return fmt.Sprintf("未知(%d)", m)
+	return fmt.Sprintf(i18n.T("未知(%d)"), m)
 }
 
 type aceMode struct {
@@ -130,7 +131,7 @@ func Read(data []byte) ([]File, error) {
 			out = append(out, f)
 		}
 		if next <= at {
-			return out, fmt.Errorf("標頭位置沒有前進,可能是壞檔")
+			return out, fmt.Errorf(i18n.T("標頭位置沒有前進,可能是壞檔"))
 		}
 		at = next
 	}
@@ -148,7 +149,7 @@ func findMain(data []byte) (int, error) {
 			return i - 7, nil
 		}
 	}
-	return 0, fmt.Errorf("不是 ACE 檔(找不到 **ACE** 標記)")
+	return 0, fmt.Errorf(i18n.T("不是 ACE 檔(找不到 **ACE** 標記)"))
 }
 
 type header struct {
@@ -170,21 +171,21 @@ type header struct {
 // (主標頭、修復記錄等),但仍然要照回傳的位置往下走。
 func parseHeader(data []byte, at int) (*header, int, error) {
 	if at+4 > len(data) {
-		return nil, 0, fmt.Errorf("標頭被截斷")
+		return nil, 0, fmt.Errorf(i18n.T("標頭被截斷"))
 	}
 	le := binary.LittleEndian
 	hcrc := le.Uint16(data[at : at+2])
 	hsize := int(le.Uint16(data[at+2 : at+4]))
 	body := at + 4
 	if body+hsize > len(data) {
-		return nil, 0, fmt.Errorf("標頭被截斷")
+		return nil, 0, fmt.Errorf(i18n.T("標頭被截斷"))
 	}
 	buf := data[body : body+hsize]
 	if aceCRC16(buf) != hcrc {
-		return nil, 0, fmt.Errorf("標頭 CRC 不符")
+		return nil, 0, fmt.Errorf(i18n.T("標頭 CRC 不符"))
 	}
 	if len(buf) < 3 {
-		return nil, 0, fmt.Errorf("標頭太短")
+		return nil, 0, fmt.Errorf(i18n.T("標頭太短"))
 	}
 	kind := int(buf[0])
 	flags := le.Uint16(buf[1:3])
@@ -199,21 +200,21 @@ func parseHeader(data []byte, at int) (*header, int, error) {
 		h := &header{kind: kind, flags: flags}
 		if flags&flag64Bit != 0 {
 			if i+16 > len(buf) {
-				return nil, 0, fmt.Errorf("標頭被截斷")
+				return nil, 0, fmt.Errorf(i18n.T("標頭被截斷"))
 			}
 			h.packSize = int64(le.Uint64(buf[i : i+8]))
 			h.origSize = int64(le.Uint64(buf[i+8 : i+16]))
 			i += 16
 		} else {
 			if i+8 > len(buf) {
-				return nil, 0, fmt.Errorf("標頭被截斷")
+				return nil, 0, fmt.Errorf(i18n.T("標頭被截斷"))
 			}
 			h.packSize = int64(le.Uint32(buf[i : i+4]))
 			h.origSize = int64(le.Uint32(buf[i+4 : i+8]))
 			i += 8
 		}
 		if i+20 > len(buf) {
-			return nil, 0, fmt.Errorf("標頭被截斷")
+			return nil, 0, fmt.Errorf(i18n.T("標頭被截斷"))
 		}
 		h.modTime = dosTime(le.Uint32(buf[i : i+4]))
 		h.attribs = le.Uint32(buf[i+4 : i+8])
@@ -224,7 +225,7 @@ func parseHeader(data []byte, at int) (*header, int, error) {
 		fnsz := int(le.Uint16(buf[i+18 : i+20]))
 		i += 20
 		if i+fnsz > len(buf) {
-			return nil, 0, fmt.Errorf("標頭被截斷")
+			return nil, 0, fmt.Errorf(i18n.T("標頭被截斷"))
 		}
 		h.name = normalizeName(string(buf[i : i+fnsz]))
 		h.dataAt = after

@@ -2,6 +2,8 @@ package ace
 
 import "fmt"
 
+import "github.com/wicanr2/wincv-remake/internal/i18n"
+
 // LZ77 的符號配置:
 //
 //	  0..255  原樣的位元組
@@ -48,10 +50,10 @@ type symReader struct {
 func (s *symReader) readTrees(b *bitStream) error {
 	var err error
 	if s.main, err = readTree(b, maxCodeWidth, numMainCodes); err != nil {
-		return fmt.Errorf("主碼表: %w", err)
+		return fmt.Errorf(i18n.T("主碼表: %w"), err)
 	}
 	if s.length, err = readTree(b, maxCodeWidth, numLenCodes); err != nil {
-		return fmt.Errorf("長度碼表: %w", err)
+		return fmt.Errorf(i18n.T("長度碼表: %w"), err)
 	}
 	n, err := b.read(15)
 	if err != nil {
@@ -151,11 +153,11 @@ func (l *lz77) read(b *bitStream, want int) ([]byte, *aceMode, error) {
 			}
 			dist++
 			if len(l.out)-start+length > want {
-				return l.out[start:], nil, fmt.Errorf("比對長度超出這一段要的位元組數")
+				return l.out[start:], nil, fmt.Errorf(i18n.T("比對長度超出這一段要的位元組數"))
 			}
 			src := len(l.out) - dist
 			if src < 0 {
-				return l.out[start:], nil, fmt.Errorf("比對距離 %d 超出視窗(目前 %d 個位元組)", dist, len(l.out))
+				return l.out[start:], nil, fmt.Errorf(i18n.T("比對距離 %d 超出視窗(目前 %d 個位元組)"), dist, len(l.out))
 			}
 			// 逐個位元組複製:來源與目的可能重疊
 			for i := 0; i < length; i++ {
@@ -169,7 +171,7 @@ func (l *lz77) read(b *bitStream, want int) ([]byte, *aceMode, error) {
 			next = m
 			return l.out[start:], next, nil
 		default:
-			return l.out[start:], nil, fmt.Errorf("主碼 %d 超出範圍", sym)
+			return l.out[start:], nil, fmt.Errorf(i18n.T("主碼 %d 超出範圍"), sym)
 		}
 	}
 	return l.out[start:], next, nil

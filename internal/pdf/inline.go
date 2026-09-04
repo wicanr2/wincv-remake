@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 	_ "image/jpeg"
@@ -30,7 +31,7 @@ func (in *interp) decodeInline(dict map[string]value, data []byte, res types.Dic
 	w := int(numOfValue(dict, "W", "Width"))
 	h := int(numOfValue(dict, "H", "Height"))
 	if w <= 0 || h <= 0 || w*h > MaxInlinePixels {
-		return nil, false, fmt.Errorf("內嵌影像的尺寸不合理(%d×%d)", w, h)
+		return nil, false, fmt.Errorf(i18n.T("內嵌影像的尺寸不合理(%d×%d)"), w, h)
 	}
 	isMask := isInlineMask(dict)
 	bpc := int(numOfValue(dict, "BPC", "BitsPerComponent"))
@@ -84,7 +85,7 @@ func (in *interp) inlineData(dict map[string]value, data []byte) ([]byte, image.
 		case "Fl", "FlateDecode":
 			zr, err := zlib.NewReader(bytes.NewReader(cur))
 			if err != nil {
-				return nil, nil, fmt.Errorf("內嵌影像解壓失敗:%w", err)
+				return nil, nil, fmt.Errorf(i18n.T("內嵌影像解壓失敗:%w"), err)
 			}
 			out, err := io.ReadAll(io.LimitReader(zr, MaxInlinePixels*4))
 			zr.Close()
@@ -97,11 +98,11 @@ func (in *interp) inlineData(dict map[string]value, data []byte) ([]byte, image.
 		case "DCT", "DCTDecode":
 			m, _, err := image.Decode(bytes.NewReader(cur))
 			if err != nil {
-				return nil, nil, fmt.Errorf("內嵌的 JPEG 解不開:%w", err)
+				return nil, nil, fmt.Errorf(i18n.T("內嵌的 JPEG 解不開:%w"), err)
 			}
 			return nil, m, nil
 		default:
-			return nil, nil, fmt.Errorf("內嵌影像用了還不支援的濾鏡 %s", name)
+			return nil, nil, fmt.Errorf(i18n.T("內嵌影像用了還不支援的濾鏡 %s"), name)
 		}
 	}
 	return cur, nil, nil

@@ -18,6 +18,7 @@ package arc
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strings"
 	"time"
 )
@@ -39,14 +40,14 @@ func Read(data []byte) ([]File, error) {
 		at++
 	}
 	if at >= len(data) || data[at] != 0x1A {
-		return nil, fmt.Errorf("不是 ARC 檔(找不到起始標記)")
+		return nil, fmt.Errorf(i18n.T("不是 ARC 檔(找不到起始標記)"))
 	}
 
 	var out []File
 	for {
 		if at+2 > len(data) || data[at] != 0x1A {
 			if len(out) == 0 {
-				return nil, fmt.Errorf("在 %d 讀不到記錄標頭", at)
+				return nil, fmt.Errorf(i18n.T("在 %d 讀不到記錄標頭"), at)
 			}
 			return out, nil
 		}
@@ -63,7 +64,7 @@ func Read(data []byte) ([]File, error) {
 			fixed -= 4
 		}
 		if at+fixed > len(data) {
-			return out, fmt.Errorf("標頭被截斷")
+			return out, fmt.Errorf(i18n.T("標頭被截斷"))
 		}
 		raw := data[at : at+fixed]
 		at += fixed
@@ -93,14 +94,14 @@ func Read(data []byte) ([]File, error) {
 		}
 
 		if at+int(compSize) > len(data) {
-			return out, fmt.Errorf("%s: 資料被截斷", name)
+			return out, fmt.Errorf(i18n.T("%s: 資料被截斷"), name)
 		}
 		body := data[at : at+int(compSize)]
 		at += int(compSize)
 
 		content, err := decode(body, method, origSize)
 		if err != nil {
-			return out, fmt.Errorf("%s(方法 %d): %w", name, method, err)
+			return out, fmt.Errorf(i18n.T("%s(方法 %d): %w"), name, method, err)
 		}
 		out = append(out, File{
 			Name:    name,
@@ -131,7 +132,7 @@ func decode(body []byte, method byte, origSize int64) ([]byte, error) {
 	case 127:
 		return lzwDynamic(body, 16, false, origSize)
 	}
-	return nil, fmt.Errorf("還不支援方法 %d", method)
+	return nil, fmt.Errorf(i18n.T("還不支援方法 %d"), method)
 }
 
 func dosTime(date, tm uint16) time.Time {

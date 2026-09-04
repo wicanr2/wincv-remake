@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"os"
 	"sync"
@@ -33,7 +34,7 @@ type Doc struct {
 func Open(path string) (*Doc, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("打不開:%w", err)
+		return nil, fmt.Errorf(i18n.T("打不開:%w"), err)
 	}
 	defer f.Close()
 
@@ -51,13 +52,13 @@ func Open(path string) (*Doc, error) {
 	}
 	ctx, err := api.ReadContext(guard(f, st.Size()), conf)
 	if err != nil {
-		return nil, fmt.Errorf("這份 PDF 解不開:%w", err)
+		return nil, fmt.Errorf(i18n.T("這份 PDF 解不開:%w"), err)
 	}
 	if err := ctx.EnsurePageCount(); err != nil {
-		return nil, fmt.Errorf("算不出頁數:%w", err)
+		return nil, fmt.Errorf(i18n.T("算不出頁數:%w"), err)
 	}
 	if ctx.PageCount < 1 {
-		return nil, fmt.Errorf("這份 PDF 沒有頁面")
+		return nil, fmt.Errorf(i18n.T("這份 PDF 沒有頁面"))
 	}
 	return &Doc{Pages: ctx.PageCount, ctx: ctx, fonts: map[string]*Font{}}, nil
 }
@@ -127,13 +128,13 @@ func (p *Page) Height() float64 { return p.Y1 - p.Y0 }
 // Page 取第 n 頁,頁碼從 1 起算。
 func (d *Doc) Page(n int) (*Page, error) {
 	if n < 1 || n > d.Pages {
-		return nil, fmt.Errorf("沒有第 %d 頁", n)
+		return nil, fmt.Errorf(i18n.T("沒有第 %d 頁"), n)
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	dict, _, attrs, err := d.ctx.XRefTable.PageDict(n, false)
 	if err != nil {
-		return nil, fmt.Errorf("第 %d 頁讀不出來:%w", n, err)
+		return nil, fmt.Errorf(i18n.T("第 %d 頁讀不出來:%w"), n, err)
 	}
 	p := &Page{doc: d, dict: dict}
 	if attrs != nil {

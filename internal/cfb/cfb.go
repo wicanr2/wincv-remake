@@ -18,6 +18,7 @@ package cfb
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"strings"
 	"unicode/utf16"
@@ -68,7 +69,7 @@ func Open(name string) (*File, error) {
 		return nil, err
 	}
 	if st.Size() > MaxBytes {
-		return nil, fmt.Errorf("檔案太大(%d 位元組)", st.Size())
+		return nil, fmt.Errorf(i18n.T("檔案太大(%d 位元組)"), st.Size())
 	}
 	b, err := os.ReadFile(name)
 	if err != nil {
@@ -80,18 +81,18 @@ func Open(name string) (*File, error) {
 // Parse 解析一份記憶體裡的複合文件。
 func Parse(b []byte) (*File, error) {
 	if len(b) < 512 {
-		return nil, fmt.Errorf("太短,不是複合文件")
+		return nil, fmt.Errorf(i18n.T("太短,不是複合文件"))
 	}
 	for i, c := range magic {
 		if b[i] != c {
-			return nil, fmt.Errorf("不是複合文件(簽章不符)")
+			return nil, fmt.Errorf(i18n.T("不是複合文件(簽章不符)"))
 		}
 	}
 	f := &File{data: b, byName: map[string]int{}}
 	shift := binary.LittleEndian.Uint16(b[0x1E:])
 	miniShift := binary.LittleEndian.Uint16(b[0x20:])
 	if shift < 7 || shift > 20 || miniShift < 2 || miniShift >= shift {
-		return nil, fmt.Errorf("磁區大小不合理(2^%d / 2^%d)", shift, miniShift)
+		return nil, fmt.Errorf(i18n.T("磁區大小不合理(2^%d / 2^%d)"), shift, miniShift)
 	}
 	f.sectorSize = 1 << shift
 	f.miniSize = 1 << miniShift
@@ -155,7 +156,7 @@ func (f *File) readFAT() error {
 		next = binary.LittleEndian.Uint32(s[per*4:])
 	}
 	if len(fatSects) == 0 {
-		return fmt.Errorf("找不到配置表")
+		return fmt.Errorf(i18n.T("找不到配置表"))
 	}
 	for _, sn := range fatSects {
 		s := f.sector(sn)
@@ -188,7 +189,7 @@ func (f *File) readDir() error {
 	start := binary.LittleEndian.Uint32(f.data[0x30:])
 	sects := chainOf(f.fat, start, len(f.fat)+1)
 	if len(sects) == 0 {
-		return fmt.Errorf("找不到目錄")
+		return fmt.Errorf(i18n.T("找不到目錄"))
 	}
 	perSect := f.sectorSize / 128
 	for _, sn := range sects {
@@ -211,7 +212,7 @@ func (f *File) readDir() error {
 		}
 	}
 	if len(f.entries) == 0 {
-		return fmt.Errorf("目錄是空的")
+		return fmt.Errorf(i18n.T("目錄是空的"))
 	}
 	return nil
 }
@@ -323,11 +324,11 @@ func (f *File) Has(name string) bool {
 func (f *File) Stream(name string) ([]byte, error) {
 	i, ok := f.byName[name]
 	if !ok {
-		return nil, fmt.Errorf("沒有 %s 這條串流", printable(name))
+		return nil, fmt.Errorf(i18n.T("沒有 %s 這條串流"), printable(name))
 	}
 	e := f.entries[i]
 	if e.Type != 2 {
-		return nil, fmt.Errorf("%s 不是串流", printable(name))
+		return nil, fmt.Errorf(i18n.T("%s 不是串流"), printable(name))
 	}
 	if e.Size < uint64(f.miniCutoff) {
 		return f.readMiniChain(e.Start, e.Size), nil

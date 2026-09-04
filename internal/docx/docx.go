@@ -13,6 +13,7 @@ package docx
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strconv"
 	"strings"
 
@@ -72,7 +73,7 @@ func Open(name string) (*Doc, error) {
 func New(p *ooxml.Package) (*Doc, error) {
 	main := mainPart(p)
 	if main == "" {
-		return nil, fmt.Errorf("這不是 Word 文件(找不到 document.xml)")
+		return nil, fmt.Errorf(i18n.T("這不是 Word 文件(找不到 document.xml)"))
 	}
 	d := &Doc{
 		pkg: p, main: main,
@@ -222,17 +223,17 @@ func (d *Doc) headingLevel(id string) int {
 
 func headingByName(name string) int {
 	s := strings.ToLower(strings.TrimSpace(name))
-	for _, pre := range []string{"heading ", "heading", "標題 ", "標題", "标题 ", "标题"} {
+	for _, pre := range []string{"heading ", "heading", i18n.T("標題 "), i18n.T("標題"), i18n.T("标题 "), i18n.T("标题")} {
 		if rest, ok := strings.CutPrefix(s, pre); ok {
 			if n, err := strconv.Atoi(strings.TrimSpace(rest)); err == nil && n >= 1 && n <= 9 {
 				return clamp(n, 1, 6)
 			}
 		}
 	}
-	if s == "title" || s == "標題" {
+	if s == "title" || s == i18n.T("標題") {
 		return 1
 	}
-	if s == "subtitle" || s == "副標題" {
+	if s == "subtitle" || s == i18n.T("副標題") {
 		return 2
 	}
 	return 0
@@ -350,7 +351,7 @@ func onOff(se xml.StartElement) bool {
 func (d *Doc) Image(ref string) ([]byte, error) {
 	part, ok := d.imgs[ref]
 	if !ok {
-		return nil, fmt.Errorf("這份文件裡沒有 %s", ref)
+		return nil, fmt.Errorf(i18n.T("這份文件裡沒有 %s"), ref)
 	}
 	return d.pkg.Bytes(part)
 }
@@ -372,7 +373,7 @@ func (d *Doc) Blocks() []markdown.Block {
 	c.notes()
 	if len(c.out) == 0 {
 		c.out = append(c.out, markdown.Block{Kind: markdown.Para,
-			Spans: []markdown.Span{{Text: "(這份文件沒有可以顯示的內容)"}}})
+			Spans: []markdown.Span{{Text: i18n.T("(這份文件沒有可以顯示的內容)")}}})
 	}
 	return c.out
 }

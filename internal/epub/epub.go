@@ -13,6 +13,7 @@ import (
 	"archive/zip"
 	"encoding/xml"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"path"
 	"strings"
@@ -51,7 +52,7 @@ type Chapter struct {
 func Open(name string) (*Book, error) {
 	zr, err := zip.OpenReader(name)
 	if err != nil {
-		return nil, fmt.Errorf("打不開:%w", err)
+		return nil, fmt.Errorf(i18n.T("打不開:%w"), err)
 	}
 	b, err := newBook(&zr.Reader, zr)
 	if err != nil {
@@ -65,7 +66,7 @@ func Open(name string) (*Book, error) {
 func OpenBytes(data []byte) (*Book, error) {
 	zr, err := zip.NewReader(strings.NewReader(string(data)), int64(len(data)))
 	if err != nil {
-		return nil, fmt.Errorf("打不開:%w", err)
+		return nil, fmt.Errorf(i18n.T("打不開:%w"), err)
 	}
 	return newBook(zr, nil)
 }
@@ -87,13 +88,13 @@ func newBook(zr *zip.Reader, rc io.Closer) (*Book, error) {
 		return nil, err
 	}
 	if len(b.Chapters) == 0 {
-		return nil, fmt.Errorf("這本書沒有可讀的章節")
+		return nil, fmt.Errorf(i18n.T("這本書沒有可讀的章節"))
 	}
 	// 目錄沒寫標題的就編號。空白的章節名在清單上是一整排空行,
 	// 看起來像壞掉;實際上只是那本書的目錄沒寫到那一節。
 	for i := range b.Chapters {
 		if b.Chapters[i].Title == "" {
-			b.Chapters[i].Title = fmt.Sprintf("第 %d 節", i+1)
+			b.Chapters[i].Title = fmt.Sprintf(i18n.T("第 %d 節"), i+1)
 		}
 	}
 	return b, nil
@@ -134,7 +135,7 @@ func (b *Book) findOPF() (string, error) {
 			return f.Name, nil
 		}
 	}
-	return "", fmt.Errorf("找不到 OPF,這可能不是 EPUB")
+	return "", fmt.Errorf(i18n.T("找不到 OPF,這可能不是 EPUB"))
 }
 
 // opf 是套件檔的結構。
@@ -163,11 +164,11 @@ type opf struct {
 func (b *Book) readOPF(p string) error {
 	f := b.files[norm(p)]
 	if f == nil {
-		return fmt.Errorf("讀不到 %s", p)
+		return fmt.Errorf(i18n.T("讀不到 %s"), p)
 	}
 	var o opf
 	if err := b.unmarshal(f, &o); err != nil {
-		return fmt.Errorf("OPF 解不開:%w", err)
+		return fmt.Errorf(i18n.T("OPF 解不開:%w"), err)
 	}
 	if len(o.Metadata.Title) > 0 {
 		b.Title = strings.TrimSpace(o.Metadata.Title[0])
@@ -274,11 +275,11 @@ func (b *Book) readTOC(navHref, ncxHref string) map[string]string {
 // Blocks 把第 i 章排成區塊。
 func (b *Book) Blocks(i int) ([]markdown.Block, error) {
 	if i < 0 || i >= len(b.Chapters) {
-		return nil, fmt.Errorf("沒有第 %d 章", i+1)
+		return nil, fmt.Errorf(i18n.T("沒有第 %d 章"), i+1)
 	}
 	f := b.files[norm(b.Chapters[i].Href)]
 	if f == nil {
-		return nil, fmt.Errorf("讀不到 %s", b.Chapters[i].Href)
+		return nil, fmt.Errorf(i18n.T("讀不到 %s"), b.Chapters[i].Href)
 	}
 	data, err := b.read(f)
 	if err != nil {
@@ -301,7 +302,7 @@ func (b *Book) Blocks(i int) ([]markdown.Block, error) {
 func (b *Book) Image(p string) ([]byte, error) {
 	f := b.files[norm(p)]
 	if f == nil {
-		return nil, fmt.Errorf("書裡沒有 %s", p)
+		return nil, fmt.Errorf(i18n.T("書裡沒有 %s"), p)
 	}
 	return b.read(f)
 }

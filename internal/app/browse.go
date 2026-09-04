@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"strings"
 
@@ -77,7 +78,7 @@ func (a *App) Busy() bool { return a.gpending != nil }
 // OpenURL 開一個位址。gopher:// 與 http(s):// 都吃,沒寫協定時當 gopher。
 func (a *App) OpenURL(raw string) bool {
 	if _, err := normalizeURL(raw); err != nil {
-		a.Message = "位址解不開:" + err.Error()
+		a.Message = i18n.T("位址解不開:") + err.Error()
 		return true
 	}
 	a.bv = browseView{cur: -1}
@@ -93,7 +94,7 @@ func (a *App) OpenURL(raw string) bool {
 func normalizeURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", fmt.Errorf("位址是空的")
+		return "", fmt.Errorf(i18n.T("位址是空的"))
 	}
 	if web.IsHTTP(raw) || strings.HasPrefix(raw, epubScheme) ||
 		strings.HasPrefix(raw, pdfScheme) || strings.HasPrefix(raw, docScheme) {
@@ -110,7 +111,7 @@ func normalizeURL(raw string) (string, error) {
 func (a *App) browseFetch(raw string, push bool) {
 	full, err := normalizeURL(raw)
 	if err != nil {
-		a.bv.status = "位址解不開:" + err.Error()
+		a.bv.status = i18n.T("位址解不開:") + err.Error()
 		return
 	}
 	if push && a.bv.url != "" {
@@ -134,7 +135,7 @@ func (a *App) browseFetch(raw string, push bool) {
 	a.gpending = ch
 
 	if web.IsHTTP(full) {
-		a.bv.status = "連線 " + hostOf(full) + " …"
+		a.bv.status = i18n.T("連線 ") + hostOf(full) + " …"
 		client := a.Web
 		if client == nil {
 			client = &web.Client{}
@@ -149,10 +150,10 @@ func (a *App) browseFetch(raw string, push bool) {
 	u, err := gopher.ParseURL(full)
 	if err != nil {
 		a.gpending = nil
-		a.bv.status = "位址解不開:" + err.Error()
+		a.bv.status = i18n.T("位址解不開:") + err.Error()
 		return
 	}
-	a.bv.status = "連線 " + u.Host + " …"
+	a.bv.status = i18n.T("連線 ") + u.Host + " …"
 	client := a.Gopher
 	if client == nil {
 		client = &gopher.Client{}
@@ -233,7 +234,7 @@ func (a *App) browseShow(r browseResult) {
 		}
 	}
 	if truncated {
-		a.bv.status = "內容超過上限,只顯示前面的部分"
+		a.bv.status = i18n.T("內容超過上限,只顯示前面的部分")
 	}
 }
 
@@ -246,10 +247,10 @@ func (a *App) showWebDoc(d *web.Doc) {
 	}
 	a.bv.blocks = d.Blocks
 	if len(a.bv.blocks) == 0 {
-		a.bv.status = "這一頁沒有可以顯示的文字"
+		a.bv.status = i18n.T("這一頁沒有可以顯示的文字")
 	}
 	if d.Truncated {
-		a.bv.status = "內容超過上限,只顯示前面的部分"
+		a.bv.status = i18n.T("內容超過上限,只顯示前面的部分")
 	}
 	// 頁面裡的圖片先列出來,排版時發現裝得下才真的去取。
 	a.bv.imgs = map[string]image.Image{}
@@ -264,7 +265,7 @@ func (a *App) showWebDoc(d *web.Doc) {
 func (a *App) showImageBytes(name string, data []byte) {
 	m, err := imgview.Load(name, data)
 	if err != nil {
-		a.bv.status = "圖解不開:" + err.Error()
+		a.bv.status = i18n.T("圖解不開:") + err.Error()
 		return
 	}
 	a.Image = m
@@ -371,7 +372,7 @@ func (a *App) browseImage(src string) (image.Image, error) {
 		a.bv.imgs[src] = m
 		return m, nil
 	}
-	return nil, fmt.Errorf("還沒取回")
+	return nil, fmt.Errorf(i18n.T("還沒取回"))
 }
 
 // browseName 從 gopher 位址取一個像檔名的東西,給看圖模式的標題用。
@@ -536,7 +537,7 @@ func (a *App) browseFollow() bool {
 	}
 	// 型別 7 是查詢介面,要先問查什麼再送出去。
 	if u.Type == gopher.TypeSearch {
-		a.ask("查詢 "+u.Host, "", func(q string) {
+		a.ask(i18n.T("查詢 ")+u.Host, "", func(q string) {
 			if q == "" {
 				return
 			}
@@ -552,7 +553,7 @@ func (a *App) browseFollow() bool {
 // browseBack 回上一頁。
 func (a *App) browseBack() bool {
 	if len(a.bv.hist) == 0 {
-		a.Message = "已經是第一頁"
+		a.Message = i18n.T("已經是第一頁")
 		return true
 	}
 	u := a.bv.hist[len(a.bv.hist)-1]
@@ -564,12 +565,12 @@ func (a *App) browseBack() bool {
 // browseAsk 問一個新位址。
 func (a *App) browseAsk() bool {
 	fromBrowser := a.Mode != ModeBrowse
-	a.ask("位址(gopher:// 或 http://)", a.bv.url, func(s string) {
+	a.ask(i18n.T("位址(gopher:// 或 http://)"), a.bv.url, func(s string) {
 		if s == "" {
 			return
 		}
 		if _, err := normalizeURL(s); err != nil {
-			a.Message = "位址解不開:" + err.Error()
+			a.Message = i18n.T("位址解不開:") + err.Error()
 			return
 		}
 		// 從檔案清單叫進來的話,這裡是這一輪瀏覽的起點:
@@ -683,9 +684,9 @@ func (a *App) drawBrowseStatus(s *cell.Screen) {
 	//
 	// 由長到短試,擠不下最短的那個就不畫。
 	cands := []string{
-		"Enter 開啟  Backspace 上一頁  F2 位址  Esc 離開",
-		"Enter 開啟  ← 上一頁  F2 位址",
-		"F2 位址  Esc 離開",
+		i18n.T("Enter 開啟  Backspace 上一頁  F2 位址  Esc 離開"),
+		i18n.T("Enter 開啟  ← 上一頁  F2 位址"),
+		i18n.T("F2 位址  Esc 離開"),
 	}
 	pos := ""
 	if len(a.bv.links) > 0 {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"path/filepath"
 	"strconv"
@@ -98,7 +99,7 @@ func (a *App) loadBook(path string) error {
 	}
 	b, err := epub.Open(path)
 	if err != nil {
-		return fmt.Errorf("開不了這本書:%w", err)
+		return fmt.Errorf(i18n.T("開不了這本書:%w"), err)
 	}
 	a.book, a.bookPath = b, path
 	return nil
@@ -139,13 +140,13 @@ func bookNav(b *epub.Book, path string, cur int) []markdown.Block {
 	var links []markdown.Span
 	if cur > 0 {
 		links = append(links, markdown.Span{
-			Text: "← 上一節", Style: markdown.Link, Href: bookURL(path, cur-1)})
+			Text: i18n.T("← 上一節"), Style: markdown.Link, Href: bookURL(path, cur-1)})
 	}
 	links = append(links, markdown.Span{
-		Text: "目錄", Style: markdown.Link, Href: bookURL(path, -1)})
+		Text: i18n.T("目錄"), Style: markdown.Link, Href: bookURL(path, -1)})
 	if cur+1 < len(b.Chapters) {
 		links = append(links, markdown.Span{
-			Text: "下一節 →", Style: markdown.Link, Href: bookURL(path, cur+1)})
+			Text: i18n.T("下一節 →"), Style: markdown.Link, Href: bookURL(path, cur+1)})
 	}
 	out := []markdown.Block{{Kind: markdown.Rule}}
 	// 一列一個連結:游標是以列為單位停的,擠在同一段裡就只選得到第一個。
@@ -159,7 +160,7 @@ func bookNav(b *epub.Book, path string, cur int) []markdown.Block {
 // bookImage 讀書裡的一張圖。
 func (a *App) bookImage(src string) (image.Image, error) {
 	if a.book == nil {
-		return nil, fmt.Errorf("沒有開著的書")
+		return nil, fmt.Errorf(i18n.T("沒有開著的書"))
 	}
 	data, err := a.book.Image(src)
 	if err != nil {

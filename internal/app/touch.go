@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"github.com/wicanr2/wincv-remake/internal/keys"
 )
 
@@ -33,12 +34,12 @@ func (a *App) touchBar() []touchButton {
 	switch a.Mode {
 	case ModeViewer, ModeMarkdown:
 		return []touchButton{
-			{label: "尋找", key: keys.Named(keys.F7)},
-			{label: "編碼", key: k('T')},
-			{label: "中英", key: keys.Named(keys.F8)},
-			{label: "放大", key: keys.CtrlCh('+')},
-			{label: "縮小", key: keys.CtrlCh('-')},
-			{label: "返回", key: keys.Named(keys.Esc), wide: true},
+			{label: i18n.T("尋找"), key: keys.Named(keys.F7)},
+			{label: i18n.T("編碼"), key: k('T')},
+			{label: i18n.T("中英"), key: keys.Named(keys.F8)},
+			{label: i18n.T("放大"), key: keys.CtrlCh('+')},
+			{label: i18n.T("縮小"), key: keys.CtrlCh('-')},
+			{label: i18n.T("返回"), key: keys.Named(keys.Esc), wide: true},
 		}
 	case ModeImage:
 		// 標籤一律兩個字:功能列的格寬是 cols/units,30 欄時只有四格,
@@ -50,29 +51,29 @@ func (a *App) touchBar() []touchButton {
 		// 分隔線,兩個中文字剛好填滿。第六顆會讓每個標籤只剩一個字。
 		// 「資訊」因此讓位給放大縮小 —— `I` 鍵仍然可用。
 		return []touchButton{
-			{label: "上張", key: keys.Named(keys.PgUp)},
-			{label: "下張", key: keys.Named(keys.PgDn)},
-			{label: "縮小", key: k('-')},
-			{label: "放大", key: k('+')},
-			{label: "原寸", key: k('1')},
-			{label: "返回", key: keys.Named(keys.Esc), wide: true},
+			{label: i18n.T("上張"), key: keys.Named(keys.PgUp)},
+			{label: i18n.T("下張"), key: keys.Named(keys.PgDn)},
+			{label: i18n.T("縮小"), key: k('-')},
+			{label: i18n.T("放大"), key: k('+')},
+			{label: i18n.T("原寸"), key: k('1')},
+			{label: i18n.T("返回"), key: keys.Named(keys.Esc), wide: true},
 		}
 	case ModeHex:
 		return []touchButton{
-			{label: "尋找", key: keys.Named(keys.F7)},
-			{label: "返回", key: keys.Named(keys.Esc), wide: true},
+			{label: i18n.T("尋找"), key: keys.Named(keys.F7)},
+			{label: i18n.T("返回"), key: keys.Named(keys.Esc), wide: true},
 		}
 	default:
 		// 「標記」放這裡而不是 HUD:HUD 只放真的鍵,而 Space 在讀文件時
 		// 是翻頁,標記只在清單才有意義。預視窗格不放 —— 手機螢幕沒有
 		// 分兩欄的餘裕,而 30 欄寬時多一顆鍵標籤就擠不下。
 		return []touchButton{
-			{label: "標記", key: k(' ')},
-			{label: "拷貝", key: k('C')},
-			{label: "移動", key: k('M')},
-			{label: "更名", key: k('R')},
-			{label: "磁碟", key: keys.AltCh('D')},
-			{label: "選單", key: keys.Named(keys.F9), wide: true},
+			{label: i18n.T("標記"), key: k(' ')},
+			{label: i18n.T("拷貝"), key: k('C')},
+			{label: i18n.T("移動"), key: k('M')},
+			{label: i18n.T("更名"), key: k('R')},
+			{label: i18n.T("磁碟"), key: keys.AltCh('D')},
+			{label: i18n.T("選單"), key: keys.Named(keys.F9), wide: true},
 		}
 	}
 }

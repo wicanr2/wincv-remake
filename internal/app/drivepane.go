@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"github.com/wicanr2/wincv-remake/internal/keys"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 )
@@ -26,7 +27,7 @@ func (a *App) toggleDrivePane() bool {
 	}
 	a.Browser.Drives = vfs.Drives()
 	if len(a.Browser.Drives) == 0 {
-		a.Message = "找不到可切換的磁碟"
+		a.Message = i18n.T("找不到可切換的磁碟")
 		return true
 	}
 	a.Browser.DrivePane = DrivePaneCols

@@ -14,6 +14,7 @@ import (
 	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"os"
 	"path"
@@ -109,10 +110,12 @@ const sep = "!"
 func Open(name string) (*FS, error) {
 	f, ok := DetectFormat(name)
 	if !ok {
-		return nil, fmt.Errorf("%s: 認不出壓縮格式", path.Base(name))
+		return nil, fmt.Errorf(i18n.T("%s: 認不出壓縮格式"), path.Base(name))
 	}
 	if !f.Supported {
-		return nil, fmt.Errorf("%s: %s 格式還沒實作(%s)", path.Base(name), f.Name, f.Note)
+		// Note 是格式表裡的說明文字,存的是中文原文(那張表是資料,
+		// 不是畫面);顯示給人看的這一刻才過語系目錄。
+		return nil, fmt.Errorf(i18n.T("%s: %s 格式還沒實作(%s)"), path.Base(name), f.Name, i18n.T(f.Note))
 	}
 
 	a := &FS{name: name, dirs: map[string]bool{}}
@@ -149,7 +152,7 @@ func Open(name string) (*FS, error) {
 			return bytes.NewReader(b), nil
 		})
 	default:
-		err = fmt.Errorf("%s 沒有對應的讀取器", f.Name)
+		err = fmt.Errorf(i18n.T("%s 沒有對應的讀取器"), f.Name)
 	}
 	if err != nil {
 		return nil, err
@@ -196,7 +199,7 @@ func (a *FS) loadLZH(name string) error {
 		if err != nil {
 			return fmt.Errorf("%s: LZH %w", path.Base(name), err)
 		}
-		return fmt.Errorf("%s: 讀不到任何成員,可能不是 LZH 檔", path.Base(name))
+		return fmt.Errorf(i18n.T("%s: 讀不到任何成員,可能不是 LZH 檔"), path.Base(name))
 	}
 	for _, e := range es {
 		e := e
@@ -536,7 +539,7 @@ func (a *FS) Open(name string) (io.ReadCloser, error) {
 			return e.open()
 		}
 	}
-	return nil, fmt.Errorf("%s: 壓縮檔內找不到這個項目", inner)
+	return nil, fmt.Errorf(i18n.T("%s: 壓縮檔內找不到這個項目"), inner)
 }
 
 // Label 顯示成 "a.zip!/docs",讓使用者一眼看出自己在壓縮檔裡。

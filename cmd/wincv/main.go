@@ -21,6 +21,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/datadir"
 	"github.com/wicanr2/wincv-remake/internal/ebikeys"
 	"github.com/wicanr2/wincv-remake/internal/fontset"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/session"
 	"github.com/wicanr2/wincv-remake/internal/ttf"
@@ -457,20 +458,21 @@ func (g *game) Layout(outW, outH int) (int, int) {
 
 func main() {
 	var (
-		halfPath = flag.String("half", "", "半形 .FON;留空自動找(見下)")
-		stdPath  = flag.String("eten-std", "", "倚天漢字區;留空自動找")
-		spcPath  = flag.String("eten-spc", "", "倚天符號區;留空自動找")
-		cols     = flag.Int("cols", 80, "欄數")
-		rows     = flag.Int("rows", 30, "列數")
-		scale    = flag.Float64("scale", 2, "放大倍率,0.1 為一階")
-		zoom     = flag.Int("zoom", 0, "字級:0=8x15 1=10x18 2=12x24")
-		fbFont   = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
-		noFB     = flag.Bool("no-fallback", false, "不要後備字型")
-		bitmapCJ = flag.Bool("bitmap-cjk", false, "所有字級的全形字都用倚天字模縮放(不用向量字型反鋸齒)")
-		noResume = flag.Bool("no-resume", false, "不要回到上次的位置")
-		menuFont = flag.String("menu-font", "", "選單專用字型(TTF/TTC/OTF);留空沿用內容的點陣字")
-		menuSize = flag.Int("menu-size", 0, "選單字高(像素);配 -menu-font 用,留空取內容格高")
-		menuMag  = flag.Float64("menu-scale", 0, "選單的放大倍率;留空沿用內容的倍率")
+		halfPath = flag.String("half", "", i18n.T("半形 .FON;留空自動找(見下)"))
+		stdPath  = flag.String("eten-std", "", i18n.T("倚天漢字區;留空自動找"))
+		spcPath  = flag.String("eten-spc", "", i18n.T("倚天符號區;留空自動找"))
+		cols     = flag.Int("cols", 80, i18n.T("欄數"))
+		rows     = flag.Int("rows", 30, i18n.T("列數"))
+		scale    = flag.Float64("scale", 2, i18n.T("放大倍率,0.1 為一階"))
+		zoom     = flag.Int("zoom", 0, i18n.T("字級:0=8x15 1=10x18 2=12x24"))
+		fbFont   = flag.String("fallback", "", i18n.T("後備字型(TTF/TTC),補倚天沒有的字;留空自動找"))
+		noFB     = flag.Bool("no-fallback", false, i18n.T("不要後備字型"))
+		lang     = flag.String("lang", "", i18n.T("介面語言:zh-Hant / zh-Hans / en / ja(預設看系統語系)"))
+		bitmapCJ = flag.Bool("bitmap-cjk", false, i18n.T("所有字級的全形字都用倚天字模縮放(不用向量字型反鋸齒)"))
+		noResume = flag.Bool("no-resume", false, i18n.T("不要回到上次的位置"))
+		menuFont = flag.String("menu-font", "", i18n.T("選單專用字型(TTF/TTC/OTF);留空沿用內容的點陣字"))
+		menuSize = flag.Int("menu-size", 0, i18n.T("選單字高(像素);配 -menu-font 用,留空取內容格高"))
+		menuMag  = flag.Float64("menu-scale", 0, i18n.T("選單的放大倍率;留空沿用內容的倍率"))
 	)
 	flag.Parse()
 
@@ -502,6 +504,21 @@ func main() {
 	a.LoadSyntax(cfgDir)
 	a.DictDir = cfgDir
 
+	// 語言的優先序:旗標 > session 記住的 > 系統語系。
+	//
+	// session 在 a.Restore 那裡才讀得到,所以這裡先定下「旗標或系統」
+	// 這一層;Restore 讀到記住的語言會再蓋一次。旗標永遠贏 ——
+	// 打了旗標還被 session 蓋掉的話,那個旗標等於沒有用。
+	if l, ok := i18n.Valid(*lang); ok {
+		i18n.Set(l)
+		a.Lang = *lang
+	} else {
+		if *lang != "" {
+			fmt.Fprintf(os.Stderr, i18n.T("警告:不認得的語言 %q,支援的是 zh-Hant / zh-Hans / en / ja\n"), *lang)
+		}
+		i18n.Set(i18n.Detect())
+	}
+
 	fontset.BitmapCJK = *bitmapCJ
 	levels := fontset.Load(cfgDir, *stdPath, *spcPath, *fbFont, *noFB)
 	if len(levels) == 0 {
@@ -510,15 +527,15 @@ func main() {
 		levels = fontset.FromTTF(*stdPath, *spcPath, *fbFont, *noFB)
 		if len(levels) > 0 {
 			fmt.Fprintf(os.Stderr,
-				"提示:沒有原版的點陣字型,改用系統字型。\n"+
-					"      要與原版逐像素相同的畫面,把 cvga.fon 放進下列任一個目錄,\n"+
-					"      或用 -half 直接指定;也可以設 %s 指到素材目錄。\n%s",
+				i18n.T("提示:沒有原版的點陣字型,改用系統字型。\n")+
+					i18n.T("      要與原版逐像素相同的畫面,把 cvga.fon 放進下列任一個目錄,\n")+
+					i18n.T("      或用 -half 直接指定;也可以設 %s 指到素材目錄。\n%s"),
 				datadir.EnvHome, datadir.Explain())
 		}
 	}
 	if len(levels) == 0 {
-		die(fmt.Errorf("一個半形字型都載不到:找不到原版的 .FON,"+
-			"系統上也找不到可用的 TrueType。\n%s%s",
+		die(fmt.Errorf(i18n.T("一個半形字型都載不到:找不到原版的 .FON,")+
+			i18n.T("系統上也找不到可用的 TrueType。\n%s%s"),
 			datadir.Explain(), ttf.MissingHint()))
 	}
 	a.MaxZoom = len(levels) - 1
@@ -553,7 +570,7 @@ func main() {
 
 	g.menuFontPath, g.menuFontSize, g.menuZoom = *menuFont, *menuSize, -1
 	if err := g.setMenuFont(*menuFont, *menuSize, *menuMag); err != nil {
-		fmt.Fprintln(os.Stderr, "警告:選單字型用不了,沿用內容的字型 —", err)
+		fmt.Fprintln(os.Stderr, i18n.T("警告:選單字型用不了,沿用內容的字型 —"), err)
 	}
 	a.Restore(st)
 	g.lastSt = a.Snapshot()
@@ -563,7 +580,7 @@ func main() {
 	// 「人換了地方」時寫,捲一頁不寫檔)。存不了不算錯。
 	if !*noResume {
 		if e := a.Snapshot().Save(); e != nil {
-			fmt.Fprintln(os.Stderr, "記不下這次的位置:", e)
+			fmt.Fprintln(os.Stderr, i18n.T("記不下這次的位置:"), e)
 		}
 	}
 	if err != nil && err != ebiten.Termination {
@@ -586,6 +603,6 @@ func flagGiven(name string) bool {
 }
 
 func die(err error) {
-	fmt.Fprintln(os.Stderr, "錯誤:", err)
+	fmt.Fprintln(os.Stderr, i18n.T("錯誤:"), err)
 	os.Exit(1)
 }

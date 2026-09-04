@@ -6,6 +6,7 @@ package keys
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"strings"
 )
 
@@ -171,7 +172,7 @@ func ParseAll(s string) ([]Key, error) {
 		}
 		k, ok := Parse(part)
 		if !ok {
-			return nil, fmt.Errorf("看不懂的按鍵: %q", part)
+			return nil, fmt.Errorf(i18n.T("看不懂的按鍵: %q"), part)
 		}
 		out = append(out, k)
 	}

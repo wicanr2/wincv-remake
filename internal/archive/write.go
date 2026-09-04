@@ -3,6 +3,7 @@ package archive
 import (
 	"archive/zip"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"os"
 	"path"
@@ -74,7 +75,7 @@ func extractOne(dstDir string, e entry) error {
 		return err
 	}
 	if absDst != absRoot && !strings.HasPrefix(absDst, absRoot+string(os.PathSeparator)) {
-		return fmt.Errorf("路徑跑到目標目錄之外了: %q", e.path)
+		return fmt.Errorf(i18n.T("路徑跑到目標目錄之外了: %q"), e.path)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {

@@ -3,6 +3,7 @@ package pdf
 import (
 	"bytes"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
 	"image/color"
 	"image/draw"
@@ -426,7 +427,7 @@ func (d *rasterDevice) blend(x, y int, c color.RGBA, k float64) {
 func (d *rasterDevice) decodeImage(sd *types.StreamDict, gs *gstate) (m image.Image, isMask bool, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			m, err = nil, fmt.Errorf("這張影像解不開(%v)", r)
+			m, err = nil, fmt.Errorf(i18n.T("這張影像解不開(%v)"), r)
 		}
 	}()
 	if v, ok := deref(d.x, sd.Dict["ImageMask"]).(types.Boolean); ok && bool(v) {
@@ -449,7 +450,7 @@ func (d *rasterDevice) decodeImage(sd *types.StreamDict, gs *gstate) (m image.Im
 	if img := d.rawImage(sd, isMask); img != nil {
 		return img, isMask, nil
 	}
-	return nil, isMask, fmt.Errorf("影像取不出來")
+	return nil, isMask, fmt.Errorf(i18n.T("影像取不出來"))
 }
 
 // rawImage 自己把影像串流解成影像。

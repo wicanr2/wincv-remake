@@ -10,6 +10,7 @@ package fnt
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 )
 
 // Font 是一個 .FON 裡的單一字型。
@@ -66,15 +67,15 @@ func u32(d []byte, o int) int { return int(binary.LittleEndian.Uint32(d[o:])) }
 // neFontResources 找出 NE 檔裡所有 RT_FONT (type 8) 的位置。
 func neFontResources(d []byte) ([]int, error) {
 	if len(d) < 0x40 || d[0] != 'M' || d[1] != 'Z' {
-		return nil, fmt.Errorf("不是 MZ 檔")
+		return nil, fmt.Errorf(i18n.T("不是 MZ 檔"))
 	}
 	ne := u16(d, 0x3C)
 	if ne+0x26 > len(d) || d[ne] != 'N' || d[ne+1] != 'E' {
-		return nil, fmt.Errorf("找不到 NE header")
+		return nil, fmt.Errorf(i18n.T("找不到 NE header"))
 	}
 	rt := ne + u16(d, ne+0x24)
 	if rt+2 > len(d) {
-		return nil, fmt.Errorf("resource table 超出檔案")
+		return nil, fmt.Errorf(i18n.T("resource table 超出檔案"))
 	}
 	shift := u16(d, rt)
 	p := rt + 2
@@ -95,7 +96,7 @@ func neFontResources(d []byte) ([]int, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("沒有 RT_FONT resource")
+		return nil, fmt.Errorf(i18n.T("沒有 RT_FONT resource"))
 	}
 	return out, nil
 }
@@ -111,7 +112,7 @@ func Parse(d []byte) (*Font, error) {
 
 func parseAt(d []byte, base int) (*Font, error) {
 	if base+0x76 > len(d) {
-		return nil, fmt.Errorf("FNT header 超出檔案")
+		return nil, fmt.Errorf(i18n.T("FNT header 超出檔案"))
 	}
 	f := &Font{
 		data:      d,
@@ -124,7 +125,7 @@ func parseAt(d []byte, base int) (*Font, error) {
 	}
 	faceOff := base + u32(d, base+0x69)
 	if faceOff >= len(d) {
-		return nil, fmt.Errorf("dfFace 超出檔案")
+		return nil, fmt.Errorf(i18n.T("dfFace 超出檔案"))
 	}
 	end := faceOff
 	for end < len(d) && d[end] != 0 {
@@ -134,7 +135,7 @@ func parseAt(d []byte, base int) (*Font, error) {
 
 	n := int(f.Last) - int(f.First) + 2
 	if base+0x76+n*4 > len(d) {
-		return nil, fmt.Errorf("dfCharTable 超出檔案")
+		return nil, fmt.Errorf(i18n.T("dfCharTable 超出檔案"))
 	}
 	f.widths = make([]int, n)
 	f.offsets = make([]int, n)

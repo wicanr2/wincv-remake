@@ -2,6 +2,8 @@ package ace
 
 import "fmt"
 
+import "github.com/wicanr2/wincv-remake/internal/i18n"
+
 const (
 	widthWidthBits = 3
 	maxWidthWidth  = (1 << widthWidthBits) - 1
@@ -23,7 +25,7 @@ func (t *huffTree) readSymbol(b *bitStream) (int, error) {
 		return 0, err
 	}
 	if int(v) >= len(t.codes) {
-		return 0, fmt.Errorf("Huffman 查表越界")
+		return 0, fmt.Errorf(i18n.T("Huffman 查表越界"))
 	}
 	sym := t.codes[v]
 	b.skip(uint(t.widths[sym]))
@@ -111,14 +113,14 @@ func makeTree(widths []int, maxWidth uint) (*huffTree, error) {
 	for i := len(syms) - 1; i >= 0; i-- {
 		w := sortedWidths[i]
 		if uint(w) > maxWidth {
-			return nil, fmt.Errorf("碼長 %d 超過上限 %d", w, maxWidth)
+			return nil, fmt.Errorf(i18n.T("碼長 %d 超過上限 %d"), w, maxWidth)
 		}
 		repeat := 1 << (maxWidth - uint(w))
 		for j := 0; j < repeat; j++ {
 			codes = append(codes, syms[i])
 		}
 		if len(codes) > maxCodes {
-			return nil, fmt.Errorf("碼表長度超過 %d", maxCodes)
+			return nil, fmt.Errorf(i18n.T("碼表長度超過 %d"), maxCodes)
 		}
 	}
 	return &huffTree{codes: codes, widths: widths, maxWidth: maxWidth}, nil
@@ -156,7 +158,7 @@ func readTree(b *bitStream, maxWidth uint, numCodes int) (*huffTree, error) {
 	}
 	wtree, err := makeTree(ww, maxWidthWidth)
 	if err != nil {
-		return nil, fmt.Errorf("碼長表: %w", err)
+		return nil, fmt.Errorf(i18n.T("碼長表: %w"), err)
 	}
 
 	widths := make([]int, 0, numWidths)

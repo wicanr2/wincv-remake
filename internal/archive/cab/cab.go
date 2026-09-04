@@ -12,6 +12,7 @@ import (
 	"compress/flate"
 	"encoding/binary"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ const (
 func (c Compression) String() string {
 	switch c & 0x0F {
 	case CompNone:
-		return "不壓縮"
+		return i18n.T("不壓縮")
 	case CompMSZIP:
 		return "MSZIP"
 	case CompQuantum:
@@ -38,7 +39,7 @@ func (c Compression) String() string {
 	case CompLZX:
 		return "LZX"
 	}
-	return fmt.Sprintf("未知(%d)", uint16(c))
+	return fmt.Sprintf(i18n.T("未知(%d)"), uint16(c))
 }
 
 // File 是壓縮檔裡的一筆。
@@ -62,7 +63,7 @@ type folder struct {
 // folder 一定要整份解開才能切出檔案,所以內容全部留在記憶體裡。
 func Read(data []byte) ([]File, error) {
 	if len(data) < 36 || string(data[0:4]) != "MSCF" {
-		return nil, fmt.Errorf("不是 CAB 檔(magic 不對)")
+		return nil, fmt.Errorf(i18n.T("不是 CAB 檔(magic 不對)"))
 	}
 	le := binary.LittleEndian
 	nFolders := int(le.Uint16(data[26:28]))
@@ -71,10 +72,10 @@ func Read(data []byte) ([]File, error) {
 	if flags&0x0004 != 0 {
 		// 有 RESERVE 欄位時,每個 folder / block 的表頭多幾個位元組,
 		// 位置全部要偏移。還沒遇到過真檔,先誠實回報而不是算錯。
-		return nil, fmt.Errorf("這個 CAB 帶 RESERVE 欄位,還沒支援")
+		return nil, fmt.Errorf(i18n.T("這個 CAB 帶 RESERVE 欄位,還沒支援"))
 	}
 	if flags&0x0001 != 0 || flags&0x0002 != 0 {
-		return nil, fmt.Errorf("這是多片 cabinet 的一部分,還沒支援")
+		return nil, fmt.Errorf(i18n.T("這是多片 cabinet 的一部分,還沒支援"))
 	}
 	fileOffset := le.Uint32(data[16:20])
 
@@ -82,7 +83,7 @@ func Read(data []byte) ([]File, error) {
 	at := 36
 	for i := 0; i < nFolders; i++ {
 		if at+8 > len(data) {
-			return nil, fmt.Errorf("folder 表被截斷")
+			return nil, fmt.Errorf(i18n.T("folder 表被截斷"))
 		}
 		folders[i] = folder{
 			dataOffset: le.Uint32(data[at : at+4]),
@@ -103,7 +104,7 @@ func Read(data []byte) ([]File, error) {
 	at = int(fileOffset)
 	for i := 0; i < nFiles; i++ {
 		if at+16 > len(data) {
-			return nil, fmt.Errorf("檔案表被截斷")
+			return nil, fmt.Errorf(i18n.T("檔案表被截斷"))
 		}
 		size := le.Uint32(data[at : at+4])
 		off := le.Uint32(data[at+4 : at+8])
@@ -132,7 +133,7 @@ func Read(data []byte) ([]File, error) {
 		if int(fidx) < len(folders) && !f.IsDir {
 			out := folders[fidx].out
 			if int(off)+int(size) > len(out) {
-				return files, fmt.Errorf("%s: folder 解出來只有 %d 個位元組,取不到 [%d,%d)",
+				return files, fmt.Errorf(i18n.T("%s: folder 解出來只有 %d 個位元組,取不到 [%d,%d)"),
 					name, len(out), off, off+size)
 			}
 			f.Data = out[off : off+size]
@@ -145,20 +146,20 @@ func Read(data []byte) ([]File, error) {
 func decodeFolder(data []byte, f *folder) ([]byte, error) {
 	comp := f.comp & 0x0F
 	if comp != CompNone && comp != CompMSZIP {
-		return nil, fmt.Errorf("還不支援 %s", f.comp)
+		return nil, fmt.Errorf(i18n.T("還不支援 %s"), f.comp)
 	}
 	le := binary.LittleEndian
 	at := int(f.dataOffset)
 	var out []byte
 	for b := 0; b < int(f.blocks); b++ {
 		if at+8 > len(data) {
-			return out, fmt.Errorf("第 %d 個區塊的表頭被截斷", b)
+			return out, fmt.Errorf(i18n.T("第 %d 個區塊的表頭被截斷"), b)
 		}
 		nComp := int(le.Uint16(data[at+4 : at+6]))
 		nRaw := int(le.Uint16(data[at+6 : at+8]))
 		at += 8
 		if at+nComp > len(data) {
-			return out, fmt.Errorf("第 %d 個區塊的資料被截斷", b)
+			return out, fmt.Errorf(i18n.T("第 %d 個區塊的資料被截斷"), b)
 		}
 		blk := data[at : at+nComp]
 		at += nComp
@@ -168,7 +169,7 @@ func decodeFolder(data []byte, f *folder) ([]byte, error) {
 			continue
 		}
 		if len(blk) < 2 || blk[0] != 'C' || blk[1] != 'K' {
-			return out, fmt.Errorf("第 %d 個區塊少了 MSZIP 的 CK 標記", b)
+			return out, fmt.Errorf(i18n.T("第 %d 個區塊少了 MSZIP 的 CK 標記"), b)
 		}
 		// [雷] 每個區塊是獨立的 deflate 串流,但 LZ77 的視窗**接續前一個
 		// 區塊的輸出**。不把前 32 KB 當字典餵進去,前 32 KB 會正常,
@@ -181,7 +182,7 @@ func decodeFolder(data []byte, f *folder) ([]byte, error) {
 		raw, err := io.ReadAll(zr)
 		zr.Close()
 		if err != nil && len(raw) != nRaw {
-			return out, fmt.Errorf("第 %d 個區塊解不開: %w", b, err)
+			return out, fmt.Errorf(i18n.T("第 %d 個區塊解不開: %w"), b, err)
 		}
 		out = append(out, raw...)
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/ebikeys"
 	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/fnt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/ttf"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
@@ -52,6 +53,18 @@ func SetRoot(dir string) {
 	mu.Lock()
 	root = dir
 	mu.Unlock()
+}
+
+// SetLocale 由 Java 在 SetRoot 之前呼叫,傳進系統語系(例如 ja-JP、
+// zh-Hant-TW)。
+//
+// 為什麼不讓 Go 自己讀:Android 沒有 LANG 這個環境變數,語系在
+// `Resources.getConfiguration().getLocales()` 裡,只有 Java 那一側拿得到。
+// 傳不認得的字串就維持原樣 —— 換語言失敗該讓畫面停在能看懂的狀態。
+func SetLocale(tag string) {
+	if l, ok := i18n.FromTag(tag); ok {
+		i18n.Set(l)
+	}
 }
 
 func init() {
@@ -162,7 +175,7 @@ func loadFonts(dir string, w, h int) (render.HalfSource, render.CJKSource, strin
 			if cjk != nil {
 				return f, scaleTo(cjk, f), ""
 			}
-			return f, nil, "找到 cvga.fon,但沒有倚天字庫,全形字會用系統字型"
+			return f, nil, i18n.T("找到 cvga.fon,但沒有倚天字庫,全形字會用系統字型")
 		}
 	}
 
@@ -176,15 +189,15 @@ func loadFonts(dir string, w, h int) (render.HalfSource, render.CJKSource, strin
 			if err == nil {
 				return f, scaleTo(cjk, f), ""
 			}
-			return f, nil, "內嵌的倚天字庫載不起來,全形字會用系統字型"
+			return f, nil, i18n.T("內嵌的倚天字庫載不起來,全形字會用系統字型")
 		}
 	}
 	half, path, errs := ttf.LoadHalf(8, 15)
 	if half == nil {
-		return nil, nil, fmt.Sprintf("找不到任何可用字型(試過 %d 個候選,%d 個載不起來)",
+		return nil, nil, fmt.Sprintf(i18n.T("找不到任何可用字型(試過 %d 個候選,%d 個載不起來)"),
 			len(ttf.Candidates()), len(errs))
 	}
-	return half, nil, "用系統字型 " + filepath.Base(path) + ";把 cvga.fon 放進 wincv/ 可換成原版點陣字"
+	return half, nil, i18n.T("用系統字型 ") + filepath.Base(path) + i18n.T(";把 cvga.fon 放進 wincv/ 可換成原版點陣字")
 }
 
 func (g *game) Layout(outW, outH int) (int, int) {
@@ -224,7 +237,7 @@ func (g *game) Layout(outW, outH int) (int, int) {
 	if cols != g.cols || rows != g.rows {
 		// 印進 logcat(tag GoLog)。截圖看不出格點是不是剛好填滿畫面,
 		// 這幾個數字看得出來。
-		log.Printf("wincv: 外部 %dx%d dp, 格 %dx%d, 倍率 %d, 畫布 %dx%d px",
+		log.Printf(i18n.T("wincv: 外部 %dx%d dp, 格 %dx%d, 倍率 %d, 畫布 %dx%d px"),
 			outW, outH, cols, rows, sc, cols*g.rast.CellW*sc, rows*g.rast.CellH*sc)
 		g.cols, g.rows = cols, rows
 		g.screen = cell.New(cols, rows)

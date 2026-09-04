@@ -19,6 +19,7 @@ package dict
 import (
 	"bytes"
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
 	"sort"
@@ -73,7 +74,7 @@ func Load(dir string) (*Dict, error) {
 		loaded++
 	}
 	if loaded == 0 {
-		return nil, fmt.Errorf("%s 底下找不到任何字典資料", dir)
+		return nil, fmt.Errorf(i18n.T("%s 底下找不到任何字典資料"), dir)
 	}
 	d.words = make([]string, 0, len(d.eng))
 	for w := range d.eng {

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"io"
 	"net/url"
 	"strings"
@@ -284,7 +285,7 @@ func (p *htmlParser) image(src, alt string) {
 	}
 	p.flush()
 	if alt == "" {
-		alt = "圖片"
+		alt = i18n.T("圖片")
 	}
 	p.out = append(p.out, markdown.Block{
 		Kind: markdown.Image, Src: p.resolve(src), Alt: alt,
