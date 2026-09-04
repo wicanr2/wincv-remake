@@ -236,6 +236,14 @@ Text content is **not rewrapped** (gopher content is mostly ASCII already format
 
 Images in markdown only resolve relative paths **under the document's own directory**, and remote images are never downloaded — reading a document shouldn't turn into a network operation, and a `.md` file of unknown origin shouldn't be able to read files from elsewhere.
 
+![The interface in four languages](docs/ui/shot-i18n.png)
+
+*The same screen in four languages: 繁體中文, 简体中文, English, 日本語.
+Menus, the status bar (剩餘／剩余／remaining／残り) and messages all follow.
+`F9` → Settings → Language switches at any time and the choice is remembered.
+Japanese kana and simplified characters aren't in the ETEN font, so they're
+drawn by the fallback font — that's the boundary of a Big5 font, not a setting.*
+
 ## Controls
 
 Keybindings follow the original (the key-by-key tested reference is in [`docs/ui/keymap.md`](docs/ui/keymap.md)); the remake additionally adds mouse support and a few actions the original didn't have.
