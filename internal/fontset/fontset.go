@@ -70,8 +70,10 @@ var FonNames = []string{"cvga.fon", "CVGA1018.FON", "cvga1224.FON"}
 
 // Load 把能載到的字級都準備好。載不到的就跳過,但要說出來 ——
 // 少一個字級的症狀是「Ctrl-+ 沒反應」,那看起來像壞掉而不像缺檔案。
-func Load(dir, stdPath, spcPath, fbPath string, noFB bool) []Level {
+func Load(dir, stdPath, spcPath, std24Path, spc24Path, fbPath string, noFB bool) []Level {
 	var out []Level
+	et15, err15 := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH)
+	et24, err24 := Eten24(std24Path, spc24Path)
 	for _, name := range FonNames {
 		// 磁碟優先,內嵌是後備 —— 使用者放在執行檔旁邊的字型永遠贏。
 		d, err := os.ReadFile(filepath.Join(dir, name))
@@ -87,12 +89,15 @@ func Load(dir, stdPath, spcPath, fbPath string, noFB bool) []Level {
 		}
 		cw, ch := half.PixWidth, half.PixHeight+render.LineGap
 		l := Level{Name: name, Half: half}
-		et, err := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH)
-		if err != nil {
+		et := EtenForLevel(cw, et15, et24)
+		if et == nil {
 			// 每一個字級都要報。只報第一個的話,「只有某幾個字級沒有中文」
 			// 這種狀況會完全沒有訊息 —— 而使用者要按到那一級才看得到。
 			fmt.Fprintf(os.Stderr, i18n.T("提示:%s 這一級沒有倚天字庫,全形字改用後備字型 (%v)\n"),
-				name, err)
+				name, err15)
+		} else if cw*2 == eten.Native24W && et24 == nil {
+			fmt.Fprintf(os.Stderr, i18n.T("提示:%s 這一級沒有原生 24 點字庫,全形字以 15 點字庫或後備字型顯示 (%v)\n"),
+				name, err24)
 		}
 		var fb render.CJKSource
 		if !noFB {
@@ -117,6 +122,55 @@ func Eten(stdPath, spcPath string, w, h int) (*eten.Font, error) {
 	return nil, err
 }
 
+// Eten24 讀 24×24 字庫。磁碟上的字型優先；本機完整版才可能帶有內嵌後備，
+// 公開產物沒有這些資產，因此仍會回傳原本的讀檔錯誤。
+func Eten24(stdPath, spcPath string) (*eten.Font, error) {
+	if stdPath == "" {
+		return nil, fmt.Errorf(i18n.T("未指定 24 點漢字區"))
+	}
+	f, diskErr := eten.Load24(stdPath, spcPath)
+	if diskErr == nil {
+		return f, nil
+	}
+
+	// bundled.Get 在公開版一律回 nil；因此這條後備不會把第三方字型帶進
+	// 發行檔。完整版則以檔名對應可攜的 cjk24 來源代號。
+	std := bundled.Get(bundled24Name(filepath.Base(stdPath)))
+	if std == nil {
+		return nil, diskErr
+	}
+	if len(std) >= len("ETUNPACK V1.00") && string(std[:len("ETUNPACK V1.00")]) == "ETUNPACK V1.00" {
+		var err error
+		std, err = eten.UnpackETUNPACK(std)
+		if err != nil {
+			return nil, err
+		}
+	}
+	spc := bundled.Get(bundled24Name(filepath.Base(spcPath)))
+	supp := bundled.Get(bundled24Name(filepath.Base(filepath.Join(filepath.Dir(spcPath), "SPCFSUPP"+filepath.Ext(spcPath)))))
+	return eten.LoadBytes(std, spc, supp, eten.Native24W, eten.Native24H)
+}
+
+// bundled24Name 避開 go:embed 在大小寫不分檔案系統上的碰撞：倚天的
+// SPCFONT.24 與國喬的 spcfont.24 雖是不同來源，僅大小寫不同。
+func bundled24Name(base string) string {
+	switch base {
+	case "stdfont.24f", "spcfont.24":
+		return "guoqiao-" + base
+	default:
+		return base
+	}
+}
+
+// EtenForLevel 為半形格挑對應的全形原生尺寸。24×24 存在時只供
+// cvga1224（12×24）使用；其他字級仍由原生 16×15 字庫處理。
+func EtenForLevel(cw int, et15, et24 *eten.Font) *eten.Font {
+	if cw*2 == eten.Native24W && et24 != nil {
+		return et24
+	}
+	return et15
+}
+
 // Sizes 是原版隨附的三種半形點陣字型的尺寸。
 //
 // 沒有那三個 .FON 時照同樣的尺寸從系統字型現場產一份 —— 尺寸一樣,
@@ -133,9 +187,11 @@ var Sizes = []struct {
 // 而「少一個字型檔」與「這個程式跑不起來」是完全不同的嚴重程度 ——
 // Android 版早就是這樣做的(那邊根本沒有可讀的程式目錄),桌面版
 // 只是沒接上。
-func FromTTF(stdPath, spcPath, fbPath string, noFB bool) []Level {
+func FromTTF(stdPath, spcPath, std24Path, spc24Path, fbPath string, noFB bool) []Level {
 	var out []Level
 	var lastErrs []error
+	et15, _ := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH)
+	et24, _ := Eten24(std24Path, spc24Path)
 	for _, s := range Sizes {
 		// 半形優先用等寬字型,而且字級要縮到塞得進格子(見 ttf.FindMono
 		// 與 ttf.build)。全形用同一份字型但不縮 —— 那邊格子有兩倍寬。
@@ -157,7 +213,7 @@ func FromTTF(stdPath, spcPath, fbPath string, noFB bool) []Level {
 			}
 		}
 		// 倚天字庫有的話,原生尺寸那一級仍然優先:那才是與原版對齊的字形。
-		et, _ := Eten(stdPath, spcPath, eten.NativeW, eten.NativeH)
+		et := EtenForLevel(cw, et15, et24)
 		l.CJK, l.FB = Compose(cw, ch, et, fb)
 		out = append(out, l)
 	}

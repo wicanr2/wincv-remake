@@ -57,8 +57,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## 字型:隨產物散布
 
-發布的執行檔**內嵌**下面這些字型,好讓使用者解開就有與原版逐像素對齊的
-畫面。它們的權利仍在原權利人手上,BSD 2-Clause 不涵蓋它們。
+公開 Release **不內嵌**下面這些字型；使用者必須自行合法取得並提供。只有
+`dist-all/<版本>/full-local/` 的本機完整版會嵌入它們，該目錄不得上傳、轉交
+或重新散布。它們的權利仍在原權利人手上，BSD 2-Clause 不涵蓋它們。
 
 - **原版隨附的半形點陣字型**:`cvga.fon`、`CVGA1018.FON`、`cvga1224.FON`。
   著作權屬於原作者 Lcc Wizard(見上)。原版安裝檔 `wincv052a.exe` 本來就在
@@ -72,7 +73,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   Windows 而異,不是單一答案。重製版需要一個確定的來源,而倚天的
   16×15 與原版的半形 8×15 是同一個年代、同一套格點規格的東西。
 
-- **Noto Sans CJK 與幾份 Noto 語系子集**(完整版才有,檔名 `fb-*`):
+- **Noto Sans CJK 與幾份 Noto 語系子集**(本機完整版才有,檔名 `fb-*`):
   SIL Open Font License 1.1,可自由散布。補倚天沒有的字 ——
   簡體、日文假名、韓文、西里爾、阿拉伯、泰文與各種符號。
 

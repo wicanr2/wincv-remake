@@ -69,6 +69,30 @@ const (
 	NativeH = 15
 )
 
+// Load24 讀 24×24 漢字區與符號區。stdPath 可為 ETUNPACK V1.00 壓縮檔
+// (STD.24M/K/L/R/B/S) 或已解開的裸字模；這讓國喬相容的裸字模也能用
+// 相同介面載入。spcPath 是裸格式 SPCFONT.24，補充區會自動尋找
+// SPCFSUPP.24。
+func Load24(stdPath, spcPath string) (*Font, error) {
+	std, err := os.ReadFile(stdPath)
+	if err != nil {
+		return nil, fmt.Errorf(i18n.T("讀 24 點漢字區: %w"), err)
+	}
+	if len(std) >= len(etunpackMagic) && string(std[:len(etunpackMagic)]) == etunpackMagic {
+		if std, err = UnpackETUNPACK(std); err != nil {
+			return nil, err
+		}
+	}
+	var spc, supp []byte
+	if spcPath != "" {
+		if spc, err = os.ReadFile(spcPath); err != nil {
+			return nil, fmt.Errorf(i18n.T("讀 24 點符號區: %w"), err)
+		}
+		supp, _ = os.ReadFile(suppPathFor(spcPath))
+	}
+	return LoadBytes(std, spc, supp, Native24W, Native24H)
+}
+
 // 補充符號區的界線。
 var (
 	baseC6A1 = rawIndex(0xC6, 0xA1)

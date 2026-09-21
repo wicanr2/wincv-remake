@@ -15,6 +15,7 @@
 *.xwd
 *.tmp
 /original/eten/
+/workplace/
 /.cache/
 __pycache__/
 *.pyc

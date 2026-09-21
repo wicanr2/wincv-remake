@@ -88,6 +88,8 @@ func main() {
 		halfPath  = flag.String("half", "", "半形 .FON;留空自動找")
 		stdPath   = flag.String("eten-std", "", "倚天漢字區;留空自動找")
 		spcPath   = flag.String("eten-spc", "", "倚天符號區;留空自動找")
+		std24Path = flag.String("eten24-std", "", "24 點漢字區(ETUNPACK 或國喬裸字模);留空自動找")
+		spc24Path = flag.String("eten24-spc", "", "24 點符號區;留空自動找")
 		out       = flag.String("o", "screen.png", "輸出 PNG")
 		cols      = flag.Int("cols", 80, "欄數")
 		rows      = flag.Int("rows", 25, "列數")
@@ -119,6 +121,8 @@ func main() {
 	*halfPath = datadir.Resolve2(*halfPath, "cvga.fon")
 	*stdPath = datadir.Resolve2(*stdPath, "STDFONT.15")
 	*spcPath = datadir.Resolve2(*spcPath, "SPCFONT.15")
+	*std24Path = datadir.Resolve2(*std24Path, "STD.24M")
+	*spc24Path = datadir.Resolve2(*spc24Path, "SPCFONT.24")
 	if *cfgDir == "" {
 		*cfgDir = filepath.Dir(*halfPath)
 	}
@@ -134,6 +138,11 @@ func main() {
 	// 不是要畫多大 —— 目標大小交給 render.ScaleCJK。-half 指到
 	// CVGA1018.FON 這種別的字級時,兩者就不再相等了。
 	cjk, err := eten.Load(*stdPath, *spcPath, eten.NativeW, eten.NativeH)
+	if half.PixWidth*2 == eten.Native24W {
+		if f24, err24 := eten.Load24(*std24Path, *spc24Path); err24 == nil {
+			cjk, err = f24, nil
+		}
+	}
 	if err != nil {
 		if std := bundled.Get("STDFONT.15"); std != nil {
 			cjk, err = eten.LoadBytes(std, bundled.Get("SPCFONT.15"),

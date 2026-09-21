@@ -104,10 +104,12 @@ designed. Other zoom levels still show some unevenness in stroke weight, but far
 less than stretching 8×15 directly (1.4x zoom is really 10×18 stretched by only
 1.18x). The full table is in `docs/ui/keymap.md`.
 
-Fullwidth Chinese characters at font sizes other than 8×15 are drawn with the
-system's vector font instead (anti-aliased) — ETEN only has the 15-point glyph
-set, and scaling it up directly produces heavy jagged edges. To force ETEN
-scaling everywhere, pass `-bitmap-cjk` at startup.
+At 12×24, choose one of the six 24-dot ETEN faces or Guoqiao under `F9` →
+Settings → CJK Glyph. The choice applies immediately and its identifier is
+saved in `session.json`. Glyph files are found through `WINCV_HOME`; a missing
+or invalid source leaves the current glyph unchanged. Other sizes still use the
+native 16×15 ETEN glyphs or a fallback font. To force ETEN scaling everywhere,
+pass `-bitmap-cjk` at startup.
 
 Resizing the window larger makes the content **show more**, not bigger — the cell
 size is fixed, so the extra space just adds more cells. To fix the cell count, use

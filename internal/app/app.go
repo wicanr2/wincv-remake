@@ -17,6 +17,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/archive"
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/cjk24"
 	"github.com/wicanr2/wincv-remake/internal/dict"
 	"github.com/wicanr2/wincv-remake/internal/editor"
 	"github.com/wicanr2/wincv-remake/internal/epub"
@@ -135,6 +136,9 @@ type App struct {
 	// Lang 是目前的介面語言(BCP 47 標籤)。空的表示還沒決定過,
 	// 由外殼在啟動時填 —— app 這一層不去讀環境變數,那是平台的事。
 	Lang string
+	// CJK24 是目前選定的 24 點 CJK 字形來源代號。實際檔案載入由外殼
+	// 完成，因為它持有字形快取與光柵器；app 只保存使用者選擇。
+	CJK24 string
 	// positions 是逐檔的位置記憶(見 session.DocPos):開檔時查、
 	// 每次按鍵之後寫。存在 App 上而不是每次去讀檔,Snapshot 時一起帶出去。
 	positions map[string]session.DocPos
@@ -199,7 +203,7 @@ type layer struct {
 
 func New(fsys vfs.FS, dir string) *App {
 	a := &App{FS: fsys, Browser: browser.New(fsys, dir), CellW: 8, CellH: 15,
-		Scale: 1, MenuBar: true, MenuZoom: -1}
+		Scale: 1, MenuBar: true, MenuZoom: -1, CJK24: cjk24.Default}
 	a.Browser.NoteLoader = a.loadNotes
 	a.Browser.DiskStat = a.diskStat
 	a.Browser.ColorOf = fileColor

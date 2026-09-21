@@ -32,14 +32,14 @@ $RUN
 字型
 ----
 
-原版的半形點陣字型與倚天的全形字庫已經嵌在執行檔裡,**不必自己準備**,
-解開就是與原版對齊的畫面。那些字型的權利仍在原權利人手上,見 NOTICE。
-
-要換成自己的字型就用這幾個參數:
+公開版不含原版或第三方點陣字型，會以系統字型啟動。若持有合法字型，
+可放在程式旁、或以 WINCV_HOME 指向的資料目錄，再用這些參數指定:
 
   -half      半形點陣字型(原版的 cvga.fon 是 8x15)
   -eten-std  全形漢字(倚天 STDFONT.15)
   -eten-spc  全形標點(倚天 SPCFONT.15)
+  -eten24-std  24 點漢字(ETUNPACK 的 STD.24M 等，或國喬 stdfont.24f)
+  -eten24-spc  24 點標點(SPCFONT.24 或國喬 spcfont.24)
 
 Big5 以外的字(簡體、日文、韓文、符號)靠系統字型補。缺字的話裝一份
 涵蓋廣的就好(Debian/Ubuntu: fonts-noto-cjk、Fedora: google-noto-sans-cjk-fonts、

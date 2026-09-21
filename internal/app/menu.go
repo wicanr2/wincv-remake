@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/wicanr2/wincv-remake/internal/cjk24"
 	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"os"
 	"path/filepath"
@@ -144,6 +145,8 @@ func (a *App) setupMenuItems() []menuItem {
 		{sep: true},
 		{label: a.menuZoomLabel(), sub: a.menuFontItems},
 		{sep: true},
+		{label: a.cjk24Label(), sub: a.cjk24MenuItems},
+		{sep: true},
 		{label: a.langLabel(), sub: a.langMenuItems},
 	}
 }
@@ -229,6 +232,63 @@ func (a *App) setMenuZoom(n int) bool {
 		a.Message = fmt.Sprintf(i18n.T("選單字級 第 %d 級"), n+1)
 	}
 	return true
+}
+
+// cjk24Label 說明目前內容層的 24 點 CJK 字形來源。
+func (a *App) cjk24Label() string {
+	_, ok := cjk24.Find(a.CJK24)
+	if !ok {
+		return i18n.T("CJK 字形…") + "(" + CJK24Name(cjk24.Default) + ")"
+	}
+	return i18n.T("CJK 字形…") + "(" + CJK24Name(a.CJK24) + ")"
+}
+
+// cjk24MenuItems 是可寫入 session.json 的 CJK 字形來源。這裡只變更
+// 使用者選擇；外殼會在下一幀驗證檔案並原子地換掉光柵器。
+func (a *App) cjk24MenuItems() []menuItem {
+	out := make([]menuItem, 0, len(cjk24.Sources()))
+	for _, source := range cjk24.Sources() {
+		s := source
+		label := CJK24Name(s.ID)
+		if s.ID == a.CJK24 {
+			label = "• " + label
+		}
+		out = append(out, menuItem{label: label, run: func() bool {
+			return a.setCJK24(s.ID)
+		}})
+	}
+	return out
+}
+
+func (a *App) setCJK24(id string) bool {
+	s, ok := cjk24.Find(id)
+	if !ok || id == a.CJK24 {
+		return false
+	}
+	a.CJK24 = id
+	a.Message = fmt.Sprintf(i18n.T("CJK 字形已選為 %s"), CJK24Name(s.ID))
+	return true
+}
+
+// CJK24Name 是代號在介面上的翻譯名稱。必須將原文直接放在 i18n.T 呼叫
+// 裡，讓語系檢查能證明所有翻譯鍵都實際被使用。
+func CJK24Name(id string) string {
+	switch id {
+	case "eten-k":
+		return i18n.T("倚天 楷體 (24 點)")
+	case "eten-l":
+		return i18n.T("倚天 隸書 (24 點)")
+	case "eten-r":
+		return i18n.T("倚天 圓體 (24 點)")
+	case "eten-b":
+		return i18n.T("倚天 黑體 (24 點)")
+	case "eten-s":
+		return i18n.T("倚天 宋體 (24 點)")
+	case "guoqiao":
+		return i18n.T("國喬 (24 點)")
+	default:
+		return i18n.T("倚天 明體 (24 點)")
+	}
 }
 
 func (a *App) helpMenuItems() []menuItem {

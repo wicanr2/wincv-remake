@@ -106,6 +106,20 @@ func TestMenuBarToggles(t *testing.T) {
 	}
 }
 
+func TestCJK24MenuChangesSelection(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	items := a.cjk24MenuItems()
+	if len(items) != 7 {
+		t.Fatalf("字形項目數是 %d，預期 7", len(items))
+	}
+	if !a.setCJK24("guoqiao") || a.CJK24 != "guoqiao" {
+		t.Fatalf("國喬選擇失敗: %q", a.CJK24)
+	}
+	if a.setCJK24("不存在") || a.CJK24 != "guoqiao" {
+		t.Fatalf("未知選擇改壞設定: %q", a.CJK24)
+	}
+}
+
 // 下拉要貼在自己的分類標題底下,不是浮在畫面正中央。
 func TestDropdownAlignsToCategory(t *testing.T) {
 	a := New(vfs.OS{}, t.TempDir())

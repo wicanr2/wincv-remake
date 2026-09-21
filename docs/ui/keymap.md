@@ -68,6 +68,44 @@ remake 的實作狀態(打勾表示已接上,空白表示鍵有定義但功能�
 見 `docs/plan/android.md`)。桌面版的視窗不開這條列。Android 接上實體
 鍵盤時按鍵與桌面版相同。
 
+## 啟動參數（READY，2026-09-21）
+
+玩家可見範圍是桌面版以原版語法指定起始目錄、直接檢視檔案或直接編輯
+檔案；Android 入口與其他 Go 旗標不在這一項範圍內。
+
+### 證據與等級
+
+- **已證實**：原版 WinCV 0.52 的 `original/app/WinCV.txt`，SHA-256
+  `da06e56508ca5744eae7f9d4c6483655a38b07482a8a747f3f81193d5fd6e1da`，
+  在 Big5 位元組區間 116–126 說明 `/p <目錄>`、`/e <檔案>`，以及不帶
+  參數、直接傳入檔案時由 WinCV 檢視。
+- **已證實**：原版 `WINCV.IMG`，SHA-256
+  `a1264a1db193d4b98f2971823896d900856a05120b7fccbeea6e5276739d6a36`，
+  image-relative `0x775af` 的按鍵標籤為「上一層目錄」；`BackSpace`
+  是該動作的既有對應（本表主畫面列）。
+- **強推論**：Issue #2 的 Windows 實測「CD.. 回到 CV 資料夾」由重製版
+  對 Windows 反斜線路徑錯用 POSIX `path` 所致；它會產生 `.`，恰好是
+  程式啟動工作目錄。修正改用目標平台的 `filepath`；壓縮檔內部路徑仍維持
+  POSIX `path`，不混用。
+- **未知**：原版對缺少 `/p`、`/e` 參數、非存在目標或 `/e` 指到目錄的錯誤
+  對話框尚未做 Wine oracle 實測。重製版在這些情況下明確以啟動錯誤結束，
+  不宣稱原版 parity。
+
+### 型別化行為與邊界
+
+| 輸入 | 狀態轉移／輸出 | 驗收 |
+|---|---|---|
+| `BackSpace` 或清單的 `..`，目前在真實檔案系統的非根目錄 | 以原生平台路徑取得父目錄、重載清單、游標回到剛離開的子目錄 | `internal/vfs.TestParentUsesNativePathSemantics`；Windows 組建使用 `filepath` 解析反斜線 |
+| `/p <目錄>` | 忽略上次記住的位置，從指定目錄進入瀏覽器 | 啟動解析測試與既有瀏覽器正常路徑測試 |
+| `/e <檔案>` | 忽略 session，切到檔案所在目錄並進文字編輯器 | `cmd/wincv.TestParseStartupArgs`、`app.TestStartPathUsesNormalViewerAndEditorPaths` |
+| `<檔案>` | 忽略 session，切到檔案所在目錄，走與清單 `Enter` 相同的格式分派（檢視器、圖片、壓縮檔或文件） | 同上；`StartPath` 直接呼叫既有 `enter` |
+| `<目錄>` | 忽略 session，從該目錄進入瀏覽器 | `StartPath` 的目錄分支與既有 `TestEnterDirAndBack` |
+
+垂直鏈為「命令列字串 → `parseStartupArgs` → 絕對路徑及存在性檢查 →
+`app.StartPath` → `enter`／編輯器 → 正常 UI → session snapshot」。啟動參數
+不改存檔格式；它只覆寫本次啟動的 session 還原目標。原版檔案與字型不會被
+加入公開產物，這項行為只處理使用者本機傳入的路徑。
+
 markdown 檢視模式(開 `.md` / `.markdown` 自動進入):
 
 | 按鍵 | 動作 |

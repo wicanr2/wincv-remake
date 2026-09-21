@@ -5,8 +5,30 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/wicanr2/wincv-remake/internal/eten"
 	"github.com/wicanr2/wincv-remake/internal/render"
 )
+
+func TestEtenForLevelPrefersNative24(t *testing.T) {
+	et15, err := eten.LoadBytes(make([]byte, 30), nil, nil, eten.NativeW, eten.NativeH)
+	if err != nil {
+		t.Fatal(err)
+	}
+	et24, err := eten.LoadBytes(make([]byte, 72), nil, nil, eten.Native24W, eten.Native24H)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := EtenForLevel(12, et15, et24); got != et24 {
+		t.Fatal("12×24 字級沒有挑選原生 24×24 字庫")
+	}
+	cjk, _ := Compose(12, 24+render.LineGap, et24, nil)
+	if g := cjk.Glyph('一'); g == nil || g.W != 24 || g.H != 24+render.LineGap {
+		t.Fatalf("24 點字模沒有以原生尺寸交給渲染器: %#v", g)
+	}
+	if got := EtenForLevel(8, et15, et24); got != et15 {
+		t.Fatal("8×15 字級不應誤用 24×24 字庫")
+	}
+}
 
 // TestLevelsHaveCJK 盯著「每一個字級都要有全形字」。
 //
@@ -26,7 +48,7 @@ func TestLevelsHaveCJK(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "cvga.fon")); err != nil {
 		t.Skip("沒有原版字型,跳過(tools/setup-wine-oracle.sh)")
 	}
-	levels := Load(dir, std, filepath.Join(eten, "SPCFONT.15"), "", true)
+	levels := Load(dir, std, filepath.Join(eten, "SPCFONT.15"), "", "", "", true)
 	if len(levels) != len(Sizes) {
 		t.Fatalf("載到 %d 個字級,預期 %d", len(levels), len(Sizes))
 	}

@@ -158,3 +158,21 @@ func TestSnapshotRestoreDisplay(t *testing.T) {
 		t.Fatalf("還原後 Zoom=%d Scale=%v MenuBar=%v", b.Zoom, b.Scale, b.MenuBar)
 	}
 }
+
+func TestSnapshotRestoreCJK24(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	a.CJK24 = "eten-b"
+	st := a.Snapshot()
+	if st.CJK24 != "eten-b" {
+		t.Fatalf("快照沒有字形代號: %+v", st)
+	}
+	b := New(vfs.OS{}, t.TempDir())
+	b.Restore(st)
+	if b.CJK24 != "eten-b" {
+		t.Fatalf("沒有還原字形代號: %q", b.CJK24)
+	}
+	b.Restore(session.State{CJK24: "未知"})
+	if b.CJK24 != "eten-b" {
+		t.Fatalf("未知字形代號不應覆寫既有設定: %q", b.CJK24)
+	}
+}

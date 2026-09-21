@@ -18,6 +18,7 @@ import (
 
 	"github.com/wicanr2/wincv-remake/internal/app"
 	"github.com/wicanr2/wincv-remake/internal/cell"
+	"github.com/wicanr2/wincv-remake/internal/cjk24"
 	"github.com/wicanr2/wincv-remake/internal/datadir"
 	"github.com/wicanr2/wincv-remake/internal/ebikeys"
 	"github.com/wicanr2/wincv-remake/internal/fontset"
@@ -66,6 +67,11 @@ type game struct {
 	menuFontSize int
 	// menuZoom 是選單層目前用第幾級點陣字,-1 表示跟內容一樣。
 	menuZoom int
+	// cjk24 是目前已成功套用的來源代號。app.CJK24 若不同，代表設定
+	// 選單剛要求換字形，下一幀由 reloadCJK24 驗證後原子替換 levels。
+	cjk24                               string
+	fontDir, etenStd, etenSpc, fallback string
+	noFallback                          bool
 	// resume 是「記住位置」的開關,lastSt 是上次寫出去的那一份。
 	resume bool
 	lastSt session.State
@@ -87,6 +93,54 @@ func (g *game) setZoom(n int) {
 	if g.cols > 0 && g.rows > 0 {
 		g.applySize(g.cols, g.rows)
 	}
+}
+
+// cjk24Paths 把可攜的來源代號交給既有的素材搜尋規則。JSON 不保存
+// 絕對路徑，因此移動 WINCV_HOME 後不用重新設定。
+func cjk24Paths(id string) (std, spc string, ok bool) {
+	source, ok := cjk24.Find(id)
+	if !ok {
+		return "", "", false
+	}
+	return datadir.Resolve(source.Std), datadir.Resolve(source.Spc), true
+}
+
+func (g *game) reloadCJK24() {
+	source, ok := cjk24.Find(g.app.CJK24)
+	if !ok {
+		g.app.CJK24 = g.cjk24
+		return
+	}
+	std24, spc24, _ := cjk24Paths(source.ID)
+	if _, err := fontset.Eten24(std24, spc24); err != nil {
+		g.app.CJK24 = g.cjk24
+		g.app.Message = fmt.Sprintf(i18n.T("CJK 字形未變更: %v"), err)
+		return
+	}
+	levels := fontset.Load(g.fontDir, g.etenStd, g.etenSpc, std24, spc24, g.fallback, g.noFallback)
+	if len(levels) == 0 {
+		g.app.CJK24 = g.cjk24
+		g.app.Message = i18n.T("CJK 字形未變更: 無可用字級")
+		return
+	}
+
+	cols, rows := g.cols, g.rows
+	g.levels = levels
+	g.rasts, g.rast, g.menuRast = nil, nil, nil
+	g.app.MaxZoom = len(levels) - 1
+	if g.app.Zoom > g.app.MaxZoom {
+		g.app.Zoom = g.app.MaxZoom
+	}
+	g.zoom = -1
+	g.setZoom(g.app.Zoom)
+	g.menuZoom = g.app.MenuZoom
+	g.applyMenuZoom()
+	if cols > 0 && rows > 0 {
+		g.applySize(cols, rows)
+	}
+	g.cjk24 = source.ID
+	g.canvas, g.dirty = nil, true
+	g.app.Message = fmt.Sprintf(i18n.T("CJK 字形已套用: %s"), app.CJK24Name(source.ID))
 }
 
 // rastFor 取第 i 個字級的光柵器,建過就留著。
@@ -217,6 +271,9 @@ func (g *game) Update() error {
 	if g.handleMouse() {
 		g.dirty = true
 	}
+	if g.app.CJK24 != g.cjk24 {
+		g.reloadCJK24()
+	}
 	// 有還沒完成的網路取回時要一直重繪。app 那一層不會自己叫重繪,
 	// 而結果是非同步回來的 —— 不這樣做的話畫面會永遠停在「連線中」。
 	if g.app.Busy() {
@@ -264,7 +321,7 @@ func (g *game) saveState() {
 		return
 	}
 	st := g.app.Snapshot()
-	if st.Dir == g.lastSt.Dir && st.Mode == g.lastSt.Mode && st.File == g.lastSt.File {
+	if st.Dir == g.lastSt.Dir && st.Mode == g.lastSt.Mode && st.File == g.lastSt.File && st.CJK24 == g.lastSt.CJK24 {
 		return
 	}
 	g.lastSt = st
@@ -458,47 +515,81 @@ func (g *game) Layout(outW, outH int) (int, int) {
 
 func main() {
 	var (
-		halfPath = flag.String("half", "", i18n.T("半形 .FON;留空自動找(見下)"))
-		stdPath  = flag.String("eten-std", "", i18n.T("倚天漢字區;留空自動找"))
-		spcPath  = flag.String("eten-spc", "", i18n.T("倚天符號區;留空自動找"))
-		cols     = flag.Int("cols", 80, i18n.T("欄數"))
-		rows     = flag.Int("rows", 30, i18n.T("列數"))
-		scale    = flag.Float64("scale", 2, i18n.T("放大倍率,0.1 為一階"))
-		zoom     = flag.Int("zoom", 0, i18n.T("字級:0=8x15 1=10x18 2=12x24"))
-		fbFont   = flag.String("fallback", "", i18n.T("後備字型(TTF/TTC),補倚天沒有的字;留空自動找"))
-		noFB     = flag.Bool("no-fallback", false, i18n.T("不要後備字型"))
-		lang     = flag.String("lang", "", i18n.T("介面語言:zh-Hant / zh-Hans / en / ja(預設看系統語系)"))
-		bitmapCJ = flag.Bool("bitmap-cjk", false, i18n.T("所有字級的全形字都用倚天字模縮放(不用向量字型反鋸齒)"))
-		noResume = flag.Bool("no-resume", false, i18n.T("不要回到上次的位置"))
-		menuFont = flag.String("menu-font", "", i18n.T("選單專用字型(TTF/TTC/OTF);留空沿用內容的點陣字"))
-		menuSize = flag.Int("menu-size", 0, i18n.T("選單字高(像素);配 -menu-font 用,留空取內容格高"))
-		menuMag  = flag.Float64("menu-scale", 0, i18n.T("選單的放大倍率;留空沿用內容的倍率"))
+		halfPath  = flag.String("half", "", i18n.T("半形 .FON;留空自動找(見下)"))
+		stdPath   = flag.String("eten-std", "", i18n.T("倚天漢字區;留空自動找"))
+		spcPath   = flag.String("eten-spc", "", i18n.T("倚天符號區;留空自動找"))
+		std24Path = flag.String("eten24-std", "", i18n.T("24 點漢字區(ETUNPACK 或國喬裸字模);留空自動找"))
+		spc24Path = flag.String("eten24-spc", "", i18n.T("24 點符號區;留空自動找"))
+		cols      = flag.Int("cols", 80, i18n.T("欄數"))
+		rows      = flag.Int("rows", 30, i18n.T("列數"))
+		scale     = flag.Float64("scale", 2, i18n.T("放大倍率,0.1 為一階"))
+		zoom      = flag.Int("zoom", 0, i18n.T("字級:0=8x15 1=10x18 2=12x24"))
+		fbFont    = flag.String("fallback", "", i18n.T("後備字型(TTF/TTC),補倚天沒有的字;留空自動找"))
+		noFB      = flag.Bool("no-fallback", false, i18n.T("不要後備字型"))
+		lang      = flag.String("lang", "", i18n.T("介面語言:zh-Hant / zh-Hans / en / ja(預設看系統語系)"))
+		bitmapCJ  = flag.Bool("bitmap-cjk", false, i18n.T("所有字級的全形字都用倚天字模縮放(不用向量字型反鋸齒)"))
+		noResume  = flag.Bool("no-resume", false, i18n.T("不要回到上次的位置"))
+		menuFont  = flag.String("menu-font", "", i18n.T("選單專用字型(TTF/TTC/OTF);留空沿用內容的點陣字"))
+		menuSize  = flag.Int("menu-size", 0, i18n.T("選單字高(像素);配 -menu-font 用,留空取內容格高"))
+		menuMag   = flag.Float64("menu-scale", 0, i18n.T("選單的放大倍率;留空沿用內容的倍率"))
 	)
 	flag.Parse()
 
-	dir := "."
-	if flag.NArg() > 0 {
-		dir = flag.Arg(0)
-	}
-	abs, err := filepath.Abs(dir)
+	start, err := parseStartupArgs(flag.Args())
 	if err != nil {
 		die(err)
 	}
+	target := "."
+	if start.target != "" {
+		target = start.target
+	}
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		die(err)
+	}
+	// 檔案啟動時 App 必須先有一個可列目的目錄；真正的模式分派在
+	// 字型與 session 都就緒後交給 StartPath，與清單上的 Enter 共用。
+	initialDir := abs
+	if start.target != "" {
+		info, statErr := os.Stat(abs)
+		if statErr != nil {
+			die(statErr)
+		}
+		if start.mode == startupDirectory && !info.IsDir() {
+			die(i18n.Errorf("/p 只能指定目錄，不可指定 %q", start.target))
+		}
+		if !info.IsDir() {
+			initialDir = filepath.Dir(abs)
+		}
+	}
 
-	a := app.New(vfs.OS{}, abs)
+	a := app.New(vfs.OS{}, initialDir)
 	// 命令列指定了目錄就以它為準 —— 使用者說了要去哪,不該被上次的位置蓋掉。
 	st := session.State{}
 	if !*noResume {
 		st = session.Load()
-		if flag.NArg() > 0 {
-			st.Dir, st.Cursor, st.Mode, st.File = abs, "", "", ""
+		if start.target != "" {
+			st.Dir, st.Cursor, st.Mode, st.File = initialDir, "", "", ""
 		}
+	}
+	if _, ok := cjk24.Find(st.CJK24); ok {
+		a.CJK24 = st.CJK24
 	}
 	// 原版素材放在哪裡由 datadir 決定,不是相對於工作目錄猜一個 ——
 	// 打包安裝之後工作目錄是什麼完全不可預測。
 	*halfPath = datadir.Resolve2(*halfPath, "cvga.fon")
 	*stdPath = datadir.Resolve2(*stdPath, "STDFONT.15")
 	*spcPath = datadir.Resolve2(*spcPath, "SPCFONT.15")
+	if flagGiven("eten24-std") {
+		*std24Path = datadir.Resolve2(*std24Path, "STD.24M")
+	} else {
+		*std24Path, _, _ = cjk24Paths(a.CJK24)
+	}
+	if flagGiven("eten24-spc") {
+		*spc24Path = datadir.Resolve2(*spc24Path, "SPCFONT.24")
+	} else {
+		_, *spc24Path, _ = cjk24Paths(a.CJK24)
+	}
 	// 語法上色設定跟半形字型放在一起(原版是同一個安裝目錄)。
 	cfgDir := filepath.Dir(*halfPath)
 	a.LoadSyntax(cfgDir)
@@ -520,11 +611,11 @@ func main() {
 	}
 
 	fontset.BitmapCJK = *bitmapCJ
-	levels := fontset.Load(cfgDir, *stdPath, *spcPath, *fbFont, *noFB)
+	levels := fontset.Load(cfgDir, *stdPath, *spcPath, *std24Path, *spc24Path, *fbFont, *noFB)
 	if len(levels) == 0 {
 		// 沒有原版的 .FON 就用系統字型現場產一份。畫面不是原版的點陣字,
 		// 但版面、欄位與按鍵完全一樣 —— 這比「跑不起來」有用得多。
-		levels = fontset.FromTTF(*stdPath, *spcPath, *fbFont, *noFB)
+		levels = fontset.FromTTF(*stdPath, *spcPath, *std24Path, *spc24Path, *fbFont, *noFB)
 		if len(levels) > 0 {
 			fmt.Fprintf(os.Stderr,
 				i18n.T("提示:沒有原版的點陣字型,改用系統字型。\n")+
@@ -573,6 +664,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, i18n.T("警告:選單字型用不了,沿用內容的字型 —"), err)
 	}
 	a.Restore(st)
+	if start.target != "" {
+		if err := a.StartPath(abs, start.mode == startupEdit); err != nil {
+			die(err)
+		}
+	}
 	g.lastSt = a.Snapshot()
 
 	err = ebiten.RunGame(g)

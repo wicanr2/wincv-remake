@@ -14,6 +14,7 @@ func TestRoundTrip(t *testing.T) {
 		Dir: "/home/x/docs", Cursor: "a.txt",
 		Mode: "viewer", File: "a.txt", Top: 42,
 		Cols: 93, Rows: 22, Zoom: 1, Scale: 1.5,
+		CJK24:   "eten-k",
 		MenuBar: session.Bool(false),
 	}
 	if err := want.SaveTo(p); err != nil {
@@ -22,7 +23,7 @@ func TestRoundTrip(t *testing.T) {
 	got := session.LoadFrom(p)
 	if got.Dir != want.Dir || got.Cursor != want.Cursor || got.Mode != want.Mode ||
 		got.File != want.File || got.Top != want.Top || got.Cols != want.Cols ||
-		got.Rows != want.Rows || got.Zoom != want.Zoom || got.Scale != want.Scale {
+		got.Rows != want.Rows || got.Zoom != want.Zoom || got.Scale != want.Scale || got.CJK24 != want.CJK24 {
 		t.Fatalf("讀回來是 %+v", got)
 	}
 	if got.MenuBar == nil || *got.MenuBar {

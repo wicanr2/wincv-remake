@@ -106,6 +106,29 @@ func TestEnterTextFileOpensViewer(t *testing.T) {
 	}
 }
 
+func TestStartPathUsesNormalViewerAndEditorPaths(t *testing.T) {
+	a, _ := newApp(t)
+	root := a.Browser.Dir
+	text := filepath.Join(root, "sub", "c.txt")
+
+	if err := a.StartPath(text, false); err != nil {
+		t.Fatalf("StartPath 檢視檔案: %v", err)
+	}
+	if a.Mode != ModeViewer || a.Viewer == nil || a.Viewer.Name != "c.txt" {
+		t.Fatalf("StartPath 檢視應進文字檢視器，mode=%v viewer=%#v", a.Mode, a.Viewer)
+	}
+	if a.Browser.Dir != filepath.Join(root, "sub") {
+		t.Errorf("StartPath 檢視應切到檔案所在目錄，得到 %q", a.Browser.Dir)
+	}
+
+	if err := a.StartPath(text, true); err != nil {
+		t.Fatalf("StartPath 編輯檔案: %v", err)
+	}
+	if a.Mode != ModeEdit || a.Editor == nil || a.Editor.Name != "c.txt" {
+		t.Fatalf("StartPath 編輯應進編輯器，mode=%v editor=%#v", a.Mode, a.Editor)
+	}
+}
+
 // 二進位檔按 Enter 直接開 16 進位檢視。
 // 原版 0.5 版起就是這個行為(changelog:「按 enter 看檔時自動將可能為
 // 執行檔的檔案以 16 進位方式看檔」),不是丟一個訊息就算了。

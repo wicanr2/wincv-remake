@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 建「完整版」:把字型打包進執行檔,四個平台都做,輸出到 dist-all/ 的 *-full。
+# 建「本機完整版」:把字型打包進執行檔，輸出到 dist-all/<版本>/full-local/。
 #
 # 為什麼要分兩種產物:原版的 `.FON` 與倚天字庫是第三方版權物,
 # **不能進對外散布的檔案**。所以 tools/release.sh 建的是不含字型的版本
@@ -9,7 +9,7 @@
 #        dist-all/ 本來就在 .gitignore 裡,但上傳是手動動作,不會有人擋你。
 #
 # 用法:
-#   tools/build-full.sh              # 四個平台
+#   VERSION=v.0.53.0-20260921 tools/build-full.sh              # 四個平台
 #   tools/build-full.sh desktop      # 只做桌面三個
 #   tools/build-full.sh android      # 只做 APK
 #   tools/build-full.sh linux        # 只做 linux(平常自己要用的那一個)
@@ -38,9 +38,14 @@ OSX_IMG=${OSX_IMG:-wincv-osxcross-go:1}
 # 工具找不到,而 clang 只會轉述成 "unable to execute command"。
 OSX_TARGET=${OSX_TARGET:-}
 WHAT=${1:-all}
+VERSION=${VERSION:?請以 VERSION=v.主版.次版.修訂版-YYYYMMDD 指定發布版號}
+case "$VERSION" in
+    v.[0-9]*.[0-9]*.[0-9]-????????) ;;
+    *) echo "不合規的版本號:$VERSION" >&2; exit 2 ;;
+esac
+OUT=$REPO/dist-all/$VERSION/full-local
 
-# 字型素材交給 tools/embed-fonts.sh 準備(公開版與完整版共用同一份清單,
-# 差別只在 full 多一組 Unicode 後備)。
+# 字型素材只供本機完整版使用：15／24 點倚天、國喬與 Unicode 後備。
 #
 # 素材只在建置期間存在。留著會讓下一次不帶 tag 的建置看起來也有字型,
 # 而那是錯覺 —— 沒有 tag 的話那個目錄根本不會被 embed。

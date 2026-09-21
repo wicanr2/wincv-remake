@@ -56,6 +56,9 @@ type State struct {
 	// 語系,而不是套一個預設值:「沒選過」與「選了繁中」是兩件事,
 	// 前者會跟著系統走,後者不會。
 	Lang string `json:"lang,omitempty"`
+	// CJK24 是 24 點 CJK 字形來源代號。空值代表舊 session，呼叫端要
+	// 採用 eten-m，保留既有 STD.24M 自動尋找行為。
+	CJK24 string `json:"cjk24,omitempty"`
 	// NameW 是檔案清單主檔名欄的寬度,0 表示預設。
 	NameW int `json:"namew,omitempty"`
 	// URL 是關掉時瀏覽模式停在哪一頁。空的表示沒在瀏覽。

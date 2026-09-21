@@ -8,7 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -143,7 +143,11 @@ func Sort(es []Entry, key SortKey, desc bool) {
 
 // Parent 回傳上一層目錄。已經在根目錄就回自己。
 func Parent(dir string) string {
-	p := path.Dir(path.Clean(dir))
+	// 真實檔案系統的路徑必須交給 filepath 處理。path 只認 /,
+	// 因此 Windows 的 C:\\foo\\bar 會被算成 ".",使「上一層目錄」
+	// 跳回程式的工作目錄，而不是 C:\\foo。壓縮檔內部路徑仍在 app
+	// 層明確用 path 處理，兩者不可混用。
+	p := filepath.Dir(filepath.Clean(dir))
 	if p == dir {
 		return dir
 	}
