@@ -646,7 +646,9 @@ func main() {
 		*cols, *rows = st.Cols, st.Rows
 	}
 	g := &game{app: a, levels: levels, scale: *scale, zoom: -1, dirty: true,
-		resume: !*noResume, effScale: *scale}
+		resume: !*noResume, effScale: *scale, cjk24: a.CJK24,
+		fontDir: cfgDir, etenStd: *stdPath, etenSpc: *spcPath,
+		fallback: *fbFont, noFallback: *noFB}
 	g.setZoom(*zoom)
 	cw, ch := g.cellPx()
 	g.resize(*cols*cw, *rows*ch)
