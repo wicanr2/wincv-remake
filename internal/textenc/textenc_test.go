@@ -88,6 +88,17 @@ func TestDetectUTF8AndASCII(t *testing.T) {
 	}
 }
 
+func TestDetectUTF8AcrossSampleBoundary(t *testing.T) {
+	// 64 KiB 切點落在中文字的第一個位元組之後，模擬長篇 Markdown。
+	b := append([]byte(strings.Repeat("a", 64*1024-1)), []byte("中文說明\n")...)
+	if got := Detect(b); got != UTF8 {
+		t.Fatalf("跨取樣邊界的 UTF-8 判成 %v", got)
+	}
+	if got := Decode(b, Detect(b)); got != string(b) {
+		t.Fatal("跨取樣邊界的 UTF-8 解碼內容不符")
+	}
+}
+
 func TestDetectUTF16(t *testing.T) {
 	le := []byte{0xFF, 0xFE, 'h', 0, 'i', 0}
 	if got := Detect(le); got != UTF16LE {

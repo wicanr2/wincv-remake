@@ -58,7 +58,7 @@ WinCV 是一支在同一個畫面裡做完很多事的中文工具：瀏覽目�
 查英漢字典與 KK 音標、算 MD5 與 SFV。它的最後一次更新停在 2011 年 11 月 24 日
 （`whatsnew.txt` 的最後一筆），之後沒有 Linux 版，也沒有 macOS 版。
 
-下載：[v.0.53.0-20260921](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.0-20260921)
+下載：[v.0.53.1-20260930](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.1-20260930)
 （Linux / Windows / macOS；公開包不含第三方字型，可自行提供合法取得的字型）
 
 remake 的原始碼、工具與文件走 [BSD 2-Clause](LICENSE)。**原版 WinCV 的著作權屬於

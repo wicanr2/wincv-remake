@@ -145,7 +145,13 @@ func Detect(b []byte) Enc {
 
 	sample := b
 	if len(sample) > 64*1024 {
-		sample = sample[:64*1024]
+		end := 64 * 1024
+		// 取樣切點若落在 UTF-8 字元中間，補齊後續位元組；否則
+		// utf8.Valid 會把完整的 UTF-8 檔案誤判為其他編碼。
+		for end < len(b) && end < 64*1024+3 && !utf8.RuneStart(b[end]) {
+			end++
+		}
+		sample = b[:end]
 	}
 
 	// UTF-16 要比二進位判斷先做:沒有 BOM 的 UTF-16 純 ASCII 文字
