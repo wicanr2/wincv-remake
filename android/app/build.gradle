@@ -19,7 +19,7 @@ android {
         minSdk 21
         targetSdk 34
         versionCode 1
-        versionName "0.52-remake"
+        versionName System.getenv("WINCV_VERSION") ?: "0.52-remake"
     }
 
     // 私人使用,用 debug 簽章即可(sideload 裝得起來)。

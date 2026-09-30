@@ -26,6 +26,11 @@ mkdir -p "$OUT"
     "FILES/SPCFSUPP.15" \
     "FILES/ASCFONT.15" \
     "FILES/STD.24M" \
+    "FILES/STD.24K" \
+    "FILES/STD.24L" \
+    "FILES/STD.24R" \
+    "FILES/STD.24B" \
+    "FILES/STD.24S" \
     "FILES/SPCFONT.24" \
     "FILES/SPCFSUPP.24" \
     "FILES/ASCFONT.24" >/dev/null
@@ -33,4 +38,4 @@ mkdir -p "$OUT"
 echo "抽到 $OUT:"
 ls -1 "$OUT"
 echo
-echo "註:STD.24M 是 ETUNPACK 壓縮的 24 點明體;WinCV 會在 12x24 字級自動解開。"
+echo "註:STD.24M/K/L/R/B/S 是 ETUNPACK 壓縮的 24 點字型;WinCV 會在 12x24 字級自動解開。"

@@ -35,6 +35,7 @@ DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
         -e GOFLAGS=-buildvcs=false
         -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod
         -e GRADLE_USER_HOME=/tmp/gradle
+        -e WINCV_VERSION=${VERSION:-}
         -e HOME=/tmp
         -e JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8"
 
