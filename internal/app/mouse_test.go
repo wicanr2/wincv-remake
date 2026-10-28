@@ -120,6 +120,55 @@ func TestMenuDropClick(t *testing.T) {
 	}
 }
 
+func TestMenuDropHover(t *testing.T) {
+	a := clickApp(t)
+	a.MenuBarClick(20) // 設定
+	a.MenuLayer(80, 25)
+	zoom := a.Zoom
+	if !a.MenuDropHover(3) { // 放大字體
+		t.Fatal("移入放大字體沒有更新選取列")
+	}
+	if !a.Menuing() || a.Zoom != zoom {
+		t.Fatal("移入項目不應執行功能或關閉選單")
+	}
+	drop := a.MenuLayer(80, 25).Drop
+	if drop.At(0, 3).BG != cell.Blue || drop.At(0, 0).BG == cell.Blue {
+		t.Fatal("藍色選取列沒有移到放大字體")
+	}
+	for _, row := range []int{3, 2, -1, a.menu.rows, 100} {
+		if a.MenuDropHover(row) || a.menu.cursor != 3 {
+			t.Fatalf("重複位置或非項目列 %d 不應改變選取", row)
+		}
+	}
+	a.HandleKey(keys.Named(keys.Esc))
+	if a.MenuDropHover(3) {
+		t.Fatal("選單關閉後不應回應移入")
+	}
+}
+
+func TestMenuDropHoverSubmenuAndScroll(t *testing.T) {
+	a := clickApp(t)
+	a.MenuBarClick(20)
+	a.MenuLayer(80, 25)
+	a.MenuDropClick(8) // 視窗大小
+	drop := a.MenuLayer(80, 6).Drop
+	if !a.MenuDropHover(2) || a.menu.cursor != 1 {
+		t.Fatal("子選單移入項目時沒有扣掉標題列")
+	}
+	if a.MenuDropHover(0) || a.MenuDropHover(drop.Rows-1) || a.menu.cursor != 1 {
+		t.Fatal("移入子選單標題或捲動提示不應改變選取")
+	}
+	a.HandleKey(keys.Named(keys.Down))
+	a.MenuLayer(80, 6)
+	top := a.menu.top
+	if top == 0 {
+		t.Fatal("測試未捲動子選單")
+	}
+	if !a.MenuDropHover(1) || a.menu.cursor != top {
+		t.Fatal("捲動後移入第一列沒有選到可見的第一個項目")
+	}
+}
+
 // 滾輪翻成上下鍵。
 func TestWheel(t *testing.T) {
 	a := clickApp(t)

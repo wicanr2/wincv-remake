@@ -6,6 +6,9 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/keys"
 )
 
+// Version 由正式建置透過 -ldflags -X 注入。
+var Version = "development"
+
 // aboutLines 是「關於」畫面的內容。
 //
 // 原作者列在前面、重製列在後面 —— 署名的是重製這件事,不是原作。
@@ -20,7 +23,7 @@ func aboutLines() []struct {
 		text string
 		fg   cell.Color
 	}{
-		{"WinCV Remake", cell.LtCyan},
+		{"WinCV Remake " + Version, cell.LtCyan},
 		{"", cell.LtGray},
 		{i18n.T("原作   WinCV 0.52(CView for Windows)"), cell.LtGray},
 		{i18n.T("       Lcc Wizard(林健總)   cview.com.tw"), cell.LtGray},

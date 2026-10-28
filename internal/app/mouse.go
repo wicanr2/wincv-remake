@@ -190,20 +190,39 @@ func (a *App) menuCatAt(col int) int {
 // MenuDropClick 是展開的下拉被點了。row 是下拉框內的第幾列(含標題列)。
 // 點到項目就執行,點到分隔線或捲動提示不動。
 func (a *App) MenuDropClick(row int) bool {
+	i := a.menuDropAt(row)
+	if i < 0 {
+		return false
+	}
+	a.menu.cursor = i
+	return a.menuKey(keys.Named(keys.Enter))
+}
+
+// MenuDropHover 只移動下拉的選取列,點擊時才執行項目。
+func (a *App) MenuDropHover(row int) bool {
+	i := a.menuDropAt(row)
+	if i < 0 || i == a.menu.cursor {
+		return false
+	}
+	a.menu.cursor = i
+	return true
+}
+
+// menuDropAt 將下拉內的列換成項目索引,標題、分隔線與捲動提示回 -1。
+func (a *App) menuDropAt(row int) int {
 	m := &a.menu
 	if !m.active {
-		return false
+		return -1
 	}
 	if m.title != "" {
 		row--
 	}
 	if row < 0 || row >= m.rows {
-		return false
+		return -1
 	}
 	i := m.top + row
 	if i >= len(m.items) || m.items[i].sep {
-		return false
+		return -1
 	}
-	m.cursor = i
-	return a.menuKey(keys.Named(keys.Enter))
+	return i
 }

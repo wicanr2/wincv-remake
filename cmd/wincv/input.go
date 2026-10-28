@@ -14,6 +14,9 @@ type mouse struct {
 	lastCell image.Point
 	lastZone int
 	wheel    float64
+	// 只在滑鼠移動時更新選單,避免靜止的滑鼠蓋過鍵盤選取。
+	position    image.Point
+	positionSet bool
 	// 拖曳:按著左鍵時記住上一次換算出來的欄位,移過一格就送一次。
 	dragging bool
 	dragCol  int
@@ -34,8 +37,15 @@ const (
 // 什麼倍率、選單列佔幾個像素、下拉框貼在哪。app 那一層只收格子座標。
 func (g *game) handleMouse() bool {
 	changed := false
+	px, py := ebiten.CursorPosition()
+	position := image.Pt(px, py)
+	if !g.mouse.positionSet || position != g.mouse.position {
+		g.mouse.position, g.mouse.positionSet = position, true
+		if zone, _, row := g.hitTest(px, py); zone == zoneMenuDrop {
+			changed = g.app.MenuDropHover(row)
+		}
+	}
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		px, py := ebiten.CursorPosition()
 		zone, col, row := g.hitTest(px, py)
 		now := time.Now()
 		cellPt := image.Pt(col, row)
@@ -48,17 +58,16 @@ func (g *game) handleMouse() bool {
 		}
 		switch zone {
 		case zoneMenuBar:
-			changed = g.app.MenuBarClick(col)
+			changed = g.app.MenuBarClick(col) || changed
 		case zoneMenuDrop:
-			changed = g.app.MenuDropClick(row)
+			changed = g.app.MenuDropClick(row) || changed
 		default:
-			changed = g.app.Click(col, row, double)
+			changed = g.app.Click(col, row, double) || changed
 		}
 	}
 	// 橫向拖曳:按著左鍵在內容區左右移動,每過一格送一次 Drag。
 	// 只有內容區算,選單列與下拉上拖不做事。
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		px, py := ebiten.CursorPosition()
 		zone, col, _ := g.hitTest(px, py)
 		if !g.mouse.dragging {
 			g.mouse.dragging, g.mouse.dragCol = true, col

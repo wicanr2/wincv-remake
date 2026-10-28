@@ -515,6 +515,7 @@ func (g *game) Layout(outW, outH int) (int, int) {
 
 func main() {
 	var (
+		version   = flag.Bool("version", false, "WinCV Remake")
 		halfPath  = flag.String("half", "", i18n.T("半形 .FON;留空自動找(見下)"))
 		stdPath   = flag.String("eten-std", "", i18n.T("倚天漢字區;留空自動找"))
 		spcPath   = flag.String("eten-spc", "", i18n.T("倚天符號區;留空自動找"))
@@ -534,6 +535,10 @@ func main() {
 		menuMag   = flag.Float64("menu-scale", 0, i18n.T("選單的放大倍率;留空沿用內容的倍率"))
 	)
 	flag.Parse()
+	if *version {
+		fmt.Println(app.Version)
+		return
+	}
 
 	start, err := parseStartupArgs(flag.Args())
 	if err != nil {

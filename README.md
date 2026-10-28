@@ -58,7 +58,7 @@ WinCV 是一支在同一個畫面裡做完很多事的中文工具：瀏覽目�
 查英漢字典與 KK 音標、算 MD5 與 SFV。它的最後一次更新停在 2011 年 11 月 24 日
 （`whatsnew.txt` 的最後一筆），之後沒有 Linux 版，也沒有 macOS 版。
 
-下載：[v.0.53.1-20260930](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.1-20260930)
+下載：[v.0.53.2-20261028](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.2-20261028)
 （Linux / Windows / macOS；公開包不含第三方字型，可自行提供合法取得的字型）
 
 remake 的原始碼、工具與文件走 [BSD 2-Clause](LICENSE)。**原版 WinCV 的著作權屬於
@@ -481,6 +481,8 @@ Home | ◀    | ▼ | ▶    | End
 
 - `CLAUDE.md` — 目標軟體的已查證事實、逆向方法、架構、硬規則
 - `CONTEXT.md` — 統一語言、已被推翻的斷言、決策紀錄
+- [WORKLOG.md](WORKLOG.md) — 修改、驗證與發行紀錄
+- [選單滑鼠驗證](tools/menu-hover-smoke.py) — 在 Docker／Xvfb 操作實際視窗並檢查反白
 - `docs/ui/main-screen.md` — 原版主畫面的格點量測
 - `docs/ui/keymap.md` — 按鍵表，證據分三級
 - `docs/plan/office-docs.md` — Office 與 PDF 的解析、算繪與驗收數字

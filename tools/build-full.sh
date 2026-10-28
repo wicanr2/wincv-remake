@@ -75,15 +75,15 @@ LIMITS=""
 [ -n "${WINCV_MEM:-}" ] && LIMITS="$LIMITS --memory $WINCV_MEM"
 DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
         $LIMITS
-        -u $(id -u):$(id -g) -e HOME=/tmp
+        -u $(id -u):$(id -g) -e HOME=/tmp -e WINCV_VERSION=$VERSION
         -v $REPO:/src -w /src
         -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod"
 
 if [ "$WHAT" = all ] || [ "$WHAT" = desktop ] || [ "$WHAT" = linux ]; then
     echo "=== linux/amd64(含字型)==="
     $DOCKER "$BUILD_IMG" sh -c '
-        CGO_ENABLED=1 go build -tags fonts -trimpath -ldflags "-s -w" \
-            -o /src/dist-all/wincv-linux-amd64-full ./cmd/wincv'
+        CGO_ENABLED=1 go build -tags fonts -trimpath -ldflags "-s -w -X github.com/wicanr2/wincv-remake/internal/app.Version=$WINCV_VERSION" \
+            -o /src/dist-all/$WINCV_VERSION/full-local/wincv-linux-amd64-full ./cmd/wincv'
     expect wincv-linux-amd64-full
     # 記下這個執行檔是哪個 commit 建的。alias 指的是固定名稱,光看檔案
     # 分不出它是今天建的還是三週前建的 —— 而那正是「改完卻沒生效」的來源。
@@ -95,14 +95,18 @@ if [ "$WHAT" = all ] || [ "$WHAT" = desktop ] || [ "$WHAT" = linux ]; then
         [ -n "$(git status --porcelain)" ] && H="$H-dirty"
         echo "$H"
     } ) > "$OUT/BUILT-FROM-full" 2>/dev/null || true
+    # 先建完版本目錄內的檔案,再原子替換既有 alias 使用的固定入口。
+    cp "$OUT/wincv-linux-amd64-full" "$REPO/dist-all/wincv-linux-amd64-full.tmp"
+    mv -f "$REPO/dist-all/wincv-linux-amd64-full.tmp" "$REPO/dist-all/wincv-linux-amd64-full"
+    cp "$OUT/BUILT-FROM-full" "$REPO/dist-all/BUILT-FROM-full"
 fi
 
 if [ "$WHAT" = all ] || [ "$WHAT" = desktop ]; then
     echo "=== windows/amd64(含字型)==="
     $DOCKER "$BUILD_IMG" sh -c '
         CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
-        go build -tags fonts -trimpath -ldflags "-s -w -H windowsgui" \
-            -o /src/dist-all/wincv-windows-amd64-full.exe ./cmd/wincv'
+        go build -tags fonts -trimpath -ldflags "-s -w -H windowsgui -X github.com/wicanr2/wincv-remake/internal/app.Version=$WINCV_VERSION" \
+            -o /src/dist-all/$WINCV_VERSION/full-local/wincv-windows-amd64-full.exe ./cmd/wincv'
     expect wincv-windows-amd64-full.exe
 
     echo "=== darwin universal(含字型)==="
@@ -114,15 +118,15 @@ if [ "$WHAT" = all ] || [ "$WHAT" = desktop ]; then
         build() {
             CGO_ENABLED=1 GOOS=darwin GOARCH=\$1 \
                 CC=\$2-apple-\$T-clang CXX=\$2-apple-\$T-clang++ \
-                go build -tags fonts -trimpath -ldflags '-s -w' \
-                -o /src/dist-all/wincv-darwin-\$1-full ./cmd/wincv
+                go build -tags fonts -trimpath -ldflags \"-s -w -X github.com/wicanr2/wincv-remake/internal/app.Version=\$WINCV_VERSION\" \
+                -o /src/dist-all/\$WINCV_VERSION/full-local/wincv-darwin-\$1-full ./cmd/wincv
         }
         build arm64 arm64
         build amd64 x86_64
         x86_64-apple-\$T-lipo -create \
-            /src/dist-all/wincv-darwin-arm64-full /src/dist-all/wincv-darwin-amd64-full \
-            -output /src/dist-all/wincv-darwin-universal-full
-        rm -f /src/dist-all/wincv-darwin-arm64-full /src/dist-all/wincv-darwin-amd64-full"
+            /src/dist-all/\$WINCV_VERSION/full-local/wincv-darwin-arm64-full /src/dist-all/\$WINCV_VERSION/full-local/wincv-darwin-amd64-full \
+            -output /src/dist-all/\$WINCV_VERSION/full-local/wincv-darwin-universal-full
+        rm -f /src/dist-all/\$WINCV_VERSION/full-local/wincv-darwin-arm64-full /src/dist-all/\$WINCV_VERSION/full-local/wincv-darwin-amd64-full"
     expect wincv-darwin-universal-full
 fi
 

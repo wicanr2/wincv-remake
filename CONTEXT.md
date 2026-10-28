@@ -1,5 +1,15 @@
 # CONTEXT
 
+## 目前狀態（2026-10-28）
+
+| 項目 | 狀態與入口 |
+|---|---|
+| 下拉選單 | 滑鼠移入項目時移動藍色選取列，點擊才執行；靜止滑鼠不覆蓋鍵盤選取 |
+| 本輪版號 | `v.0.53.2-20261028`，發行結果與驗證見 [WORKLOG.md](WORKLOG.md) |
+| 命令列入口 | `~/.bashrc` 的 `wincv` alias 指向 `/home/anr2/cht/wincv/dist-all/wincv-linux-amd64-full` |
+| 發行邊界 | 公開桌面封包在 `dist-all/<版本>/patch/`；含第三方字庫的 Linux 完整版只留在 `full-local/` |
+| 實際視窗驗證 | [tools/menu-hover-smoke.py](tools/menu-hover-smoke.py)，由 `Dockerfile.build` 提供 Xvfb 與輸入工具 |
+
 ## Glossary
 
 專案內一律用左欄的詞,不要在文件、變數名、commit 之間混用同義詞。

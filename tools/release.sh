@@ -26,7 +26,7 @@ fi
 OUT=$REPO/dist-all/$VERSION/patch
 STAMP=$REPO/dist/BUILT-FROM
 if [ "$BUILD" = 1 ]; then
-    "$REPO/tools/build-all.sh"
+    VERSION="$VERSION" "$REPO/tools/build-all.sh"
     printf '%s\n' "$COMMIT" > "$STAMP"
 fi
 [ -s "$STAMP" ] || { echo "dist/ 沒有建置印記" >&2; exit 1; }

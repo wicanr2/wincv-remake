@@ -17,6 +17,7 @@ OSX_IMG=${OSX_IMG:-wincv-osxcross-go:1}
 # (SDK 15.5 → darwin24.5,不是 darwin24),寫死的話換一次 SDK 就整批
 # 工具找不到,而 clang 只會轉述成 "unable to execute command"。
 OSX_TARGET=${OSX_TARGET:-}
+VERSION=${VERSION:-development}
 
 # 容器內用主機的 UID/GID 跑,不然產出的檔案屬於 root,主機這邊改不動也刪不掉。
 # HOME 要指到容器內寫得進去的地方:go 會想寫 $HOME/.config/go/env,
@@ -31,7 +32,7 @@ LIMITS=""
 [ -n "${WINCV_MEM:-}" ] && LIMITS="$LIMITS --memory $WINCV_MEM"
 DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
         $LIMITS
-        -u $(id -u):$(id -g) -e HOME=/tmp
+        -u $(id -u):$(id -g) -e HOME=/tmp -e WINCV_VERSION=$VERSION
         -v $REPO:/src -w /src
         -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod"
 
@@ -55,14 +56,14 @@ expect() {
 
 echo "=== linux/amd64 ==="
 $DOCKER "$BUILD_IMG" sh -c '
-    CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o /src/dist/wincv-linux-amd64 ./cmd/wincv'
+    CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X github.com/wicanr2/wincv-remake/internal/app.Version=$WINCV_VERSION" -o /src/dist/wincv-linux-amd64 ./cmd/wincv'
 expect wincv-linux-amd64
 
 echo "=== windows/amd64 ==="
 # -H windowsgui 讓它不要開一個主控台視窗。
 $DOCKER "$BUILD_IMG" sh -c '
     CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
-    go build -trimpath -ldflags "-s -w -H windowsgui" -o /src/dist/wincv-windows-amd64.exe ./cmd/wincv'
+    go build -trimpath -ldflags "-s -w -H windowsgui -X github.com/wicanr2/wincv-remake/internal/app.Version=$WINCV_VERSION" -o /src/dist/wincv-windows-amd64.exe ./cmd/wincv'
 expect wincv-windows-amd64.exe
 
 echo "=== darwin universal ==="
@@ -76,7 +77,7 @@ $DOCKER -e OSX_TARGET="$OSX_TARGET" "$OSX_IMG" bash -c "
     build() {   # \$1=GOARCH  \$2=工具鏈前綴
         CGO_ENABLED=1 GOOS=darwin GOARCH=\$1 \
             CC=\$2-apple-\$T-clang CXX=\$2-apple-\$T-clang++ \
-                go build -trimpath -ldflags '-s -w' -o /src/dist/wincv-darwin-\$1 ./cmd/wincv
+                go build -trimpath -ldflags \"-s -w -X github.com/wicanr2/wincv-remake/internal/app.Version=\$WINCV_VERSION\" -o /src/dist/wincv-darwin-\$1 ./cmd/wincv
     }
     build arm64 arm64
     build amd64 x86_64
