@@ -1,0 +1,11 @@
+[package]
+name = "wincv-fileop"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# 拷貝、移動、改名、刪除、比對(對應 Go 版 internal/fileop)。
+
+[dependencies]
+wincv-i18n.workspace = true

@@ -1156,6 +1156,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
+dependencies = [
+ "cfg-if",
+ "digest 0.11.3",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1868,6 +1878,35 @@ checksum = "580c875845b41ecb1564ad1ae4703044cef774145e3d7a94dc2b3fa7c97868fd"
 dependencies = [
  "bitflags 2.13.2",
 ]
+
+[[package]]
+name = "regex"
+version = "1.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.4.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-syntax"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rustc-hash"
@@ -2709,6 +2748,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "wincv-checksum"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "md-5",
+]
+
+[[package]]
+name = "wincv-convert"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "wincv-i18n",
+ "wincv-textenc",
+]
+
+[[package]]
+name = "wincv-dict"
+version = "0.1.0"
+dependencies = [
+ "wincv-i18n",
+ "wincv-textenc",
+]
+
+[[package]]
 name = "wincv-editor"
 version = "0.1.0"
 dependencies = [
@@ -2724,6 +2788,13 @@ version = "0.1.0"
 dependencies = [
  "encoding_rs",
  "wincv-fnt",
+]
+
+[[package]]
+name = "wincv-fileop"
+version = "0.1.0"
+dependencies = [
+ "wincv-i18n",
 ]
 
 [[package]]
@@ -2760,6 +2831,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wincv-note"
+version = "0.1.0"
+dependencies = [
+ "wincv-convert",
+ "wincv-textenc",
+]
+
+[[package]]
 name = "wincv-oracle"
 version = "0.1.0"
 dependencies = [
@@ -2777,6 +2856,13 @@ version = "0.1.0"
 dependencies = [
  "wincv-cell",
  "wincv-fnt",
+]
+
+[[package]]
+name = "wincv-search"
+version = "0.1.0"
+dependencies = [
+ "wincv-textenc",
 ]
 
 [[package]]

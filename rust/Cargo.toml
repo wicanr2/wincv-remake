@@ -25,6 +25,12 @@ wincv-oracle = { path = "crates/oracle" }
 wincv-archive = { path = "crates/archive" }
 wincv-syntax = { path = "crates/syntax" }
 wincv-editor = { path = "crates/editor" }
+wincv-checksum = { path = "crates/checksum" }
+wincv-convert = { path = "crates/convert" }
+wincv-note = { path = "crates/note" }
+wincv-search = { path = "crates/search" }
+wincv-fileop = { path = "crates/fileop" }
+wincv-dict = { path = "crates/dict" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"

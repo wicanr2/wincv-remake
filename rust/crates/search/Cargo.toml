@@ -1,0 +1,11 @@
+[package]
+name = "wincv-search"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# 尋找 檔名/字串/註解(對應 Go 版 internal/search)。
+
+[dependencies]
+wincv-textenc.workspace = true
