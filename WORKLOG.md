@@ -45,3 +45,9 @@
 - 修法：建表範圍擴到 A1–FE，照 WHATWG 依碼的順序「取第一個」：同時在標準區與 HKSCS 區的字（包、港…）拿到標準碼，只在 HKSCS 區的字編成 FA–FE 碼。修正後與 encoding_rs 在全部字上相同；`TestBig5CodeRoundTrip` 改成檢查「標準區有的字不可拿到 HKSCS 碼」與「HKSCS 字編得出來」。
 - 發布：來源提交 `9ee8758ba5a0c584f1d4c93461b5c776d913f2c7` 與同名 tag 已推送；[v.0.53.5-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.5-20261109) 於 2026-11-09 19:13（Asia/Taipei）公開，三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip` 的 GitHub SHA-256 與本機一致；`tools/verify-dist.sh` 靜態驗收通過。
 - 固定入口：`dist-all/wincv-linux-amd64-full` 已換成這一版（SHA-256 `701d820e94fba865b3a284b80877117eaf1c42458fba4042f455c43af20cd3f3`），與 `full-local/` 內相同；公開版與完整版 `-version` 都回報 `v.0.53.5-20261109`。`BUILT-FROM-full` 的 `-dirty` 來自未追蹤的 `AGENTS.md`。
+
+## 2026-11-09：壓縮檔成員路徑正規化、解碼器 panic 不再讓程式結束
+
+- 由 Rust 改寫的壓縮檔比對（`rust-rewrite` 分支，`tools/archive-parity.sh` 與 `tools/rust-parity.sh` 的壓縮檔場景）發現兩個 Go 版問題。
+- `./` 開頭的成員路徑（`tar czf x.tgz .` 打包出來就是這樣）：最上層多一個「.」目錄，檔案藏在底下；`buildDirs` 用 `path.Dir`（會 Clean）補出來的中間層目錄與成員路徑對不上，進去是空的。絕對路徑的成員整個看不到。`archive.Open` 讀完後把成員路徑換成 `path.Clean("/"+p)` 去掉開頭的 `/`，空字串的（壓縮檔根目錄自己）不列。`TestMemberPathsNormalized` 盯著。
+- `bodgit/sevenzip` v1.5.2 在部分 7z 的標頭上 panic（`types.go:846` index out of range；實例是 sevenz-rust2 0.24.1 的 `examples/data/sample.7z`），使用者在這種檔上按 Enter 整個程式結束。`archive.Open` 與 `FS.Open` 把解碼器 panic 轉成錯誤「讀取 7-Zip 時發生內部錯誤」。實測該檔改為回錯誤、程式繼續。

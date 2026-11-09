@@ -346,3 +346,43 @@ func TestFormatCoverage(t *testing.T) {
 		t.Errorf("已支援 %d 種,ZIP/TAR/GZ/BZ2/RAR/7z 這六種應該都要在", done)
 	}
 }
+
+// `tar czf x.tgz .` 打包出來的路徑帶 ./,另有絕對路徑與重複斜線。正規化之後
+// 最上層不會多一個「.」目錄,中間層目錄也進得去。
+func TestMemberPathsNormalized(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, e := range []struct{ name, body string }{
+		{"./", ""}, {"./docs/a.txt", "a"}, {"./b.txt", "b"}, {"/abs/c.txt", "c"}, {"x//y.txt", "y"},
+	} {
+		h := &tar.Header{Name: e.name, Size: int64(len(e.body)), Mode: 0o644, Typeflag: tar.TypeReg}
+		if strings.HasSuffix(e.name, "/") {
+			h.Typeflag = tar.TypeDir
+		}
+		if err := tw.WriteHeader(h); err != nil {
+			t.Fatal(err)
+		}
+		io.WriteString(tw, e.body)
+	}
+	tw.Close()
+	p := filepath.Join(t.TempDir(), "dot.tar")
+	os.WriteFile(p, buf.Bytes(), 0o644)
+	a, err := Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(namesOf(t, a, a.Root()), " "); got != "abs/ b.txt docs/ x/" {
+		t.Errorf("最上層 = %q", got)
+	}
+	if got := strings.Join(namesOf(t, a, a.Path("docs")), " "); got != "a.txt" {
+		t.Errorf("docs/ = %q", got)
+	}
+	rc, err := a.Open(a.Path("abs/c.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(rc)
+	if string(b) != "c" {
+		t.Errorf("abs/c.txt = %q", b)
+	}
+}
