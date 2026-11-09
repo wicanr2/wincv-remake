@@ -133,6 +133,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第二階段 2：`vfs`、`browser`（目錄畫面） | 完成：5 個目錄場景與 Go 版逐像素相同（見下） | `tools/rust-parity.sh` |
 | 第二階段 3：`viewer`、`hexview`、`session` | 完成（見下） | `tools/rust-parity.sh` |
 | 第二階段 4：壓縮檔（`wincv-archive`） | 完成：12 種格式；737 個真實壓縮檔的 116,959 個檔案與 Go 版相同，另外多解出 2,839 個 Go 版解不開的檔（見下） | `tools/archive-parity.sh`、`tools/rust-parity.sh` |
+| 第二階段 5a：`syntax`、`editor`、`checksum`、`convert`、`note`、`search`、`fileop`、`dict` | 完成：Go 版的單元測試全部照搬並通過；4 個編輯器場景與 Go 版逐像素相同（見下） | `cargo test`、`tools/rust-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -316,6 +317,18 @@ Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模�
 - 成員路徑帶 `./`（`tar czf x.tgz .` 打包的就是這樣）時，最上層多一個「.」目錄，補出來的中間層目錄進去是空的；絕對路徑的成員看不到。
   兩邊都改成讀進來時正規化路徑。
 - bodgit/sevenzip 在部分 7z 的標頭上 panic，整個程式結束。`archive.Open` 與 `FS.Open` 改成把 panic 轉成錯誤。
+
+### 第二階段 5a：編輯器與檔案工具（2026-11-09）
+
+八個套件照搬 Go 版，單元測試也逐條搬過來（syntax 8、editor 20、checksum 3、convert 8、note 4、search 5、fileop 9、dict 9），
+字典另外用原版的 5.6 MB 真實資料驗。`tools/rust-parity.sh` 加 4 個編輯器場景（C 的跨行註解、字串、數字、Tab；Pascal；
+原版 Big5 的 `whatsnew.txt`；30×6 的小畫面），全部 27 個場景與 Go 版逐像素相同。
+
+與 Go 版刻意不同的地方：
+
+- 編輯器存 UTF-16 檔時寫回 UTF-16（帶 BOM）。Go 版的編碼器對 UTF-16 直接輸出 UTF-8 位元組。
+- `convert.rename_case` 的首字母大寫以字元為單位。Go 版取第一個位元組，首字是中文或 é 時會把檔名弄壞（已在 master 修正）。
+- 狀態列靠右對齊用顯示寬度。Go 版用位元組數，含中文時離右緣空出幾格（已在 master 修正，新增 `cell.Width`）。
 
 ### 比對時找到的 Go 版 bug：Big5 編碼器的 HKSCS 碼
 
