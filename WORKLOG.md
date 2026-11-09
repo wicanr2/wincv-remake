@@ -75,3 +75,5 @@
 ## 2026-11-09：v.0.53.7-20261109
 
 - 收錄上面三條修正：狀態列靠右對齊改用顯示寬度、`convert.RenameCase` 首字母大寫以字元為單位、ICO 與 TGA 的半透明像素改用非預乘。
+- 發布：來源提交 `3d1394a1704be69fdeb3e9b29718ae40245c9a39` 與同名 tag 已推送；[v.0.53.7-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.7-20261109) 於 2026-11-09 21:43（Asia/Taipei）公開，三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip` 的 GitHub SHA-256 與本機一致；`tools/verify-dist.sh` 靜態驗收通過。
+- 固定入口：`dist-all/wincv-linux-amd64-full` 已換成這一版（SHA-256 `dab3b31de88e86d1312f4bf41378b2a62651bde46bf30336fd83f6ab931de216`），與 `full-local/` 內相同；公開版與完整版 `-version` 都回報 `v.0.53.7-20261109`。
