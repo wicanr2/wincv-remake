@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Go 版與 Rust 版的字型光柵化對照:同一份字型、同一串字、同一個字級,字模逐位元比對。
+# Go 版與 Rust 版的字型對照:
+#   1. 點陣字模(ttf):同一份字型、同一串字、同一個字級,字模逐位元比對。
+#   2. 向量外框(vecfont):同一份字型與預設字型組,外框逐段比對(26.6 定點整數)。
 #
 #   tools/glyph-parity.sh
 #
@@ -30,6 +32,7 @@ s += '，。！？「」『』（）《》～、：；…—'
 open(sys.argv[1], 'w', encoding='utf-8').write(s)
 print(len(s), '個字', file=sys.stderr)
 PY
+"$REPO/tools/cargo.sh" build -q --release -p wincv-oracle
 F=/usr/share/fonts
 CASES=(
   "opentype/noto/NotoSansCJK-Regular.ttc 8 16 16 0 0"
@@ -71,6 +74,39 @@ for c in "${CASES[@]}"; do
     else
         diff=$(paste "$OUT/$tag.go" "$OUT/$tag.rust" | awk -F'\t' '{n=NF/2; a=""; b=""; for(i=1;i<=n;i++)a=a $i "\t"; for(i=n+1;i<=NF;i++)b=b $i "\t"; if(a!=b)c++} END{print c+0}')
         printf '%-60s 不同:%d / %d 個字\n' "$c" "$diff" "$total"
+        fail=1
+    fi
+done
+
+# 向量外框。「default」是 vecfont 的預設字型組(內嵌 + 系統字型),系統字型目錄
+# 以原路徑掛進去,兩邊看到同一份候選清單。
+VEC=(
+  "opentype/noto/NotoSansCJK-Regular.ttc"
+  "truetype/dejavu/DejaVuSans.ttf"
+  "truetype/dejavu/DejaVuSansMono.ttf"
+  "truetype/liberation/LiberationSerif-Regular.ttf"
+  "truetype/noto/NotoMono-Regular.ttf"
+  "default"
+)
+for v in "${VEC[@]}"; do
+    arg=()
+    if [ "$v" != default ]; then
+        [ -f "$F/$v" ] || { echo "跳過(沒有字型) $v"; continue; }
+        arg=("/fonts/$v")
+    fi
+    tag=vec_$(echo "$v" | tr ' /' '__')
+    docker run "${common[@]}" -v "$F":/usr/share/fonts:ro -w /src -v "$REPO/.cache/gomod":/gomod -v "$REPO/.cache/gobuild":/gobuild \
+        -e GOFLAGS=-buildvcs=false -e GOCACHE=/gobuild -e GOMODCACHE=/gomod -e GOPROXY=off \
+        wincv-build:1 sh -c 'go run ./tools/vecsum "$@"' sh "${arg[@]}" < "$OUT/chars.txt" > "$OUT/$tag.go" 2>&1 || true
+    docker run "${common[@]}" -v "$F":/usr/share/fonts:ro -w /src/rust -v "$REPO/.cache/cargo-target":/cargo-target \
+        wincv-rust:1 /cargo-target/release/vecsum "${arg[@]}" < "$OUT/chars.txt" > "$OUT/$tag.rust" 2>&1 || true
+    total=$(wc -l < "$OUT/$tag.go")
+    nil=$(grep -c $'\t-$' "$OUT/$tag.go" || true)
+    if cmp -s "$OUT/$tag.go" "$OUT/$tag.rust"; then
+        printf '%-60s 外框相同:%d 個字(沒有的 %d 個)\n' "vec $v" "$total" "$nil"
+    else
+        diff=$(diff "$OUT/$tag.go" "$OUT/$tag.rust" | grep -c '^<' || true)
+        printf '%-60s 外框不同:%d / %d 個字\n' "vec $v" "$diff" "$total"
         fail=1
     fi
 done

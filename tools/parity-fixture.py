@@ -118,3 +118,18 @@ with open(os.path.join(im, "gray.pgm"), "wb") as f:
     f.write(b"P5\n32 16\n255\n" + bytes((x * 8 + y * 3) % 256 for y in range(16) for x in range(32)))
 for n in ("grad.tga", "gray.pgm"):
     os.utime(os.path.join(im, n), (1_000_000_000, 1_000_000_000))
+
+# 後備字型的場景:Big5 以外的字(简体、日文、韓文、希臘、西里爾、帶附加符號的拉丁字母、符號)。
+uni = (
+    "繁體:倚天中文 WinCV 檔案瀏覽\n"
+    "简体:简体中文汉字为这个们来对说时国后会还发经现开问\n"
+    "日本語:ひらがな カタカナ 漢字\n"
+    "한국어:한글 음절 조합\n"
+    "Ελληνικά: άέήίόύώ ΐΰ\n"
+    "Русский: съешь же ещё этих мягких булок\n"
+    "Latin: ÃÑÕĞĨŎŨŬ ąćęłńśźż ŞğıİÇ\n"
+    "符號:①②③★☆♠♥←↑→↓√∞≠≤≥\n"
+)
+with open(os.path.join(root, "unicode.txt"), "w", encoding="utf-8", newline="\n") as f:
+    f.write(uni)
+os.utime(os.path.join(root, "unicode.txt"), (1_000_000_000, 1_000_000_000))

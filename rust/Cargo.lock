@@ -2806,6 +2806,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "wincv-bundled"
+version = "0.1.0"
+
+[[package]]
 name = "wincv-cell"
 version = "0.1.0"
 
@@ -2816,10 +2820,13 @@ dependencies = [
  "png 0.17.16",
  "wincv-archive",
  "wincv-browser",
+ "wincv-bundled",
  "wincv-cell",
+ "wincv-datadir",
  "wincv-editor",
  "wincv-eten",
  "wincv-fnt",
+ "wincv-fontset",
  "wincv-hexview",
  "wincv-imgfmt",
  "wincv-imgview",
@@ -2827,6 +2834,7 @@ dependencies = [
  "wincv-syntax",
  "wincv-textenc",
  "wincv-thumbs",
+ "wincv-ttf",
  "wincv-vfs",
  "wincv-viewer",
 ]
@@ -2847,6 +2855,10 @@ dependencies = [
  "wincv-i18n",
  "wincv-textenc",
 ]
+
+[[package]]
+name = "wincv-datadir"
+version = "0.1.0"
 
 [[package]]
 name = "wincv-dict"
@@ -2874,6 +2886,7 @@ dependencies = [
  "sha2 0.10.9",
  "wincv-fnt",
  "wincv-i18n",
+ "wincv-render",
 ]
 
 [[package]]
@@ -2886,6 +2899,18 @@ dependencies = [
 [[package]]
 name = "wincv-fnt"
 version = "0.1.0"
+
+[[package]]
+name = "wincv-fontset"
+version = "0.1.0"
+dependencies = [
+ "wincv-bundled",
+ "wincv-eten",
+ "wincv-fnt",
+ "wincv-i18n",
+ "wincv-render",
+ "wincv-ttf",
+]
 
 [[package]]
 name = "wincv-hexview"
@@ -2959,6 +2984,7 @@ dependencies = [
  "wincv-render",
  "wincv-textenc",
  "wincv-ttf",
+ "wincv-vecfont",
  "wincv-vfs",
 ]
 
@@ -3019,6 +3045,15 @@ dependencies = [
  "wincv-fnt",
  "wincv-i18n",
  "wincv-render",
+]
+
+[[package]]
+name = "wincv-vecfont"
+version = "0.1.0"
+dependencies = [
+ "ttf-parser",
+ "wincv-bundled",
+ "wincv-ttf",
 ]
 
 [[package]]

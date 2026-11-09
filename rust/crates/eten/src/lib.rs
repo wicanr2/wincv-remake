@@ -15,7 +15,7 @@
 pub mod cjk24;
 mod etunpack;
 
-pub use etunpack::unpack as unpack_etunpack;
+pub use etunpack::{unpack as unpack_etunpack, MAGIC as ETUNPACK_MAGIC};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -239,6 +239,12 @@ fn decode(b: &[u8], w: i32, h: i32) -> Glyph {
         }
     }
     g
+}
+
+impl wincv_render::CjkSource for Font {
+    fn glyph(&self, r: char) -> Option<Glyph> {
+        Font::glyph(self, r)
+    }
 }
 
 #[cfg(test)]

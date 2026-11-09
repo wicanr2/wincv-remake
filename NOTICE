@@ -55,14 +55,20 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## 定點數光柵器:`rust/crates/ttf/src/gofix.rs`
+## 向量字型:`rust/crates/ttf`
 
-Rust 版的向量字型光柵器是**逐段移植自
-[golang.org/x/image](https://pkg.go.dev/golang.org/x/image) v0.20.0 的
-`vector` 套件**(`raster_fixed.go` 與 `vector.go` 的路徑切分),目的是讓
-Go 版與 Rust 版畫出逐位元相同的字模。同一個 crate 的 `lib.rs` 照
-`font/sfnt` 與 `font/opentype` 的座標量化規則實作(中點截斷、26.6 捨入、
-advance 對齊),沒有複製其原始碼。依其授權條款,著作權聲明如下:
+Rust 版 `wincv-ttf` 有兩個檔案**逐段移植自
+[golang.org/x/image](https://pkg.go.dev/golang.org/x/image) v0.20.0**,
+目的是讓 Go 版與 Rust 版得到逐段相同的外框、逐位元相同的字模:
+
+- `rust/crates/ttf/src/gofix.rs`:`vector` 套件的定點數光柵器
+  (`raster_fixed.go` 與 `vector.go` 的路徑切分)。
+- `rust/crates/ttf/src/glyf.rs`:`font/sfnt/truetype.go` 的 TrueType 外框解碼
+  (`loadGlyf`、`loadCompoundGlyf`、`glyfIter`)。
+
+同一個 crate 的 `lib.rs` 照 `font/sfnt` 與 `font/opentype` 的座標量化規則實作
+(26.6 捨入、advance 對齊、包圍盒),沒有複製其原始碼。依其授權條款,
+著作權聲明如下:
 
 ```
 Copyright 2009 The Go Authors.

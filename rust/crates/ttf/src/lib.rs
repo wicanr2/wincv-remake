@@ -9,6 +9,7 @@
 //! 計算、縮放時四捨五入到 26.6 定點)、曲線切分、22.9 定點數的覆蓋率累加
 //! (見 [`gofix`])。所以同一份字型在兩邊畫出來的字模逐位元相同。
 
+mod glyf;
 pub mod gofix;
 mod paths;
 
@@ -27,7 +28,6 @@ use wincv_render::{CjkSource, HalfSource};
 /// 一個後備字型,依 `is_wide` 決定每個字佔一格或兩格。
 pub struct Font {
     data: Arc<[u8]>,
-    upem: i32,
     /// 字級(26.6 定點的 ppem)。
     ppem: i32,
     half_w: i32,
@@ -50,22 +50,61 @@ fn parse(data: &[u8]) -> Result<ttf_parser::Face<'_>, String> {
 }
 
 /// 外框的一段,座標是 26.6 定點、Y 軸向下(與 Go 版的 sfnt 相同)。
-enum Seg {
+///
+/// `Z` 是一個輪廓的結尾,意思是「回到這個輪廓的起點」。光柵器把它當成一條直線;
+/// 要列出線段的地方(`wincv-vecfont`)只在筆不在起點時補那一條線,與 Go 版 sfnt
+/// 產生的線段相同。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Seg {
     M(i32, i32),
     L(i32, i32),
     Q(i32, i32, i32, i32),
     C(i32, i32, i32, i32, i32, i32),
+    Z,
 }
 
-/// 把 ttf-parser 的外框換成 Go 版 sfnt 會得到的座標。
+/// 一個字形的外框,字級 `ppem`(26.6 定點)。座標的量化照 Go 版 sfnt 的 `LoadGlyph`。
 ///
-/// TrueType 的隱含曲線中點,Go 版在縮放前以整數相加除 2(向零截斷);ttf-parser 給的
-/// 是浮點數的中點。原始控制點都是整數,所以帶 .5 的一定是中點,向零截斷就與 Go 相同。
+/// TrueType 外框走 [`glyf`] 的移植(複合字形的中點與位移順序要跟 Go 版一樣),
+/// CFF 外框走 ttf-parser。字形資料有問題時回空的外框,與 Go 版回錯誤時一樣畫不出東西。
+pub fn outline(face: &ttf_parser::Face<'_>, gid: ttf_parser::GlyphId, ppem: i32) -> Vec<Seg> {
+    let upem = face.units_per_em() as i64;
+    if let Some(g) = glyf::Glyf::new(face) {
+        // Go 版:x 乘 ppem 再縮放,y 另外翻轉。乘法在 int32 裡做(Go 的 fixed.Int26_6)。
+        let sc = |p: (i32, i32)| {
+            (scale(p.0.wrapping_mul(ppem) as i64, upem), -scale(p.1.wrapping_mul(ppem) as i64, upem))
+        };
+        return g
+            .load(gid)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|s| {
+                let (a, b) = (sc(s.p[0]), sc(s.p[1]));
+                match s.op {
+                    b'm' => Seg::M(a.0, a.1),
+                    b'l' => Seg::L(a.0, a.1),
+                    _ => Seg::Q(a.0, a.1, b.0, b.1),
+                }
+            })
+            .collect();
+    }
+    let mut c = Collect { upem, ppem: ppem as i64, segs: Vec::new() };
+    face.outline_glyph(gid, &mut c);
+    c.segs
+}
+
+/// 前進寬度(26.6 定點,不做 hinting),照 Go 版 sfnt 的 `GlyphAdvance`。
+pub fn advance(face: &ttf_parser::Face<'_>, gid: ttf_parser::GlyphId, ppem: i32) -> Option<i32> {
+    let units = face.glyph_hor_advance(gid)?;
+    Some(scale(units as i64 * ppem as i64, face.units_per_em() as i64))
+}
+
+/// 把 ttf-parser 的 CFF 外框換成 Go 版 sfnt 會得到的座標:先向零截斷成整數字型單位,
+/// 再照 Go 的 `scale` 縮放。TrueType 外框不走這裡(見 [`glyf`])。
 struct Collect {
     upem: i64,
     ppem: i64,
     segs: Vec<Seg>,
-    first: (i32, i32),
 }
 
 impl Collect {
@@ -78,7 +117,6 @@ impl Collect {
 impl ttf_parser::OutlineBuilder for Collect {
     fn move_to(&mut self, x: f32, y: f32) {
         let (a, b) = self.p(x, y);
-        self.first = (a, b);
         self.segs.push(Seg::M(a, b));
     }
     fn line_to(&mut self, x: f32, y: f32) {
@@ -97,9 +135,7 @@ impl ttf_parser::OutlineBuilder for Collect {
         self.segs.push(Seg::C(a, b, c, d, e, f));
     }
     fn close(&mut self) {
-        // 回到起點。長度為零的線段對覆蓋率沒有影響,所以不必判斷是否已經在起點。
-        let (a, b) = self.first;
-        self.segs.push(Seg::L(a, b));
+        self.segs.push(Seg::Z);
     }
 }
 
@@ -135,7 +171,6 @@ impl Font {
         drop(face);
         Ok(Font {
             data,
-            upem: upem as i32,
             ppem,
             half_w,
             full_w,
@@ -172,8 +207,7 @@ impl Font {
         let face = parse(&self.data).ok()?;
         let gid = face.glyph_index(r).filter(|g| g.0 != 0)?;
         let w = if is_wide(r) { self.full_w } else { self.half_w };
-        let mut c = Collect { upem: self.upem as i64, ppem: self.ppem as i64, segs: Vec::new(), first: (0, 0) };
-        face.outline_glyph(gid, &mut c);
+        let segs = outline(&face, gid, self.ppem);
 
         // Go 版 opentype.Face.Glyph:以 (0, ascent) 為原點,外框的包圍盒(含控制點)
         // 取整成像素矩形,再把座標平移進光柵器。
@@ -185,8 +219,9 @@ impl Font {
             y0 = y0.min(y);
             y1 = y1.max(y);
         };
-        for s in &c.segs {
+        for s in &segs {
             match *s {
+                Seg::Z => {}
                 Seg::M(a, b) | Seg::L(a, b) => grow(a, b),
                 Seg::Q(a, b, cc, d) => {
                     grow(a, b);
@@ -199,7 +234,7 @@ impl Font {
                 }
             }
         }
-        if c.segs.is_empty() {
+        if segs.is_empty() {
             (x0, y0, x1, y1) = (0, 0, 0, 0);
         }
         let (dr_x0, dr_y0) = (x0 >> 6, (y0 + dot_y) >> 6);
@@ -211,8 +246,10 @@ impl Font {
         let (bias_x, bias_y) = (-(dr_x0 << 6), dot_y - (dr_y0 << 6));
         let f = |v: i32, b: i32| (v + b) as f32 / 64.0;
         let mut ras = gofix::Raster::new(mw, mh);
-        for s in &c.segs {
+        for s in &segs {
             match *s {
+                // 回到起點。長度為零的線段對覆蓋率沒有影響,所以不必判斷是否已經在起點。
+                Seg::Z => ras.close_path(),
                 Seg::M(a, b) => ras.move_to(f(a, bias_x), f(b, bias_y)),
                 Seg::L(a, b) => ras.line_to(f(a, bias_x), f(b, bias_y)),
                 Seg::Q(a, b, cc, d) => ras.quad_to(f(a, bias_x), f(b, bias_y), f(cc, bias_x), f(d, bias_y)),

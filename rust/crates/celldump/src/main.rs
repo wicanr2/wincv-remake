@@ -11,7 +11,7 @@ use std::process::exit;
 
 use wincv_cell::{Color, Screen, NAMES, NUM_COLORS};
 use wincv_eten as eten;
-use wincv_render::{scale_cjk, CjkSource, Rasterizer, LINE_GAP};
+use wincv_render::{CjkSource, Rasterizer, LINE_GAP};
 
 struct Args {
     half: PathBuf,
@@ -25,13 +25,18 @@ struct Args {
     edit: Option<PathBuf>,
     cfg: Option<PathBuf>,
     thumbs: Option<PathBuf>,
+    std24: Option<PathBuf>,
+    spc24: Option<PathBuf>,
+    fallback: Option<PathBuf>,
+    no_fallback: bool,
+    bitmap_cjk: bool,
 }
 
 fn parse_args() -> Args {
     let mut a = Args {
-        half: "cvga.fon".into(),
-        std: "STDFONT.15".into(),
-        spc: "SPCFONT.15".into(),
+        half: PathBuf::new(),
+        std: PathBuf::new(),
+        spc: PathBuf::new(),
         out: "screen.png".into(),
         cols: 80,
         rows: 25,
@@ -40,6 +45,11 @@ fn parse_args() -> Args {
         edit: None,
         cfg: None,
         thumbs: None,
+        std24: None,
+        spc24: None,
+        fallback: None,
+        no_fallback: false,
+        bitmap_cjk: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
@@ -56,6 +66,11 @@ fn parse_args() -> Args {
             "-edit" => a.edit = Some(v().into()),
             "-cfg" => a.cfg = Some(v().into()),
             "-thumbs" => a.thumbs = Some(v().into()),
+            "-eten24-std" => a.std24 = Some(v().into()),
+            "-eten24-spc" => a.spc24 = Some(v().into()),
+            "-fallback" => a.fallback = Some(v().into()),
+            "-no-fallback" => a.no_fallback = true,
+            "-bitmap-cjk" => a.bitmap_cjk = true,
             _ => die(&format!("不認得的參數 {k}")),
         }
     }
@@ -67,28 +82,83 @@ fn die(msg: &str) -> ! {
     exit(1)
 }
 
-struct Eten(eten::Font);
+/// 讀半形字型。磁碟優先,內嵌後備,與 Go 版 celldump 的 loadHalf 相同。
+fn load_half(p: &std::path::Path) -> wincv_fnt::Font {
+    let d = std::fs::read(p).or_else(|e| {
+        let base = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        wincv_bundled::get(&base).map(<[u8]>::to_vec).ok_or(e)
+    });
+    // 講出找過哪裡。只說「開不了 cvga.fon」的話,使用者連該把檔案放去哪都不知道。
+    let d = d.unwrap_or_else(|e| {
+        die(&format!(
+            "{}: {e}\n找過這些目錄(可設 {} 指定):\n{}",
+            p.display(),
+            wincv_datadir::ENV_HOME,
+            wincv_datadir::explain()
+        ))
+    });
+    wincv_fnt::Font::parse(d).unwrap_or_else(|e| die(&e.to_string()))
+}
 
-impl CjkSource for Eten {
-    fn glyph(&self, r: char) -> Option<wincv_fnt::Glyph> {
-        self.0.glyph(r)
+/// 後備字型,與 Go 版 celldump 的 loadFallback 相同:指定了就只用那一份,否則串起
+/// 系統上讀得起來的字型。字級是**字身高**(不含列距),Go 版就是這樣傳的。
+fn load_fallback(path: Option<&std::path::Path>, cw: i32, ch: i32) -> Option<wincv_ttf::Chain> {
+    if path.is_some() {
+        return wincv_fontset::fallback(path, cw, ch);
     }
+    let (chain, used, errs) = wincv_ttf::load_chain(cw, cw * 2, ch);
+    for e in errs {
+        eprintln!("警告:字型載不起來 {e}");
+    }
+    if chain.0.is_empty() {
+        eprintln!("警告:找不到後備字型,倚天字庫以外的字會畫成空框");
+        return None;
+    }
+    if std::env::var_os("WINCV_VERBOSE").is_some() {
+        eprintln!("後備字型:{used:?}");
+    }
+    Some(chain)
 }
 
 fn main() {
-    let a = parse_args();
-    let half_bytes = std::fs::read(&a.half).unwrap_or_else(|e| die(&format!("{}: {e}", a.half.display())));
-    let half = wincv_fnt::Font::parse(half_bytes).unwrap_or_else(|e| die(&e.to_string()));
+    let mut a = parse_args();
+    // 原版素材放在哪裡由 datadir 決定,不是相對於工作目錄猜一個(與 Go 版相同)。
+    use wincv_datadir::resolve2;
+    a.half = resolve2(Some(&a.half), "cvga.fon");
+    a.std = resolve2(Some(&a.std), "STDFONT.15");
+    a.spc = resolve2(Some(&a.spc), "SPCFONT.15");
+    a.std24 = Some(resolve2(a.std24.as_deref(), "STD.24M"));
+    a.spc24 = Some(resolve2(a.spc24.as_deref(), "SPCFONT.24"));
+    let half = load_half(&a.half);
     let (hw, hh) = half.size();
-    let cjk: Option<Box<dyn CjkSource>> = match eten::Font::load(&a.std, Some(&a.spc), eten::NATIVE_W, eten::NATIVE_H) {
-        Ok(f) => Some(Box::new(scale_cjk(Eten(f), hw * 2, hh + LINE_GAP))),
+    // 倚天字庫的 w、h 是**字庫自己**的點陣尺寸,目標大小交給 fontset::compose。
+    // 12×24 的字級先試原生 24 點字庫,與 Go 版相同。
+    let mut cjk = eten::Font::load(&a.std, Some(&a.spc), eten::NATIVE_W, eten::NATIVE_H);
+    if hw * 2 == eten::NATIVE24_W {
+        if let Some(std24) = &a.std24 {
+            if let Ok(f) = eten::Font::load24(std24, a.spc24.as_deref()) {
+                cjk = Ok(f);
+            }
+        }
+    }
+    if cjk.is_err() && wincv_bundled::get("STDFONT.15").is_some() {
+        // 沒有磁碟上的字庫時改用內嵌的(fontset::eten15 讀不到路徑就問內嵌)。
+        cjk = wincv_fontset::eten15(None, None, eten::NATIVE_W, eten::NATIVE_H);
+    }
+    let cjk = match cjk {
+        Ok(f) => Some(std::sync::Arc::new(f)),
         Err(e) => {
             eprintln!("警告:載不到倚天字庫,全形字會留白 ({e})");
             None
         }
     };
-    let mut r = Rasterizer::new(Box::new(half), cjk);
+    // 光柵器的格子是字身高加列距;後備字型的字級是字身高(與 Go 版相同)。
+    let fb = if a.no_fallback { None } else { load_fallback(a.fallback.as_deref(), hw, hh) };
+    wincv_fontset::set_bitmap_cjk(a.bitmap_cjk);
+    let (cjk_src, fb) = wincv_fontset::compose(hw, hh + LINE_GAP, cjk.as_ref(), fb);
+    let mut r = Rasterizer::new(Box::new(half), cjk_src.map(|c| Box::new(c) as Box<dyn CjkSource>));
     r.missing_mark = true;
+    r.fallback = fb.map(|f| Box::new(f) as Box<dyn CjkSource>);
 
     let mut s = Screen::new(a.cols, a.rows);
     let mut overlay: Option<wincv_render::Overlay> = None;

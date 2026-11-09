@@ -35,6 +35,10 @@ wincv-imgfmt = { path = "crates/imgfmt" }
 wincv-imgview = { path = "crates/imgview" }
 wincv-thumbs = { path = "crates/thumbs" }
 wincv-ttf = { path = "crates/ttf" }
+wincv-bundled = { path = "crates/bundled" }
+wincv-vecfont = { path = "crates/vecfont" }
+wincv-fontset = { path = "crates/fontset" }
+wincv-datadir = { path = "crates/datadir" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"

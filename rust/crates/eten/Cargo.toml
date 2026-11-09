@@ -8,6 +8,7 @@ publish.workspace = true
 [dependencies]
 wincv-i18n.workspace = true
 wincv-fnt.workspace = true
+wincv-render.workspace = true
 encoding_rs.workspace = true
 
 [dev-dependencies]

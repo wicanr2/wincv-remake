@@ -20,6 +20,10 @@ name = "glyphsum"
 path = "src/bin/glyphsum.rs"
 
 [[bin]]
+name = "vecsum"
+path = "src/bin/vecsum.rs"
+
+[[bin]]
 name = "imgsum"
 path = "src/bin/imgsum.rs"
 
@@ -31,6 +35,7 @@ path = "src/bin/pdfshot.rs"
 wincv-archive.workspace = true
 wincv-imgfmt.workspace = true
 wincv-ttf.workspace = true
+wincv-vecfont.workspace = true
 wincv-fnt.workspace = true
 wincv-render.workspace = true
 wincv-vfs.workspace = true

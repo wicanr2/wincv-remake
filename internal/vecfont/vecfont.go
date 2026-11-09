@@ -55,6 +55,14 @@ type glyph struct {
 
 var std = &Set{}
 
+// New 用指定的幾份字型組一組,不碰內嵌與系統字型。對照工具
+// (tools/vecsum)用它固定字型,好與 Rust 版逐段比對外框。
+func New(fonts ...*sfnt.Font) *Set {
+	s := &Set{fonts: fonts}
+	s.once.Do(func() {})
+	return s
+}
+
 // Default 是共用的那一組。字型只在第一次要用時才載入。
 func Default() *Set { return std }
 

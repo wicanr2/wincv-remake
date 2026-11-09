@@ -135,6 +135,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第二階段 4：壓縮檔（`wincv-archive`） | 完成：12 種格式；737 個真實壓縮檔的 116,959 個檔案與 Go 版相同，另外多解出 2,839 個 Go 版解不開的檔（見下） | `tools/archive-parity.sh`、`tools/rust-parity.sh` |
 | 第二階段 5a：`syntax`、`editor`、`checksum`、`convert`、`note`、`search`、`fileop`、`dict` | 完成：Go 版的單元測試全部照搬並通過；4 個編輯器場景與 Go 版逐像素相同（見下） | `cargo test`、`tools/rust-parity.sh` |
 | 第二階段 5b：`imgfmt`、`imgview`、`thumbs`（SVG 除外） | 完成：1,922 張真實圖檔與 Go 版比對，JPEG 與 WebP 另以 Pillow 當第三方真值；7 個看圖與縮圖場景逐像素相同（見下） | `tools/img-parity.sh`、`tools/rust-parity.sh` |
+| 第二階段 6：字型（`ttf`、`vecfont`、`fontset`、`bundled`、`datadir`，含 24 點倚天字庫） | 完成：Go 版讀得了的字型，點陣字模逐位元相同、向量外框逐段相同；9 個字級與後備字型場景逐像素相同（見下） | `tools/glyph-parity.sh`、`tools/rust-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -336,7 +337,7 @@ Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模�
 - JPEG、PNG、GIF、BMP、TIFF、WebP 用 image 0.25（zune-jpeg、image-webp 等純 Rust 解碼器）；PCX、TGA、PNM、ICO、Koala 從 Go 版搬過來。
   image crate 解不開的 TIFF（調色盤、CCITT Group 3）由自寫的備援解碼器接手，Group 3 交給 fax crate。
 - 自寫的解碼器認不得時，再依 magic number 試一次（副檔名寫錯的檔案很常見：`.ico` 其實是 PNG、`.gif` 其實是 JPEG）。
-- SVG 要等字型模組（`ttf`、`vecfont`）搬完，格式表暫時標成未支援。
+- SVG 要等字型模組（`ttf`、`vecfont`）搬完，格式表暫時標成未支援。字型模組已在第二階段 6 搬完。
 
 `tools/img-parity.sh` 用 `~/cht` 底下 1,922 張真實圖檔（依格式分層抽樣）比較兩邊解出的像素，比的是疊在黑底上的結果，
 全透明像素的 RGB 不算：
@@ -362,6 +363,32 @@ JPEG 的色度上採樣也比較粗。
 
 比對時找到的 Go 版問題（已在 master 修正）：ICO 與 TGA 的 32 位元圖把非預乘的 BGRA 存進 `image.RGBA`，
 半透明像素（圖示的反鋸齒邊緣）顏色算錯。
+
+### 第二階段 6：字型（2026-11-09）
+
+- `wincv-ttf`：外框用 ttf-parser 讀，光柵器（`gofix.rs`）與 TrueType 外框解碼（`glyf.rs`）逐段移植自 Go 的
+  x/image v0.20.0，座標量化照 Go 的 sfnt。後備鏈、系統字型目錄的掃描、半形等寬字型（CP437）也搬過來。
+- `wincv-eten`：ETUNPACK 解壓（倚天 3.53 的 `STD.24x`）與 24 點字庫，`cjk24` 是可存進 session 的字體代號。
+- `wincv-vecfont`：任意字級的外框，給 SVG 的文字用。`wincv-fontset`：字級、全形來源與後備鏈的組合規則。
+- `wincv-bundled`：`fonts` 功能開著時由 `build.rs` 把 `internal/bundled/assets/` 整個目錄嵌進來，與 Go 的
+  `//go:embed` 同一份素材。`wincv-datadir`：原版素材的搜尋目錄，順序與 Go 版相同。
+
+TrueType 外框不用 ttf-parser 的 `outline_glyph`，是因為複合字形（Ã、Ñ、Ğ 這類字母加附加符號）的元件有位移：
+Go 版在元件自己的座標裡算隱含中點（整數除 2，向零截斷）再加位移，ttf-parser 先位移再算。附加符號在元件座標裡
+常是負的 x，兩種順序的截斷方向不同，差一個字型單位。DejaVu Sans 有 11 個字因此外框不同，改成照搬 Go 的解碼後全部相同。
+
+`tools/glyph-parity.sh` 用 1,068 個字（ASCII、拉丁擴充、希臘、西里爾、框線、繁簡中文、假名、韓文、符號）比對：
+
+| 項目 | 結果 |
+|---|---|
+| 點陣字模，10 組字型與字級（Noto Sans CJK 的 CFF 外框、DejaVu、Liberation、Noto Mono；含半形縮字級與反鋸齒） | 全部逐位元相同 |
+| 向量外框，5 份字型 | 全部逐段相同（座標以 26.6 定點整數比） |
+| uming.ttc、wqy-zenhei.ttc | Go 版讀不了（`sfnt: invalid table offset`），Rust 版畫得出 1,006 與 956 個字 |
+| 向量外框，預設字型組（內嵌加系統字型） | 120 個字不同，原因是字型清單不同：Go 版跳過讀不了的 uming、ukai、wqy-zenhei、wqy-microhei，前 8 份字型的組合因此不一樣 |
+
+`tools/rust-parity.sh` 加 9 個場景：10×18 與 12×24 字級（倚天縮放、原生 24 點字庫），以及指定 Noto Sans CJK 或
+DejaVu Sans 當後備字型的 Big5 以外文字（含非原生字級走向量字型反鋸齒、`-bitmap-cjk`），全部 43 個場景逐像素相同。
+兩個容器的工作目錄不同，素材目錄改用 `WINCV_HOME` 指定；`tools/cargo.sh` 也唯讀掛入 `/usr/share/fonts`，與 `tools/go.sh` 相同。
 
 ### 比對時找到的 Go 版 bug：Big5 編碼器的 HKSCS 碼
 

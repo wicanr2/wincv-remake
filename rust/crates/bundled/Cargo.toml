@@ -1,0 +1,15 @@
+[package]
+name = "wincv-bundled"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+# 把字型打包進執行檔的開關(對應 Go 版 internal/bundled)。
+#
+# fonts:把 internal/bundled/assets/ 底下的檔案全部嵌進來。那個目錄由
+# tools/embed-fonts.sh full 準備,可用環境變數 WINCV_BUNDLED_DIR 改指別處。
+# 內嵌了第三方字型的產物只能留在本機,不能散布(見 NOTICE)。
+[features]
+fonts = []

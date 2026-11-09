@@ -1,0 +1,16 @@
+[package]
+name = "wincv-fontset"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# 一個字級長什麼樣:半形點陣字型、全形來源與後備鏈(對應 Go 版 internal/fontset)。
+
+[dependencies]
+wincv-bundled.workspace = true
+wincv-eten.workspace = true
+wincv-fnt.workspace = true
+wincv-i18n.workspace = true
+wincv-render.workspace = true
+wincv-ttf.workspace = true

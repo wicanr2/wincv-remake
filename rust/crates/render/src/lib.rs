@@ -52,8 +52,23 @@ impl HalfSource for wincv_fnt::Font {
 /// 字模下方多留一列。原版的列距實測比字高多 1。
 pub const LINE_GAP: i32 = 1;
 
+impl<T: HalfSource + ?Sized> HalfSource for std::sync::Arc<T> {
+    fn glyph(&self, code: u8) -> Option<Glyph> {
+        (**self).glyph(code)
+    }
+    fn size(&self) -> (i32, i32) {
+        (**self).size()
+    }
+}
+
+impl<T: CjkSource + ?Sized> CjkSource for std::sync::Arc<T> {
+    fn glyph(&self, r: char) -> Option<Glyph> {
+        (**self).glyph(r)
+    }
+}
+
 /// 依序問幾個來源,第一個有字的贏。
-pub struct Sources(pub Vec<Box<dyn CjkSource>>);
+pub struct Sources(pub Vec<Box<dyn CjkSource + Send + Sync>>);
 
 impl CjkSource for Sources {
     fn glyph(&self, r: char) -> Option<Glyph> {
