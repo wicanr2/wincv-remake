@@ -1,0 +1,14 @@
+[package]
+name = "wincv"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wincv-cell.workspace = true
+wincv-fnt.workspace = true
+wincv-eten.workspace = true
+wincv-render.workspace = true
+winit = "0.30"
+softbuffer = "0.4"

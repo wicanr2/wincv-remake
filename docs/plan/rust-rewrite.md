@@ -125,10 +125,37 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 項目 | 狀態 | 證據 |
 |---|---|---|
 | 第一階段 1：`cell`、`fnt`、`eten`、`render` 與示範畫面 | 完成，與 Go 版逐像素相同（640×400，256,000 個像素） | `tools/rust-parity.sh` |
-| 第一階段 2：視窗與五個平台的建置量測 | 進行中 | |
+| 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、wasm 完成（見下表）；macOS、Android 未做；wasm 尚未在瀏覽器執行 | `rust/crates/wincv` |
 | 第一階段 3：RAR 候選 crate 對語料 | 未開始 | |
 | 第一階段 4：PDF（hayro）對測試檔 | 未開始 | |
 | 第一階段 5：LZH 搬移與解碼時間 | 未開始 | |
+
+### 第一階段 2 的量測（2026-11-09）
+
+兩邊是功能相同的試作：同一個 80×25 畫面、同一組倚天與 `cvga.fon` 字型，按 Esc 離開。
+Go 試作用現有的 `cell`、`fnt`、`eten`、`render` 加 Ebiten；Rust 試作是 `rust/crates/wincv`（winit + softbuffer）。
+執行檔都去掉符號（Go `-ldflags "-s -w"`，Rust `strip = true`、LTO）。Go 試作量完已刪除，沒有進版控；重現時照上述條件重寫即可。
+
+| 產物 | Go 試作 | Rust 試作 |
+|---|---|---|
+| Linux x86-64 | 6.78 MB（gzip 2.61 MB） | 2.67 MB（gzip 1.22 MB） |
+| Windows x86-64 | 6.39 MB（gzip 2.43 MB） | 0.79 MB（gzip 0.43 MB） |
+| wasm | 9.41 MB（gzip 2.37 MB） | 0.94 MB（gzip 0.19 MB），wasm-bindgen 處理前 |
+
+| 執行（Linux，主機 Xvfb，容器 `--cpus 2`，各 3 次） | Go 試作 | Rust 試作 |
+|---|---|---|
+| `docker run` 到視窗出現 | 0.70–0.71 秒 | 0.21–0.24 秒 |
+| 視窗出現 4 秒後的記憶體（`docker stats`） | 50–88 MB | 3.6 MB |
+
+判讀時要注意兩點：
+
+- Ebiten 經 OpenGL 繪圖，容器裡沒有 GPU，由 Mesa 的軟體實作代勞；softbuffer 只做 CPU 貼圖。記憶體與啟動時間的差距有很大一部分來自繪圖路徑，不全是語言造成的。
+- Rust 的 Linux 版在執行時以 dlopen 載入 `libxkbcommon-x11.so`（winit 的 X11 鍵盤處理），Go 版沒有這個相依。一般桌面都有，精簡環境要裝 `libxkbcommon-x11-0`；容器內驗證用 `tools/docker/rust-run.Dockerfile`。
+
+其他已驗證的事實：
+
+- Windows 版是 GUI 子系統，只匯入系統 DLL（`x86_64-w64-mingw32-objdump -p`），在本機 Wine 下畫面正常。
+- Linux 版在主機 Xvfb 下畫面正常，倚天全形字正確。
 
 Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
 cargo 一律經 `tools/cargo.sh` 在容器裡跑。

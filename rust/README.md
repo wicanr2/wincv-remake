@@ -17,3 +17,4 @@ tools/rust-parity.sh                 # 與 Go 版的 celldump 逐像素比對
 | `wincv-eten` | `internal/eten` |
 | `wincv-render` | `internal/render` |
 | `wincv-celldump` | `cmd/celldump`(目前只有示範畫面) |
+| `wincv` | `cmd/wincv`(目前是 winit + softbuffer 的視窗試作) |
