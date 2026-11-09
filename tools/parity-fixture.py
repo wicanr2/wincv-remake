@@ -28,3 +28,50 @@ for d in ["subdir", "Another Dir", "目錄"]:
     os.utime(os.path.join(root, d), (1_200_000_000, 1_200_000_000))
 link = os.path.join(root, "link-to-subdir")
 if not os.path.lexists(link): os.symlink("subdir", link)
+
+# 壓縮檔場景(壓縮檔當目錄瀏覽):放在 arch/ 底下,時間戳固定。
+import zipfile, tarfile, io
+arch = os.path.join(root, "arch")
+os.makedirs(arch, exist_ok=True)
+
+class RawName(zipfile.ZipInfo):
+    """檔名照原始位元組寫進去(Python 預設把非 ASCII 寫成 UTF-8 並設旗標)。"""
+    def __init__(self, raw, date_time):
+        super().__init__(raw.decode("latin-1"), date_time=date_time)
+        self.raw = raw
+        self.compress_type = zipfile.ZIP_DEFLATED
+    def _encodeFilenameFlags(self):
+        return self.raw, self.flag_bits
+
+zp = os.path.join(arch, "big5.zip")
+with zipfile.ZipFile(zp, "w") as z:
+    # 只存檔案、不存目錄項:中間層目錄要由 vfs 補出來。
+    for raw, size, dt in [
+        (b"readme.txt", 120, (2011, 11, 25, 10, 0, 0)),
+        (b"docs/guide.txt", 3456, (2001, 1, 2, 3, 4, 6)),
+        (b"docs/img/a.bmp", 78901, (1999, 12, 31, 23, 58, 0)),
+        (b"\xa4\xa4\xa4\xe5/\xc0\xc9\xae\xd7.txt", 42, (1998, 7, 8, 9, 10, 12)),
+        (b"\xa4\xa4\xa4\xe5.doc", 9999, (1997, 3, 4, 5, 6, 8)),
+        (b"empty/", 0, (2005, 5, 5, 5, 5, 4)),
+    ]:
+        z.writestr(RawName(raw, dt), b"" if raw.endswith(b"/") else b"z" * size)
+os.utime(zp, (1_000_000_000, 1_000_000_000))
+
+tp = os.path.join(arch, "dot.tar.gz")
+buf = io.BytesIO()
+with tarfile.open(fileobj=buf, mode="w", format=tarfile.GNU_FORMAT) as t:
+    for name, size, mt, kind in [
+        ("./docs", 0, 1_100_000_000, tarfile.DIRTYPE),
+        ("./docs/a.txt", 11, 1_100_000_100, tarfile.REGTYPE),
+        ("./b.txt", 22, 1_100_000_200, tarfile.REGTYPE),
+        ("top/deep/c.txt", 33, 1_100_000_300, tarfile.REGTYPE),
+        (b"\xa4\xa4\xa4\xe5.txt".decode("utf-8", "surrogateescape"), 44, 1_100_000_400, tarfile.REGTYPE),
+    ]:
+        ti = tarfile.TarInfo(name)
+        ti.size, ti.mtime, ti.type, ti.mode = size, mt, kind, 0o644
+        t.addfile(ti, io.BytesIO(b"t" * size) if kind == tarfile.REGTYPE else None)
+import gzip
+with open(tp, "wb") as f:
+    f.write(gzip.compress(buf.getvalue(), mtime=0))
+os.utime(tp, (1_000_000_000, 1_000_000_000))
+os.utime(arch, (1_200_000_000, 1_200_000_000))

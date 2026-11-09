@@ -20,9 +20,9 @@ name = "pdfshot"
 path = "src/bin/pdfshot.rs"
 
 [dependencies]
-wincv-lzh.workspace = true
+wincv-archive.workspace = true
+wincv-vfs.workspace = true
 wincv-textenc.workspace = true
 sha2.workspace = true
-rars = { version = "0.12", default-features = false }
 hayro = { version = "0.9", features = ["embed-fonts"] }
 png.workspace = true

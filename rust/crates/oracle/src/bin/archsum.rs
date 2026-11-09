@@ -5,92 +5,73 @@
 //! ```
 //!
 //! 每列「名稱的 hex<TAB>大小<TAB>sha256」,依名稱排序。
-//! 支援 LZH(`wincv-lzh`)與 RAR(候選 crate `rars`,第一階段評估用)。
+//! 走 `wincv-archive` 的 vfs 介面(打開、ReadDir 遞迴、Open),與 Go 版走同一條路徑。
 
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::sync::{Arc, Mutex};
+use std::io::Write;
+use std::path::Path;
 use std::process::exit;
 use std::time::{Duration, Instant};
 
 use sha2::{Digest, Sha256};
+use wincv_archive::{path_bytes, ArchiveFs};
+use wincv_vfs::Fs;
 
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
-/// 打開一個壓縮檔、列目錄、解出每個檔案。與 Go 版一樣,整段計時。
+/// 打開一個壓縮檔、列目錄、解出每個檔案。與 Go 版一樣走 vfs 介面,整段計時。
 fn one(name: &str, lines: &mut Vec<String>) -> Result<(), String> {
-    if name.to_ascii_lowercase().ends_with(".rar") {
-        return one_rar(name, lines);
-    }
-    let mut f = File::open(name).map_err(|e| e.to_string())?;
-    let entries = wincv_lzh::list(&mut f).map_err(|e| e.to_string())?;
-    // 與 Go 版的 archive.FS 一樣:路徑去掉結尾的 /,同名時取第一個。
-    let mut files: Vec<(Vec<u8>, &wincv_lzh::Entry)> = Vec::new();
-    for e in entries.iter().filter(|e| !e.is_dir) {
-        let p = e.name.strip_suffix(b"/").unwrap_or(&e.name).to_vec();
-        if !files.iter().any(|(q, _)| *q == p) {
-            files.push((p, e));
+    let a = ArchiveFs::open(Path::new(name)).map_err(|e| e.to_string())?;
+    let mut paths = Vec::new();
+    walk(&a, b"", &mut paths)?;
+    let mut files: Vec<(Vec<u8>, u64, String)> = Vec::new();
+    let mut err = None;
+    for p in paths {
+        let mut h = Sha256::new();
+        let res = a.open(&a.path(&p)).and_then(|mut r| std::io::copy(&mut r, &mut HashOnly(&mut h)));
+        match res {
+            Ok(n) => files.push((p, n, hex(&h.finalize()))),
+            Err(e) => {
+                eprintln!("{name} {} {e}", String::from_utf8_lossy(&p));
+                err = Some("有檔案讀不出來".to_string());
+            }
         }
     }
     files.sort_by(|a, b| a.0.cmp(&b.0));
-    for (p, e) in &files {
-        f.seek(SeekFrom::Start(e.offset as u64)).map_err(|e| e.to_string())?;
-        // 只讀這個成員的壓縮資料,與 Go 版的 io.LimitReader 相同。
-        let src = (&mut f).take(e.packed.max(0) as u64);
-        let out = wincv_lzh::decode(src, &e.method, e.original as u64)
-            .map_err(|err| format!("{} {err}", String::from_utf8_lossy(p)))?;
-        lines.push(format!("{}\t{}\t{}", hex(p), out.len(), hex(&Sha256::digest(&out))));
+    for (p, n, sum) in files {
+        lines.push(format!("{}\t{n}\t{sum}", hex(&p)));
+    }
+    err.map_or(Ok(()), Err)
+}
+
+/// 依 ReadDir 遞迴走訪,收集檔案的內部路徑(與 Go 版的 walk 相同)。
+fn walk(a: &ArchiveFs, dir: &[u8], out: &mut Vec<Vec<u8>>) -> Result<(), String> {
+    for e in a.read_dir(&a.path(dir)).map_err(|e| e.to_string())? {
+        let mut p = dir.to_vec();
+        if !p.is_empty() {
+            p.push(b'/');
+        }
+        p.extend_from_slice(&path_bytes(Path::new(&e.os_name)));
+        if e.is_dir {
+            walk(a, &p, out)?;
+        } else {
+            out.push(p);
+        }
     }
     Ok(())
 }
 
-/// 一邊寫一邊算 sha256,不把整個檔案留在記憶體。
-struct HashWriter(Arc<Mutex<(Sha256, u64)>>);
+struct HashOnly<'a>(&'a mut Sha256);
 
-impl Write for HashWriter {
+impl Write for HashOnly<'_> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut g = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        g.0.update(buf);
-        g.1 += buf.len() as u64;
+        self.0.update(buf);
         Ok(buf.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
-}
-
-type Pending = Vec<(Vec<u8>, Arc<Mutex<(Sha256, u64)>>)>;
-
-/// RAR 用 rars。檔名與 Go 版一樣把 `\` 換成 `/`;同名時取第一個。
-fn one_rar(name: &str, lines: &mut Vec<String>) -> Result<(), String> {
-    let ar = rars::ArchiveReader::read_path(name).map_err(|e| e.to_string())?;
-    let pending: Arc<Mutex<Pending>> = Arc::new(Mutex::new(Vec::new()));
-    let p2 = pending.clone();
-    ar.extract_to(None, move |meta| {
-        if meta.is_directory {
-            return Ok(Box::new(std::io::sink()) as Box<dyn Write>);
-        }
-        let path: Vec<u8> = meta.name.iter().map(|&b| if b == b'\\' { b'/' } else { b }).collect();
-        let st = Arc::new(Mutex::new((Sha256::new(), 0u64)));
-        p2.lock().unwrap_or_else(|e| e.into_inner()).push((path, st.clone()));
-        Ok(Box::new(HashWriter(st)) as Box<dyn Write>)
-    })
-    .map_err(|e| e.to_string())?;
-    let mut done: Vec<(Vec<u8>, u64, String)> = Vec::new();
-    for (path, st) in pending.lock().unwrap_or_else(|e| e.into_inner()).drain(..) {
-        if done.iter().any(|d| d.0 == path) {
-            continue;
-        }
-        let (h, n) = std::mem::take(&mut *st.lock().unwrap_or_else(|e| e.into_inner()));
-        done.push((path, n, hex(&h.finalize())));
-    }
-    done.sort_by(|a, b| a.0.cmp(&b.0));
-    for (p, n, sum) in done {
-        lines.push(format!("{}\t{n}\t{sum}", hex(&p)));
-    }
-    Ok(())
 }
 
 fn main() {

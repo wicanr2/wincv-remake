@@ -87,7 +87,16 @@ fn main() {
     } else { match &a.dir {
         // 檔案列表:與 Go 版 celldump -dir 相同,不帶磁碟統計與註解。
         Some(dir) => {
-            let mut m = wincv_browser::Model::new(Box::new(wincv_vfs::Os), dir);
+            // 「a.zip!docs」是壓縮檔裡的目錄,與 Go 版相同。
+            let raw = wincv_archive::path_bytes(dir);
+            let fs: Box<dyn wincv_vfs::Fs> = match raw.iter().position(|&c| c == wincv_archive::SEP) {
+                Some(i) if wincv_archive::is_archive(std::path::Path::new(&wincv_archive::bytes_os(&raw[..i]))) => {
+                    let outer = PathBuf::from(wincv_archive::bytes_os(&raw[..i]));
+                    Box::new(wincv_archive::ArchiveFs::open(&outer).unwrap_or_else(|e| die(&format!("{}: {e}", outer.display()))))
+                }
+                _ => Box::new(wincv_vfs::Os),
+            };
+            let mut m = wincv_browser::Model::new(fs, dir);
             m.load(dir).unwrap_or_else(|e| die(&format!("{}: {e}", dir.display())));
             m.draw(&mut s);
         }

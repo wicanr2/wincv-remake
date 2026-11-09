@@ -13,9 +13,11 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wicanr2/wincv-remake/internal/app"
+	"github.com/wicanr2/wincv-remake/internal/archive"
 	"github.com/wicanr2/wincv-remake/internal/browser"
 	"github.com/wicanr2/wincv-remake/internal/bundled"
 	"github.com/wicanr2/wincv-remake/internal/cell"
@@ -76,7 +78,16 @@ func drawEdit(s *cell.Screen, name, cfgDir string) error {
 }
 
 func browserModel(dir string) (*browser.Model, error) {
-	m := browser.New(vfs.OS{}, dir)
+	var fsys vfs.FS = vfs.OS{}
+	// 「a.zip!docs」是壓縮檔裡的目錄(與 Rust 版逐像素比對用)。
+	if i := strings.Index(dir, "!"); i >= 0 && archive.IsArchive(dir[:i]) {
+		af, err := archive.Open(dir[:i])
+		if err != nil {
+			return nil, err
+		}
+		fsys = af
+	}
+	m := browser.New(fsys, dir)
 	if err := m.Load(dir); err != nil {
 		return nil, err
 	}
@@ -93,7 +104,7 @@ func main() {
 		out       = flag.String("o", "screen.png", "輸出 PNG")
 		cols      = flag.Int("cols", 80, "欄數")
 		rows      = flag.Int("rows", 25, "列數")
-		dir       = flag.String("dir", "", "要瀏覽的目錄。留空則畫字型與配色的示範畫面")
+		dir       = flag.String("dir", "", "要瀏覽的目錄(「a.zip!docs」是壓縮檔裡的目錄)。留空則畫字型與配色的示範畫面")
 		file      = flag.String("file", "", "要檢視的檔案(文字或 16 進位,依內容自動判斷)")
 		edit      = flag.String("edit", "", "用編輯器開這個檔案(含語法上色)")
 		cfgDir    = flag.String("cfg", "", "語法上色設定所在的目錄;留空跟著 -half 走")

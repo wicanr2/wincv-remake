@@ -47,16 +47,30 @@ fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> bool {
 
 /// 列出所有成員。
 pub fn list<R: Read + Seek>(r: &mut R) -> Result<Vec<Entry>, Error> {
+    match list_partial(r) {
+        (out, None) => Ok(out),
+        (_, Some(e)) => Err(e),
+    }
+}
+
+/// 與 [`list`] 相同,但出錯時也交回出錯前讀到的成員(Go 版 `lzh.List`
+/// 的行為:壓縮檔尾端壞掉時,前面的成員仍然看得到)。
+pub fn list_partial<R: Read + Seek>(r: &mut R) -> (Vec<Entry>, Option<Error>) {
     let mut out = Vec::new();
-    let mut pos = r.seek(SeekFrom::Start(0)).map_err(io_err)? as i64;
+    let mut pos = match r.seek(SeekFrom::Start(0)) {
+        Ok(p) => p as i64,
+        Err(e) => return (out, Some(io_err(e))),
+    };
     loop {
-        let Some((e, next)) = read_header(r, pos)? else {
-            return Ok(out);
+        let (e, next) = match read_header(r, pos) {
+            Ok(Some(v)) => v,
+            Ok(None) => return (out, None),
+            Err(e) => return (out, Some(e)),
         };
         out.push(e);
         pos = next;
         if out.len() > 100_000 {
-            return Err(Error("成員數異常,可能不是 LZH 檔".into()));
+            return (out, Some(Error("成員數異常,可能不是 LZH 檔".into())));
         }
     }
 }

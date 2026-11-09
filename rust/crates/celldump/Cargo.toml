@@ -16,6 +16,7 @@ wincv-eten.workspace = true
 wincv-render.workspace = true
 wincv-browser.workspace = true
 wincv-vfs.workspace = true
+wincv-archive.workspace = true
 wincv-viewer.workspace = true
 wincv-hexview.workspace = true
 wincv-textenc.workspace = true

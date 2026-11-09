@@ -38,6 +38,17 @@ SCENES=(
     "file-ansi|-file /src/$OUT/fixture/ansi.ans"
     "file-hex-fon|-file /src/original/app/cvga.fon"
     "file-hex-dll|-file /src/original/app/unrar.dll"
+    "arch-zip|-dir /src/$OUT/fixture/arch/big5.zip!"
+    "arch-zip-sub|-dir /src/$OUT/fixture/arch/big5.zip!docs"
+    "arch-tgz|-dir /src/$OUT/fixture/arch/dot.tar.gz!"
+    "arch-lha|-dir /src/testdata/lzh/dosbox-sample.lha!DOSBox"
+    "arch-rar|-dir /src/internal/archive/testdata/sample.rar!"
+    "arch-7z|-dir /src/internal/archive/testdata/sample.7z!"
+    "arch-arj|-dir /src/testdata/arj/m1.arj!"
+    "arch-cab|-dir /src/testdata/cab/mszip.cab!"
+    "arch-ace|-dir /src/testdata/ace/blocked.ace!winappdbg-winappdbg_v1.6"
+    "arch-arc|-dir /src/testdata/arc/t.arc!"
+    "arch-z|-dir /src/testdata/z/real16.Z!"
 )
 # 不放 GBK 的檔案:文字解碼以 Rust 版(WHATWG)為準,與 Go 版不同是預期的。
 

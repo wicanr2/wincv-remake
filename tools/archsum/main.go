@@ -51,48 +51,60 @@ func walk(a *archive.FS, dir string, out *[]string) error {
 	return nil
 }
 
+// one 處理一個壓縮檔。解碼器 panic 時(例如 bodgit/sevenzip 在某些 7z 的
+// 標頭上 index out of range)只記這一個檔失敗,其餘的照跑。
+func one(name string, n int) (files []file, best time.Duration, failed bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintln(os.Stderr, name, "panic:", r)
+			files, failed = nil, true
+		}
+	}()
+	for round := 0; round < n; round++ {
+		files = files[:0]
+		t0 := time.Now()
+		a, err := archive.Open(name)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, name, err)
+			return files, best, true
+		}
+		var paths []string
+		if err := walk(a, "", &paths); err != nil {
+			fmt.Fprintln(os.Stderr, name, err)
+			return files, best, true
+		}
+		for _, p := range paths {
+			rc, err := a.Open(a.Path(p))
+			if err != nil {
+				fmt.Fprintln(os.Stderr, name, p, err)
+				failed = true
+				continue
+			}
+			h := sha256.New()
+			size, err := io.Copy(h, rc)
+			rc.Close()
+			if err != nil {
+				// 讀到一半出錯的不列:那不是這個檔的內容(Rust 版相同)。
+				fmt.Fprintln(os.Stderr, name, p, err)
+				failed = true
+				continue
+			}
+			files = append(files, file{p, size, hex.EncodeToString(h.Sum(nil))})
+		}
+		if d := time.Since(t0); round == 0 || d < best {
+			best = d
+		}
+	}
+	return files, best, failed
+}
+
 func main() {
 	n := flag.Int("n", 1, "解壓縮重做幾次(計時取最快)")
 	flag.Parse()
 	failed := false
 	for _, name := range flag.Args() {
-		var files []file
-		best := time.Duration(0)
-		for round := 0; round < *n; round++ {
-			files = files[:0]
-			t0 := time.Now()
-			a, err := archive.Open(name)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, name, err)
-				failed = true
-				break
-			}
-			var paths []string
-			if err := walk(a, "", &paths); err != nil {
-				fmt.Fprintln(os.Stderr, name, err)
-				failed = true
-				break
-			}
-			for _, p := range paths {
-				rc, err := a.Open(a.Path(p))
-				if err != nil {
-					fmt.Fprintln(os.Stderr, name, p, err)
-					failed = true
-					continue
-				}
-				h := sha256.New()
-				size, err := io.Copy(h, rc)
-				rc.Close()
-				if err != nil {
-					fmt.Fprintln(os.Stderr, name, p, err)
-					failed = true
-				}
-				files = append(files, file{p, size, hex.EncodeToString(h.Sum(nil))})
-			}
-			if d := time.Since(t0); round == 0 || d < best {
-				best = d
-			}
-		}
+		files, best, bad := one(name, *n)
+		failed = failed || bad
 		sort.Slice(files, func(i, j int) bool { return files[i].path < files[j].path })
 		for _, f := range files {
 			fmt.Printf("%x\t%d\t%s\n", f.path, f.size, f.sum)

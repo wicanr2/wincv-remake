@@ -22,6 +22,7 @@ wincv-viewer = { path = "crates/viewer" }
 wincv-hexview = { path = "crates/hexview" }
 wincv-session = { path = "crates/session" }
 wincv-oracle = { path = "crates/oracle" }
+wincv-archive = { path = "crates/archive" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"

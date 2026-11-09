@@ -271,19 +271,18 @@ Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模�
 
 - celldump 加上 `-file`（文字用 viewer，二進位用 hexview）。`tools/rust-parity.sh` 增加 6 個看檔場景：原版的兩個 Big5
   文字檔、UTF-8 文件、帶 ANSI 色碼的檔（亮色、背景、重設、CR/CRLF、沒有結束字元的序列）、兩個二進位檔。
-  4 個逐像素相同，2 個差在同一個字「包」，原因是 Go 版的 bug（下一節）。
+  6 個都與 Go 版逐像素相同（一開始有 2 個差在「包」字，原因是 Go 版的 bug，見下一節，已在 Go 版修正）。
 - `session` 的檔案格式與 Go 版相同：`testdata/go-session.json` 是 Go 版實際寫出的檔，Rust 讀得回來，寫出來逐字相同。
 - viewer 狀態列右側的位置，Go 版用位元組長度計算（有搜尋結果時含中文會偏），Rust 改用顯示格數。
 
 ### 比對時找到的 Go 版 bug：Big5 編碼器的 HKSCS 碼
 
-Go 版的倚天字形查表（`internal/eten` 的 `big5Bytes`）用 x/text 的 Big5 編碼器把字換成 Big5 碼。這個編碼器在
-33 個字上給的是香港增補字符集（HKSCS）的 FA–FE 碼，而不是標準 Big5 碼，例如「包」給 FABD（標準是 A55D）、
-「港」給 FDBB。倚天字庫只到 F9，所以 Go 版把這些字畫成缺字框。受影響的有不少常用字：包、港、晴、煮、偽、婷、
-倩、卿、撐、瑜、渝、杞，以及「十」「卅」等符號區的重複碼。
+Go 版原本用 x/text 的 Big5 編碼器查倚天字形、存檔與轉碼。它在 33 個字上給的是香港增補字符集（HKSCS）的 FA–FE 碼，
+例如「包」給 FABD（標準是 A55D）、「港」給 FDBB，倚天字庫只到 F9，所以畫成缺字框。Rust 版用 encoding_rs
+（WHATWG 規範）沒有這個問題，逐像素比對因此抓到差異。
 
-Rust 版用 encoding_rs（WHATWG 規範：編碼時排除 HKSCS 區），這些字都畫對。比對腳本把這兩個場景標成已知差異。
-Go 版要修的話，`big5Bytes` 改成「從解碼方向建的反查表」即可（Big5 解碼是一對一的）。
+Go 版已改用照 WHATWG 規則建的對照表（`internal/textenc/big5.go`）：v.0.53.4 修正這 33 個字，v.0.53.5 補回只在
+HKSCS 區的 764 個字。現在 Go 與 encoding_rs 在全部 14,653 個字上的編碼結果相同，`tools/rust-parity.sh` 不再有已知差異。
 
 Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
 cargo 一律經 `tools/cargo.sh` 在容器裡跑。

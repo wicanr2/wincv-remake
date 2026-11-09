@@ -8,7 +8,7 @@
 mod header;
 mod huffman;
 
-pub use header::{list, Entry, MTime};
+pub use header::{list, list_partial, Entry, MTime};
 pub use huffman::Bits;
 
 use std::fmt;
