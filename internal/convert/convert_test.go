@@ -108,6 +108,9 @@ func TestRenameCase(t *testing.T) {
 		{"noext", CaseUpper, "NOEXT"},
 		{".hidden", CaseUpper, ".HIDDEN"},
 		{"a.b.c", CaseLower, "a.b.c"},
+		// 首字不是 ASCII:中文沒有大小寫,é 轉成 É。以前取第一個位元組,檔名會壞掉。
+		{"中文.TXT", CaseTitle, "中文.txt"},
+		{"éCOLE.DOC", CaseTitle, "École.doc"},
 	} {
 		if got := RenameCase(tc.in, tc.c); got != tc.want {
 			t.Errorf("RenameCase(%q,%v) = %q, 應為 %q", tc.in, tc.c, got, tc.want)
