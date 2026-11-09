@@ -24,6 +24,41 @@ use wincv_cell::{Color, Screen};
 use wincv_eten as eten;
 use wincv_render::{scale_cjk, CjkSource, Rasterizer, LINE_GAP};
 
+/// 內嵌的字型(`fonts` 功能)。網頁上沒有檔案系統,只能靠這個。
+#[cfg(feature = "fonts")]
+mod embedded {
+    pub const HALF: &[u8] = include_bytes!(concat!(env!("WINCV_FONT_DIR"), "/app/cvga.fon"));
+    pub const STD: &[u8] = include_bytes!(concat!(env!("WINCV_FONT_DIR"), "/eten/STDFONT.15"));
+    pub const SPC: &[u8] = include_bytes!(concat!(env!("WINCV_FONT_DIR"), "/eten/SPCFONT.15"));
+    pub const SUPP: &[u8] = include_bytes!(concat!(env!("WINCV_FONT_DIR"), "/eten/SPCFSUPP.15"));
+}
+
+/// 磁碟上的檔案優先,讀不到再用內嵌的(與 Go 版相同的順序)。
+fn half_font(path: &std::path::Path) -> Vec<u8> {
+    match std::fs::read(path) {
+        Ok(d) => d,
+        #[cfg(feature = "fonts")]
+        Err(_) => embedded::HALF.to_vec(),
+        #[cfg(not(feature = "fonts"))]
+        Err(e) => die(&format!("{}: {e}", path.display())),
+    }
+}
+
+fn eten_font(std_path: &std::path::Path, spc: &std::path::Path) -> Result<eten::Font, eten::Error> {
+    let disk = eten::Font::load(std_path, Some(spc), eten::NATIVE_W, eten::NATIVE_H);
+    #[cfg(feature = "fonts")]
+    if disk.is_err() {
+        return eten::Font::load_bytes(
+            embedded::STD.to_vec(),
+            Some(embedded::SPC.to_vec()),
+            Some(embedded::SUPP.to_vec()),
+            eten::NATIVE_W,
+            eten::NATIVE_H,
+        );
+    }
+    disk
+}
+
 struct Eten(eten::Font);
 
 impl CjkSource for Eten {
@@ -122,9 +157,17 @@ impl ApplicationHandler for App {
             .with_title("WinCV")
             .with_inner_size(PhysicalSize::new(w, h))
             .with_resizable(false);
+        // 網頁上視窗就是一個 canvas,要自己掛進頁面。
+        #[cfg(target_arch = "wasm32")]
+        let attrs = {
+            use winit::platform::web::WindowAttributesExtWebSys;
+            attrs.with_append(true)
+        };
         let window = Rc::new(el.create_window(attrs).unwrap_or_else(|e| die(&e.to_string())));
         let ctx = Context::new(window.clone()).unwrap_or_else(|e| die(&e.to_string()));
         self.surface = Some(Surface::new(&ctx, window.clone()).unwrap_or_else(|e| die(&e.to_string())));
+        // 不是每個平台都會在建立後自動送一次重繪(網頁就不會)。
+        window.request_redraw();
         self.window = Some(window);
     }
 
@@ -143,10 +186,9 @@ impl ApplicationHandler for App {
 
 fn main() {
     let a = parse_args();
-    let half_bytes = std::fs::read(&a.half).unwrap_or_else(|e| die(&format!("{}: {e}", a.half.display())));
-    let half = wincv_fnt::Font::parse(half_bytes).unwrap_or_else(|e| die(&e.to_string()));
+    let half = wincv_fnt::Font::parse(half_font(&a.half)).unwrap_or_else(|e| die(&e.to_string()));
     let (hw, hh) = half.size();
-    let cjk: Option<Box<dyn CjkSource>> = eten::Font::load(&a.std, Some(&a.spc), eten::NATIVE_W, eten::NATIVE_H)
+    let cjk: Option<Box<dyn CjkSource>> = eten_font(&a.std, &a.spc)
         .map(|f| Box::new(scale_cjk(Eten(f), hw * 2, hh + LINE_GAP)) as Box<dyn CjkSource>)
         .map_err(|e| eprintln!("警告:載不到倚天字庫 ({e})"))
         .ok();

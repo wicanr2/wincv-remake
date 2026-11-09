@@ -125,7 +125,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 項目 | 狀態 | 證據 |
 |---|---|---|
 | 第一階段 1：`cell`、`fnt`、`eten`、`render` 與示範畫面 | 完成，與 Go 版逐像素相同（640×400，256,000 個像素） | `tools/rust-parity.sh` |
-| 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、wasm、macOS 完成（見下）；Android 未做；wasm 尚未在瀏覽器執行 | `rust/crates/wincv` |
+| 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、macOS、wasm（含瀏覽器實跑）完成（見下）；Android 未做 | `rust/crates/wincv`、`tools/rust-web-smoke.sh` |
 | 第一階段 3：RAR 候選 crate 對語料 | 完成：rars 0.12.4 在 28 個真實 RAR、1,496 個檔案上與 Go 版完全相同，速度約 2 倍（見下） | `tools/archive-parity.sh` |
 | 第一階段 4：PDF（hayro）對測試檔 | 完成：9 個測試檔上與 Go 版相當，一項較好（見下） | `tools/pdf-parity.sh` |
 | 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
@@ -157,6 +157,13 @@ macOS（2026-11-09，`tools/docker/osxcross-rust.Dockerfile` 建的 `wincv-osxcr
 - x86_64 與 arm64 各約 0.72 MB，`lipo` 合成的 universal binary 1.46 MB。
 - 兩個架構都只連到系統 framework 與 `/usr/lib` 的系統庫；arm64 有 `LC_CODE_SIGNATURE`（連結器加的 ad-hoc 簽章），`minos 11.0`。
 - 待驗：發行設定開了 `strip = true`，要在 Mac 上用 `codesign -v` 確認 strip 之後簽章仍有效；沒有實機啟動過。
+
+wasm 在瀏覽器（2026-11-09，`tools/rust-web-smoke.sh`）：
+
+- `fonts` 功能把原版字型內嵌進 wasm（網頁上沒有檔案系統），經 wasm-bindgen 0.2.130 處理後 932 KB，gzip 530 KB。
+  比沒有字型的 191 KB 大，增加的是倚天字庫，點陣資料不好壓縮。這種產物含第三方字型，只能留在本機。
+- Playwright 映像裡的 headless Chromium 載入後畫面與原生版相同，倚天全形字正確。
+- wasm-bindgen 提醒 `strip = true` 會拿掉 `target_features` 區段，網頁版的發行設定要改成不 strip、另跑 wasm-opt。
 
 其他已驗證的事實：
 
