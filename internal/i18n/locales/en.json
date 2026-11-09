@@ -583,5 +583,6 @@
   "轉檔/轉碼/其他": "Convert/Other",
   "SPCFSUPP 有 %d 個字模,不是已知的 %d 或 %d 格排法,C6A1-C8FE 改用後備字型": "SPCFSUPP has %d glyphs, not one of the known %d- or %d-glyph layouts; C6A1-C8FE falls back to other fonts",
   "SPCFSUPP 在 Big5 未定義的碼位上有字形,排法無法確認,C6A1-C8FE 改用後備字型": "SPCFSUPP has glyphs on code points Big5 leaves undefined, so its layout cannot be confirmed; C6A1-C8FE falls back to other fonts",
-  "找不到 %s,請放在程式旁": "cannot find %s; place it next to the program"
+  "找不到 %s,請放在程式旁": "cannot find %s; place it next to the program",
+  "%q 無法以 Big5 表示": "%q cannot be represented in Big5"
 }

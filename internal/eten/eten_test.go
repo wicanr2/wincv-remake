@@ -292,3 +292,23 @@ func TestSuppLinear408(t *testing.T) {
 		t.Fatal("100 格的 SPCFSUPP 應該放棄這一區")
 	}
 }
+
+// x/text 的 Big5 編碼器把這些字編成 HKSCS 的 FA–FE 碼,倚天字庫沒有那一區,
+// 以前會畫成缺字框。現在查表走 textenc.Big5Code,都要取得到字模。
+func TestHKSCSProneCharsHaveGlyphs(t *testing.T) {
+	f := load(t)
+	for _, r := range "包港晴煮偽婷倩卿撐瑜渝杞十卅" {
+		g := f.Glyph(r)
+		if g == nil {
+			t.Errorf("%q 取不到字模", r)
+			continue
+		}
+		ink := false
+		for _, b := range g.Bits {
+			ink = ink || b
+		}
+		if !ink {
+			t.Errorf("%q 是空白字模", r)
+		}
+	}
+}

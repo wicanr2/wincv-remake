@@ -9,13 +9,13 @@ import (
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/encoding/korean"
 	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/encoding/traditionalchinese"
 )
 
 func encode(s string, e textenc.Enc) ([]byte, error) {
 	switch e {
 	case textenc.Big5:
-		return traditionalchinese.Big5.NewEncoder().Bytes([]byte(s))
+		// x/text 的編碼器會寫出 HKSCS 碼,見 textenc.EncodeBig5。
+		return textenc.EncodeBig5(s)
 	case textenc.GBK:
 		return simplifiedchinese.GBK.NewEncoder().Bytes([]byte(s))
 	case textenc.ShiftJIS:

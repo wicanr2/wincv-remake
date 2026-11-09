@@ -28,3 +28,10 @@
 - 打包：`tools/package.sh` 以 `go run tools/zipdir` 壓 ZIP，主機沒有 go，`release.sh` 在主機跑到打包會失敗。建置在主機跑 `build-all.sh`，打包改在 `wincv-build:1` 容器內跑 `release.sh <版本> --no-build`（帶 `WINCV_RELEASE_COMMIT`，因為未追蹤的 `AGENTS.md` 讓工作區不算乾淨）。
 - 固定入口：`tools/build-full.sh linux` 已原子替換 `dist-all/wincv-linux-amd64-full`（`~/.bashrc` 的 `wincv` alias 指向它），SHA-256 `6c0a9829b597eea610bf0397b8e371163581bb67d5546cf9cfb0287f203c2657`，與 `full-local/` 內相同。`BUILT-FROM-full` 帶 `-dirty`，來源是未追蹤的 `AGENTS.md`，產物內容與提交相同。
 - 實際視窗驗收：公開版與完整版在主機 Xvfb 下 `-version` 都回報 `v.0.53.3-20261109`；選單列右側顯示「F9 F1 F2」，點 F1 開說明、點 F9 開選單，`Alt-7` 打開設定。Windows 與 macOS 尚未實機啟動，Android APK 本次未建。
+
+## 2026-11-09：Big5 編碼器的 HKSCS 碼（v.0.53.4-20261109）
+
+- 問題：倚天字形查表（`internal/eten` 的 `big5Bytes`）、編輯器存檔（`internal/editor`）、轉碼（`internal/convert`）都用 x/text 的 Big5 編碼器。它在 33 個字上給的是 HKSCS 的 FA–FE 碼，例如「包」給 FABD（標準 A55D）、「港」給 FDBB。倚天字庫只到 F9，這些字畫成缺字框；存檔與轉碼寫出的 FA–FE 碼，一般 Big5 程式也讀不懂。受影響的常用字有包、港、晴、煮、偽、婷、倩、卿、撐、瑜、渝、杞，以及「十」「卅」等。
+- 發現方式：Rust 改寫的逐像素比對（`rust-rewrite` 分支的 `tools/rust-parity.sh`），`WinCV.txt` 與 `CLAUDE.md` 的「包」兩邊不同；Go 版畫缺字框，Rust 版（encoding_rs）畫對。
+- 修法：`internal/textenc/big5.go` 新增 `Big5Code` 與 `EncodeBig5`，照 WHATWG Encoding Standard 的 Big5 編碼規則建表（A140–F9FE 由解碼方向反查，重複的字取第一個，U+2550、U+255E、U+2561、U+256A、U+5341、U+5345 取最後一個，不含 HKSCS 區）。三個地方都改用它。
+- 驗證：`TestBig5CodeRoundTrip` 確認表裡每個碼都解回同一個字且不超出 F9；`TestHKSCSProneCharsHaveGlyphs` 以真實倚天字庫確認 14 個字都取得到字模；修正後 Go 版畫 `WinCV.txt` 與 Rust 版逐像素相同。
