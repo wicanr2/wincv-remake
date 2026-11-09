@@ -71,3 +71,7 @@
 - `decodeICOBMP`（32bpp）與 `DecodeTGA`（32 位元）把檔案裡非預乘的 BGRA 存進 `image.RGBA`。Go 把 `image.RGBA` 當成預乘資料，所以半透明像素（圖示的反鋸齒邊緣）的顏色算錯：畫到畫面上偏亮，轉成 NRGBA 時則被放大。例：dosbox 的 `cfggui.ico` 一個 alpha 18 的像素，檔案裡是 (195,199,196)，以前解成 (213,14,227)。
 - 改成 `image.NRGBA` 與 `color.NRGBA`。不透明與全透明的像素不受影響。
 - 由 Rust 改寫的圖檔比對（`tools/img-parity.sh`）發現：ICO 有 13 張只差在半透明像素，alpha 相同、顏色不同。
+
+## 2026-11-09：v.0.53.7-20261109
+
+- 收錄上面三條修正：狀態列靠右對齊改用顯示寬度、`convert.RenameCase` 首字母大寫以字元為單位、ICO 與 TGA 的半透明像素改用非預乘。
