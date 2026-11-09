@@ -128,7 +128,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、wasm 完成（見下表）；macOS、Android 未做；wasm 尚未在瀏覽器執行 | `rust/crates/wincv` |
 | 第一階段 3：RAR 候選 crate 對語料 | 未開始 | |
 | 第一階段 4：PDF（hayro）對測試檔 | 未開始 | |
-| 第一階段 5：LZH 搬移與解碼時間 | 未開始 | |
+| 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -156,6 +156,22 @@ Go 試作用現有的 `cell`、`fnt`、`eten`、`render` 加 Ebiten；Rust 試�
 
 - Windows 版是 GUI 子系統，只匯入系統 DLL（`x86_64-w64-mingw32-objdump -p`），在本機 Wine 下畫面正常。
 - Linux 版在主機 Xvfb 下畫面正常，倚天全形字正確。
+
+### 第一階段 5 的量測（2026-11-09）
+
+`rust/crates/lzh` 逐行照 Go 版搬移，Go 版的 uint32 回繞改用 `wrapping_*` 保留同樣語意。
+語料是 Go 版當初對 p7zip 驗過的三個檔，加上 testdata 的 `init1181.lzh`。兩邊都在 2 核容器裡，
+每一輪打開壓縮檔、列目錄、解出全部檔案，重做 5 次取最快（Go 版在 `archive.Open` 時就解完全部內容，
+所以打開必須計入）。
+
+| 檔案 | Go | Rust |
+|---|---|---|
+| `dosbox.lha`（10 個檔，含 2.6 MB 的成員） | 20.8 ms | 17.2 ms |
+| `src.lzh`（653 個小檔） | 3.5 ms | 3.8 ms |
+| `MTSRC023.LZH`（11 個檔） | 8.3 ms | 8.8 ms |
+
+輸出 674 列（每列一個檔案的大小與 sha256）兩邊完全相同。直接照搬的解碼器在 Rust 沒有明顯的速度優勢；
+要快，得針對熱迴圈另外最佳化（例如逐位元組 `push` 改成整段複製），那是功能對等之後的事。
 
 Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
 cargo 一律經 `tools/cargo.sh` 在容器裡跑。

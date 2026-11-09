@@ -1,0 +1,16 @@
+[package]
+name = "wincv-oracle"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# 與 Go 版對照用的工具。輸出格式與 Go 端的 tools/archsum 相同,兩邊直接 diff。
+
+[[bin]]
+name = "archsum"
+path = "src/bin/archsum.rs"
+
+[dependencies]
+wincv-lzh.workspace = true
+sha2.workspace = true

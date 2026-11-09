@@ -8,6 +8,7 @@ Go 版的 Rust 改寫,進行中。計畫與評估見 [`docs/plan/rust-rewrite.md
 WINCV_NET=1 tools/cargo.sh fetch     # 第一次:抓相依套件
 tools/cargo.sh test                  # 單元測試
 tools/rust-parity.sh                 # 與 Go 版的 celldump 逐像素比對
+tools/archive-parity.sh <語料目錄> <壓縮檔>...   # 與 Go 版逐檔比 sha256 並計時
 ```
 
 | crate | 對應 Go 套件 |
@@ -18,3 +19,5 @@ tools/rust-parity.sh                 # 與 Go 版的 celldump 逐像素比對
 | `wincv-render` | `internal/render` |
 | `wincv-celldump` | `cmd/celldump`(目前只有示範畫面) |
 | `wincv` | `cmd/wincv`(目前是 winit + softbuffer 的視窗試作) |
+| `wincv-lzh` | `internal/archive/lzh` |
+| `wincv-oracle` | 與 Go 版對照的工具(`archsum`,對應 `tools/archsum`) |

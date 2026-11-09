@@ -12,8 +12,11 @@ wincv-cell = { path = "crates/cell" }
 wincv-fnt = { path = "crates/fnt" }
 wincv-eten = { path = "crates/eten" }
 wincv-render = { path = "crates/render" }
+wincv-lzh = { path = "crates/lzh" }
+wincv-oracle = { path = "crates/oracle" }
 encoding_rs = "0.8"
 png = "0.17"
+sha2 = "0.10"
 
 # 發行版:量產物大小與效能用的設定(docs/plan/rust-rewrite.md 第一階段)。
 [profile.release]
