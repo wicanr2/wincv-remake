@@ -21,7 +21,10 @@ fn main() {
     use std::io::BufRead;
     for (i, name) in std::io::stdin().lock().lines().map_while(Result::ok).enumerate() {
         let name = &name;
-        let res = std::fs::read(name).map_err(|e| e.to_string()).and_then(|d| wincv_imgfmt::decode(name, &d));
+        // 與 Go 端相同:解碼器的 panic 當成這一張的錯誤,一張壞圖不影響其餘的。
+        let res = std::fs::read(name).map_err(|e| e.to_string()).and_then(|d| {
+            std::panic::catch_unwind(|| wincv_imgfmt::decode(name, &d)).unwrap_or_else(|_| Err("panic".to_string()))
+        });
         match res {
             Ok((img, kind)) => {
                 let sum: String = Sha256::digest(&img.pix).iter().map(|b| format!("{b:02x}")).collect();

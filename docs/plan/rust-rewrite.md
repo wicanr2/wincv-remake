@@ -73,7 +73,7 @@ Rust 重寫可行，現有程式的分層也適合逐塊搬移。建議分階段
 | `pdfcpu` + `rasterx` + `x/image/font/sfnt` | PDF 物件層、光柵、字形外框 | hayro（純 Rust 的 PDF 光柵器）、hayro-syntax | 高 | hayro 的 README 自述仍是實驗性、尚未完整；回歸測試約 1,000 份 PDF；`forbid(unsafe_code)` |
 | `x/text` 編碼 | Big5、GBK、Shift_JIS、EUC-KR | encoding_rs（WHATWG 編碼標準，Firefox 使用） | 中：與原版隨附對照表的差異要用 golden data 驗 | 已查證涵蓋這四種編碼 |
 | `x/image` 圖檔 | BMP、GIF、TIFF 等 | image crate，加上自寫的冷門格式 | 中 | image 0.25.5 起暫停 PCX；TIFF 解碼不支援傳真壓縮 |
-| `oksvg` | SVG | resvg | 待驗 | 本次未查證 |
+| `oksvg` | SVG | resvg 0.49（usvg 排版 `<text>`） | 低：已對 224 個真實 SVG 以 Chromium 為真值驗過 | 見「第二階段 7」 |
 | `x/net/html` | 網頁、EPUB | html5ever 或同類解析器 | 待驗 | 本次未查證 |
 | 自寫：LZH、ARJ、CAB、ARC、.Z、ACE、倚天、FNT、CFB、doc97、RTF、OOXML | | 手動搬移 | 中：搬移時會出現「自洽但錯」 | Go 版就是 oracle |
 
@@ -136,6 +136,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第二階段 5a：`syntax`、`editor`、`checksum`、`convert`、`note`、`search`、`fileop`、`dict` | 完成：Go 版的單元測試全部照搬並通過；4 個編輯器場景與 Go 版逐像素相同（見下） | `cargo test`、`tools/rust-parity.sh` |
 | 第二階段 5b：`imgfmt`、`imgview`、`thumbs`（SVG 除外） | 完成：1,922 張真實圖檔與 Go 版比對，JPEG 與 WebP 另以 Pillow 當第三方真值；7 個看圖與縮圖場景逐像素相同（見下） | `tools/img-parity.sh`、`tools/rust-parity.sh` |
 | 第二階段 6：字型（`ttf`、`vecfont`、`fontset`、`bundled`、`datadir`，含 24 點倚天字庫） | 完成：Go 版讀得了的字型，點陣字模逐位元相同、向量外框逐段相同；9 個字級與後備字型場景逐像素相同（見下） | `tools/glyph-parity.sh`、`tools/rust-parity.sh` |
+| 第二階段 7：SVG（resvg） | 完成：224 個真實 SVG 以 Chromium 為真值，Rust 全部解得開、平均差 2.38（Go 10.04，另有 21 個解不開）（見下） | `tools/svg-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -389,6 +390,29 @@ Go 版在元件自己的座標裡算隱含中點（整數除 2，向零截斷）
 `tools/rust-parity.sh` 加 9 個場景：10×18 與 12×24 字級（倚天縮放、原生 24 點字庫），以及指定 Noto Sans CJK 或
 DejaVu Sans 當後備字型的 Big5 以外文字（含非原生字級走向量字型反鋸齒、`-bitmap-cjk`），全部 43 個場景逐像素相同。
 兩個容器的工作目錄不同，素材目錄改用 `WINCV_HOME` 指定；`tools/cargo.sh` 也唯讀掛入 `/usr/share/fonts`，與 `tools/go.sh` 相同。
+
+### 第二階段 7：SVG（2026-11-09）
+
+Go 版用 oksvg 畫路徑，`<text>` 自己排版、用 vecfont 的外框補畫。Rust 版改用 resvg：usvg 本身會排版文字
+（text-anchor、tspan、變換、字距、shaping），不另做一套，所以 Rust 版的 SVG 沒有用到 `wincv-vecfont`。
+
+- 字型來源與點陣那一路相同（內嵌的後備字型，再 `wincv_ttf::candidates`），桌面平台以 mmap 載入。
+- usvg 預設的泛用字族是 Windows 字型名稱（Times New Roman 等），Linux 上沒有的話整段字不畫。改成指向實際有的字型，
+  並把 Arial、Helvetica、Courier 這類常見名稱對應到泛用字族，做法與 fontconfig 的別名相同。
+- 沒有 width、height、viewBox 時，尺寸取原點到內容右下角的範圍（usvg 的做法），Go 版一律是 256×256。
+
+兩邊的光柵器不同，不可能逐像素相同，所以 `tools/svg-parity.sh` 改用 Chromium（playwright 映像的 headless_shell）
+當第三方真值：從 `~/cht` 依專案分層抽樣、依內容去重，以 Rust 版的尺寸在 Chromium 畫同一個檔案，三者疊在黑底上比 RGB 差值。
+三個容器掛同一份 `/usr/share/fonts`。
+
+| 項目 | Go | Rust |
+|---|---|---|
+| 解不開（224 個 SVG） | 21（多為 oksvg 的 `param mismatch`） | 0 |
+| 與 Chromium 的平均差（兩邊尺寸相同的 140 個） | 10.04 | 2.38 |
+| 平均最大差 | 216.3 | 174.0 |
+| 比較接近 Chromium 的檔案數 | 12 | 128 |
+
+Rust 差最多的幾個是小尺寸的文字（例如 143×26 的標誌字），差在字形與反鋸齒，版面一致。
 
 ### 比對時找到的 Go 版 bug：Big5 編碼器的 HKSCS 碼
 

@@ -1,16 +1,18 @@
 //! 圖檔解碼(對應 Go 版 `internal/imgfmt`)。
 //!
 //! JPEG、PNG、GIF、BMP、TIFF、WebP 交給 `image` crate(依 magic number 認格式);
-//! PCX、TGA、PNM、ICO、Koala 是從 Go 版搬過來的自寫解碼器。格式支援狀態見
+//! PCX、TGA、PNM、ICO、Koala 是從 Go 版搬過來的自寫解碼器;SVG 交給 resvg。格式支援狀態見
 //! [`FORMATS`],它是進度的唯一真相。
 
 mod ico;
 mod koa;
 mod pcx;
 mod pnm;
+mod svg;
 mod tga;
 mod tiff_fallback;
 
+pub use svg::SVG_MAX_SIDE;
 pub use wincv_render::Image;
 
 use wincv_i18n::tr;
@@ -39,8 +41,8 @@ pub const FORMATS: &[Format] = &[
     Format { ext: &[".pbm", ".pgm", ".ppm", ".pnm"], name: "PNM", supported: true, note: "自寫" },
     Format { ext: &[".ico"], name: "ICO", supported: true, note: "自寫(挑最大的那張)" },
     Format { ext: &[".koa"], name: "Koala", supported: true, note: "自寫,C64 多色點陣" },
-    // SVG 的 <text> 要用向量字型的後備鏈(ttf / vecfont),那幾個模組還沒搬。
-    Format { ext: &[".svg"], name: "SVG", supported: false, note: "等字型模組搬到 Rust 版" },
+    // SVG 原版沒有(2011 年還不流行),但 markdown 裡很常見,圖表的意義全在 <text> 上。
+    Format { ext: &[".svg"], name: "SVG", supported: true, note: "resvg(usvg 排版 <text>)" },
     // Photo CD 是 Huffman 編碼的 YCC,還帶多組解析度,而且找不到可以產生測試檔的
     // 工具。沒有 oracle 的解碼器不寫。
     Format { ext: &[".pcd"], name: "PhotoCD", supported: false, note: "Kodak Photo CD,造不出測試資料" },
@@ -77,6 +79,7 @@ pub fn decode(name: &str, data: &[u8]) -> Result<(Image, &'static str), String> 
         Some("PNM") => pnm::decode(data).map(|i| (i, "PNM")),
         Some("ICO") => ico::decode(data).map(|i| (i, "ICO")),
         Some("Koala") => koa::decode(data).map(|i| (i, "KOA")),
+        Some("SVG") => return svg::decode(data).map(|i| (i, "SVG")),
         _ => return decode_magic(data),
     };
     // 副檔名寫錯的檔案很常見(.ico 其實是 PNG、.gif 其實是 JPEG):自寫的解碼器

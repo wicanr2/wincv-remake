@@ -24,6 +24,10 @@ name = "vecsum"
 path = "src/bin/vecsum.rs"
 
 [[bin]]
+name = "svgcmp"
+path = "src/bin/svgcmp.rs"
+
+[[bin]]
 name = "imgsum"
 path = "src/bin/imgsum.rs"
 

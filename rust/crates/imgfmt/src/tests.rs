@@ -170,3 +170,132 @@ fn misnamed_png_falls_back_to_magic() {
     assert_eq!((img.w, img.h, kind), (3, 2, "PNG"));
     assert!(decode("x.ico", b"not an image").unwrap_err().contains("ICO"));
 }
+
+fn svg(src: &str) -> Image {
+    let (img, kind) = decode("x.svg", src.as_bytes()).unwrap_or_else(|e| panic!("解不開:{e}"));
+    assert_eq!(kind, "SVG");
+    img
+}
+
+/// 一塊區域裡有多少像素不是背景色(左上角那一點)。
+fn ink(img: &Image, x0: u32, y0: u32, x1: u32, y1: u32) -> usize {
+    let bg = img.at(0, 0);
+    (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).filter(|&(x, y)| img.at(x, y) != bg).count()
+}
+
+/// 尺寸要從 width/height 來,而且顏色要對:全白的圖也會通過只檢查尺寸的測試。
+#[test]
+fn svg_size_and_colors() {
+    let d = std::fs::read(repo().join("internal/imgfmt/testdata/tri.svg")).unwrap();
+    let (img, kind) = decode("tri.svg", &d).unwrap();
+    assert_eq!((img.w, img.h, kind), (40, 20, "SVG"));
+    assert_eq!(img.at(5, 10), [0xff, 0, 0, 0xff], "左半紅");
+    assert_eq!(img.at(30, 10), [0xff, 0xff, 0xff, 0xff], "右半白");
+}
+
+/// 壞掉的 SVG 要回錯誤,不能回一張空白圖:空白圖看起來像「這張圖就是白的」。
+#[test]
+fn svg_broken_is_error() {
+    assert!(decode("x.svg", b"<svg><this is not xml").is_err());
+}
+
+/// viewBox 很大的檔案不能配置到爆。
+#[test]
+fn svg_clamps_huge_viewbox() {
+    let img = svg(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100000 100000"></svg>"#);
+    assert!(img.w as f32 <= SVG_MAX_SIDE && img.h as f32 <= SVG_MAX_SIDE, "{}x{}", img.w, img.h);
+}
+
+/// 沒有 width、height、viewBox 時,尺寸取原點到內容右下角的範圍(usvg 的做法),
+/// 連內容都沒有時是 100×100。Go 版一律是 256×256。
+#[test]
+fn svg_size_without_dimensions() {
+    let img = svg(r#"<svg xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="10" height="10"/></svg>"#);
+    assert_eq!((img.w, img.h), (12, 13));
+    let img = svg(r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#);
+    assert_eq!((img.w, img.h), (100, 100));
+}
+
+/// 少了 xmlns 的檔案也要解得開(手寫的 SVG 常漏掉)。
+#[test]
+fn svg_without_namespace() {
+    let img = svg(r#"<svg width="20" height="10"><rect width="20" height="10"/></svg>"#);
+    assert_eq!((img.w, img.h, img.at(5, 5)), (20, 10, [0, 0, 0, 255]));
+}
+
+fn have_fonts() -> bool {
+    !wincv_ttf::candidates().is_empty() || !wincv_bundled::fallbacks().is_empty()
+}
+
+/// <text> 是圖表的意義所在:少了它剩下一堆無從解讀的長條,而畫面看起來是完整的。
+#[test]
+fn svg_draws_text() {
+    if !have_fonts() {
+        eprintln!("這台機器沒有可用的字型,跳過");
+        return;
+    }
+    let img = svg(r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60">
+      <rect width="200" height="60" fill="#ffffff"/>
+      <text x="10" y="40" font-size="24" fill="#000000">Hi 中文</text>
+    </svg>"##);
+    assert!(ink(&img, 0, 0, 100, 60) > 0, "完全沒有畫出文字");
+    assert_eq!(ink(&img, 150, 0, 200, 60), 0, "右邊不該有東西");
+}
+
+/// text-anchor 決定文字往哪一邊長。算錯的話標籤整排偏到另一側,而每個標籤自己看起來都很正常。
+#[test]
+fn svg_text_anchor() {
+    if !have_fonts() {
+        return;
+    }
+    let tmpl = |a: &str| {
+        svg(&format!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60">
+          <rect width="200" height="60" fill="#ffffff"/>
+          <text x="100" y="40" font-size="24" fill="#000000" text-anchor="{a}">Hi</text></svg>"##
+        ))
+    };
+    let (start, end) = (tmpl("start"), tmpl("end"));
+    assert_eq!(ink(&start, 0, 0, 99, 60), 0, "start 不該畫到 x=100 的左邊");
+    assert!(ink(&start, 100, 0, 200, 60) > 0, "start 應該畫在 x=100 的右邊");
+    assert_eq!(ink(&end, 101, 0, 200, 60), 0, "end 不該畫到 x=100 的右邊");
+    assert!(ink(&end, 0, 0, 100, 60) > 0, "end 應該畫在 x=100 的左邊");
+}
+
+/// 文字要跟著 viewBox 一起縮放。
+#[test]
+fn svg_text_scales_with_viewbox() {
+    if !have_fonts() {
+        return;
+    }
+    let img = svg(r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8000 4000">
+      <rect width="8000" height="4000" fill="#ffffff"/>
+      <text x="400" y="2000" font-size="800" fill="#000000">Hi</text></svg>"##);
+    assert!(img.w as f32 <= SVG_MAX_SIDE && img.h as f32 <= SVG_MAX_SIDE);
+    assert!(ink(&img, 0, 0, img.w / 2, img.h) > 0, "縮放後文字不見了");
+    assert_eq!(ink(&img, img.w / 2, img.h * 3 / 4, img.w, img.h), 0, "右下角不該有東西");
+}
+
+/// fill="none" 的文字看不見(常見於只拿來量尺寸的輔助元素)。
+#[test]
+fn svg_text_fill_none() {
+    if !have_fonts() {
+        return;
+    }
+    let img = svg(r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60">
+      <rect width="200" height="60" fill="#ffffff"/>
+      <text x="10" y="40" font-size="24" fill="none">Hi</text></svg>"##);
+    assert_eq!(ink(&img, 0, 0, img.w, img.h), 0);
+}
+
+/// Arial 這類 Windows 字型名稱在 Linux 上沒有,要換成對應的泛用字族,不能整段字不畫。
+#[test]
+fn svg_windows_font_names_still_draw() {
+    if !have_fonts() {
+        return;
+    }
+    let img = svg(r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60">
+      <rect width="200" height="60" fill="#ffffff"/>
+      <text x="10" y="40" font-size="24" font-family="Arial" fill="#000000">Hi</text></svg>"##);
+    assert!(ink(&img, 0, 0, 200, 60) > 0);
+}

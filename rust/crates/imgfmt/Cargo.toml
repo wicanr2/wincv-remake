@@ -14,3 +14,13 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 weezl = "0.1"
 flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 fax = "0.2"
+wincv-bundled.workspace = true
+wincv-ttf.workspace = true
+# SVG:usvg 解析、tiny-skia 光柵化、text 功能把 <text> 排版成外框(字型由我們給)。
+# 不開 system-fonts:字型清單與點陣那一路相同(內嵌 + wincv_ttf::candidates)。
+resvg = { version = "0.49", default-features = false, features = ["text", "raster-images"] }
+
+# 字型檔用 mmap 載入(只讀需要的部分):一份 CJK 字型十幾 MB,候選清單可以有幾十份。
+# 網頁版沒有檔案系統,不開。功能經由 Cargo 的功能合併套用到 usvg 用的那一份 fontdb。
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+fontdb = { version = "0.24", default-features = false, features = ["memmap"] }
