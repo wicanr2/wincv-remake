@@ -130,6 +130,8 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第一階段 4：PDF（hayro）對測試檔 | 完成：9 個測試檔上與 Go 版相當，一項較好（見下） | `tools/pdf-parity.sh` |
 | 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
 | 第二階段 1：`keys`、`textenc`、`i18n` | 完成（見下） | `tools/textenc-parity.sh` |
+| 第二階段 2：`vfs`、`browser`（目錄畫面） | 完成：5 個目錄場景與 Go 版逐像素相同（見下） | `tools/rust-parity.sh` |
+| 第二階段 3：`viewer`、`session` | 進行中 | |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -248,8 +250,22 @@ Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模�
       Shift_JIS 的部分擴充字，Go 的 x/text 解成 U+FFFD，Rust 解出字。原版 `original/app/` 被判成 GBK 的對照表就有這種字。
     - 取代粒度不同：一段不合法位元組換成幾個 U+FFFD 的規則不同。只發生在用錯的編碼硬解（例如 UTF-8 文件強制用 Big5 看）或隨機資料。
   - 沒有「兩邊把同一段位元組解成不同字」的情況。
+  - 使用者決定（2026-11-09）：文字解碼以 Rust 版（WHATWG）為準，不必與 Go 版一致。
 - Go 的字串可以裝不合法的 UTF-8，range 時每個壞位元組各算一個 U+FFFD；Rust 端的 `utf8_lossy_go` 照這個規則做，
   不用 `from_utf8_lossy`（後者把一段壞位元組併成一個）。
+
+### 第二階段 2：`vfs`、`browser`（2026-11-09）
+
+- `tools/rust-parity.sh` 擴充成多場景：示範畫面、`docs/`、`testdata/lzh/`、repo 根目錄，以及特製目錄
+  （`tools/parity-fixture.py` 產生：Big5 原始位元組與不合法 UTF-8 的檔名、只差大小寫的同名檔、超長檔名、全形檔名、
+  隱藏檔、符號連結、足以出現捲軸的數量），後者另跑 60×12 的小畫面。六個場景與 Go 版逐像素相同。
+- 要與 Go 版逐項相同，有三處不能用 Rust 的慣用寫法：
+  - 檔名保留原始 `OsString`，顯示時每個壞位元組換一個 U+FFFD（Go 字串的行為）。
+  - `read_dir` 的結果先依原始位元組排序：Go 的 `os.ReadDir` 回傳前就排好了，之後的穩定排序依賴這個初始順序。
+  - 排序用照搬的 Go 1.22 `sort.SliceStable` 演算法（`wincv-vfs` 的 `gosort`）。Go 版遞減排序的 less 是 `!less`，
+    只差大小寫的同名項會被顛倒；Rust 的排序要求全序，結果不同。`testdata/go-sort.txt` 是 Go 版在 45 項、
+    六種設定下的實際輸出，Rust 測試逐列比對。
+- 本地時間用 chrono（讀 `TZ` 與 `/etc/localtime`），格式「MM-DD-YY」「HH:MM」。
 
 Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
 cargo 一律經 `tools/cargo.sh` 在容器裡跑。

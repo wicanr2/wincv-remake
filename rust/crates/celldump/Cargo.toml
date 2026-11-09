@@ -14,4 +14,6 @@ wincv-cell.workspace = true
 wincv-fnt.workspace = true
 wincv-eten.workspace = true
 wincv-render.workspace = true
+wincv-browser.workspace = true
+wincv-vfs.workspace = true
 png.workspace = true
