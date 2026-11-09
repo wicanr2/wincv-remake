@@ -22,4 +22,5 @@
 - #9 應用程式圖示：重製版自繪像素圖示（`internal/appicon`），不用原版 `WinCV.ico`。執行時 `ebiten.SetWindowIcon`；Windows 執行檔由 `tools/win-rsrc.sh` 以 windres 產生 `.syso`，建完就刪；Android manifest 指向 `mipmap/ic_launcher`。macOS 的發行物是裸執行檔，沒有 `.app` 封包，所以沒有圖示。
 - #10 字體大小選單卡住：選了一個沒改變任何狀態的項目（字級已到頂）時，`menuKey` 已收起下拉卻回 false，外殼不重繪，畫面停在不存在的下拉上。改成收起下拉一律回 true。實際視窗驗證：字級到頂後選「放大字體」，下拉收起。
 - #11 CJK 字型：`cjk24` 加倚天 2000 的檔名（`STDFONT.24`、`STDFONT.24K` 等）當候選；找不到時訊息列出要找的檔名，不再顯示 `original/eten/` 這個相對路徑。`SPCFSUPP` 認兩種排法：3.53 的 365 格，與一碼位一格的 408 格（43 個洞必須全空才接受，否則只放棄這一區，其餘照常載入）。408 格排法依回報者截圖的錯誤訊息推得，沒有倚天 2000 的實檔可對照。
+- 選單列功能鍵：使用者要求選單列右側的 F9／F1／F2 可以用滑鼠點。改成八類後 80 欄放不下原本的「F9 選單  F1 說明  F2 網路」，所以放不下時改畫「F9 F1 F2」；每一段都可點，等於按那顆鍵。
 - 驗證環境：`wincv-build:1` 映像裡只有 `xvfb-run` 腳本沒有 `Xvfb` 本體，`xvfb-run` 會一直等。cmd 測試與實際視窗驗證改用主機的 `xvfb-run -a -s "-ac …"`，容器以 `DISPLAY` 與 `/tmp/.X11-unix` 連過去。`tools/remake-shot.sh` 也受影響，尚未修。

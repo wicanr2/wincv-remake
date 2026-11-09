@@ -147,6 +147,8 @@ type App struct {
 	// screenCols / screenRows 是最近一次 Draw 拿到的整個畫面大小
 	//(含觸控功能列)。Click 要靠它們知道點到的是不是功能列。
 	screenCols, screenRows int
+	// barKeys 是選單列右側可以點的功能鍵,最近一次繪製選單列時算出。
+	barKeys []barKey
 	// prompt 是畫面底部的輸入列,見 prompt.go。
 	prompt prompt
 	// menu 是選單列與它的下拉,見 menu.go。

@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wicanr2/wincv-remake/internal/cell"
@@ -221,4 +222,38 @@ func catCol(a *App, i int) int {
 		x += cellWidth(catLabel(j, c.name))
 	}
 	return x
+}
+
+// 選單列右側的 F9 / F1 / F2 可以用滑鼠點。80 欄放不下說明文字,
+// 只畫鍵名;寬一點的視窗畫完整的「F9 選單」。
+func TestMenuBarFunctionKeysClickable(t *testing.T) {
+	a := clickApp(t)
+	bar := rowText(a.MenuLayer(80, 25).Bar, 0)
+	if !strings.HasSuffix(strings.TrimRight(bar, " "), "F9 F1 F2") {
+		t.Fatalf("80 欄的選單列右側應該是「F9 F1 F2」:%q", bar)
+	}
+	col := func(k keys.Code) int {
+		for _, b := range a.barKeys {
+			if b.key.Code == k {
+				return b.x0
+			}
+		}
+		t.Fatalf("選單列上沒有 %v", keys.Named(k))
+		return -1
+	}
+	if !a.MenuBarClick(col(keys.F9)) || !a.Menuing() {
+		t.Fatal("點 F9 應該打開選單")
+	}
+	if !a.MenuBarClick(col(keys.F9)) || a.Menuing() {
+		t.Fatal("選單開著時點 F9 應該收起")
+	}
+	a.MenuBarClick(col(keys.F9))
+	if !a.MenuBarClick(col(keys.F1)) || a.Menuing() || a.Mode != ModeMarkdown {
+		t.Fatalf("點 F1 應該收起選單並打開說明,現在 mode=%v menu=%v", a.Mode, a.Menuing())
+	}
+
+	wide := rowText(a.MenuLayer(120, 25).Bar, 0)
+	if !strings.Contains(wide, "F9 選單") || !strings.Contains(wide, "F2 網路") {
+		t.Fatalf("120 欄應該畫出完整的提示:%q", wide)
+	}
 }

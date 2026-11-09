@@ -161,6 +161,17 @@ func (a *App) Wheel(d int) bool {
 // MenuBarClick 是選單列被點了。col 以**選單格**為單位。
 // 點到分類就展開它;已經展開同一個就收起來;點在空白處收起來。
 func (a *App) MenuBarClick(col int) bool {
+	// 右側的 F9 / F1 / F2 等同按那顆鍵。下拉開著時先收起來:
+	// 按 F9 本來就是開合,其他兩顆要換到別的畫面,不該留著下拉。
+	if k, ok := a.barKeyAt(col); ok {
+		wasOpen := a.menu.active
+		a.menu = menu{}
+		if k.Code == keys.F9 && wasOpen {
+			return true
+		}
+		a.HandleKey(k)
+		return true
+	}
 	i := a.menuCatAt(col)
 	if i < 0 || (a.menu.active && a.menu.cat == i) {
 		a.menu = menu{}

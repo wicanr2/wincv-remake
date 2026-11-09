@@ -137,7 +137,8 @@ setting is remembered.
 
 Click in the list to move the cursor, double-click to open; clicking a link on a
 web page follows it immediately. Click the top line to open the menu, click an
-item to run it, click elsewhere to close it. The scroll wheel scrolls; holding an
+item to run it, click elsewhere to close it. `F9` `F1` `F2` at the right end of the
+menu bar can be clicked too, the same as pressing that key. The scroll wheel scrolls; holding an
 arrow key auto-repeats.
 
 ## Android

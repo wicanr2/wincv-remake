@@ -530,11 +530,79 @@ func (a *App) drawMenuBar(s *cell.Screen) {
 		s.Print(x, 0, label, fg, bg)
 		x += w
 	}
-	// 右側提示。擠不下就不畫 —— 半條提示比沒有提示更難懂。
-	hint := i18n.T("F9 選單  F1 說明  F2 網路")
-	if px := s.Cols - cellWidth(hint) - 1; px > x+2 {
-		s.Print(px, 0, hint, cell.Blue, cell.LtGray)
+	a.drawBarKeys(s, x)
+}
+
+// barKey 是選單列右側一顆可以點的功能鍵。x0..x1 是它在選單列上的格位
+// (含兩端),由 drawBarKeys 每次繪製時算出,MenuBarClick 拿來比對。
+type barKey struct {
+	x0, x1 int
+	key    keys.Key
+}
+
+// barKeyDefs 是選單列右側的功能鍵,順序就是畫出來的順序。
+func barKeyDefs() []struct {
+	code keys.Code
+	name string
+} {
+	return []struct {
+		code keys.Code
+		name string
+	}{
+		{keys.F9, i18n.T("選單")},
+		{keys.F1, i18n.T("說明")},
+		{keys.F2, i18n.T("網路")},
 	}
+}
+
+// drawBarKeys 在選單列右側畫 F9 / F1 / F2,滑鼠點了等同按那顆鍵。
+//
+// 先試「F9 選單  F1 說明  F2 網路」,擠不下就只畫鍵名「F9 F1 F2」,
+// 再擠不下才不畫。原版八類排在 80 欄的選單列上剩下的格數,剛好放得下
+// 只有鍵名的那一種。分類標題自己帶著右側一格空白,所以緊貼著畫不會黏在一起。
+func (a *App) drawBarKeys(s *cell.Screen, x int) {
+	a.barKeys = a.barKeys[:0]
+	defs := barKeyDefs()
+	for _, long := range []bool{true, false} {
+		labels := make([]string, len(defs))
+		gap := 1
+		if long {
+			gap = 2
+		}
+		w := 0
+		for i, d := range defs {
+			labels[i] = keys.Named(d.code).String()
+			if long {
+				labels[i] += " " + d.name
+			}
+			w += cellWidth(labels[i])
+		}
+		w += gap * (len(defs) - 1)
+		px := s.Cols - w
+		if long {
+			px-- // 寬的那一種與右緣留一格
+		}
+		if px < x {
+			continue
+		}
+		for i, d := range defs {
+			lw := cellWidth(labels[i])
+			s.Print(px, 0, labels[i], cell.Blue, cell.LtGray)
+			a.barKeys = append(a.barKeys, barKey{px, px + lw - 1, keys.Named(d.code)})
+			px += lw + gap
+		}
+		return
+	}
+}
+
+// barKeyAt 回傳選單列第 col 格是哪一顆功能鍵。
+func (a *App) barKeyAt(col int) (keys.Key, bool) {
+	for _, b := range a.barKeys {
+		if col >= b.x0 && col <= b.x1 {
+			return b.key, true
+		}
+	}
+	return keys.Key{}, false
 }
 
 // menuBoxSize 算下拉要多大。maxCols / maxRows 是選單格點下整個畫面的大小。
