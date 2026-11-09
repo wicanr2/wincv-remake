@@ -2821,9 +2821,12 @@ dependencies = [
  "wincv-eten",
  "wincv-fnt",
  "wincv-hexview",
+ "wincv-imgfmt",
+ "wincv-imgview",
  "wincv-render",
  "wincv-syntax",
  "wincv-textenc",
+ "wincv-thumbs",
  "wincv-vfs",
  "wincv-viewer",
 ]
@@ -2910,6 +2913,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wincv-imgview"
+version = "0.1.0"
+dependencies = [
+ "wincv-cell",
+ "wincv-i18n",
+ "wincv-imgfmt",
+ "wincv-render",
+]
+
+[[package]]
 name = "wincv-keys"
 version = "0.1.0"
 dependencies = [
@@ -2980,6 +2993,16 @@ name = "wincv-textenc"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
+]
+
+[[package]]
+name = "wincv-thumbs"
+version = "0.1.0"
+dependencies = [
+ "wincv-cell",
+ "wincv-i18n",
+ "wincv-imgfmt",
+ "wincv-render",
 ]
 
 [[package]]

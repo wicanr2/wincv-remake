@@ -34,6 +34,7 @@ import (
 	"github.com/wicanr2/wincv-remake/internal/render"
 	"github.com/wicanr2/wincv-remake/internal/syntax"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
+	"github.com/wicanr2/wincv-remake/internal/thumbs"
 	"github.com/wicanr2/wincv-remake/internal/ttf"
 	"github.com/wicanr2/wincv-remake/internal/vfs"
 	"github.com/wicanr2/wincv-remake/internal/viewer"
@@ -62,6 +63,23 @@ func drawFile(s *cell.Screen, name string, cw, ch int) ([]*render.Overlay, error
 	}
 	v.Draw(s)
 	return nil, nil
+}
+
+// drawThumbs 畫縮圖列表:目錄裡的圖檔依名稱排序,解畫面上看得到的那些。
+func drawThumbs(s *cell.Screen, dir string, cw, ch int) ([]*render.Overlay, error) {
+	des, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, de := range des {
+		if !de.IsDir() && imgfmt.IsImage(de.Name()) {
+			names = append(names, de.Name())
+		}
+	}
+	m := thumbs.New(names, func(n string) ([]byte, error) { return os.ReadFile(filepath.Join(dir, n)) })
+	m.DecodeVisible(s.Cols, s.Rows-1)
+	return []*render.Overlay{m.Draw(s, cw, ch)}, nil
 }
 
 func drawEdit(s *cell.Screen, name, cfgDir string) error {
@@ -109,6 +127,7 @@ func main() {
 		edit      = flag.String("edit", "", "用編輯器開這個檔案(含語法上色)")
 		cfgDir    = flag.String("cfg", "", "語法上色設定所在的目錄;留空跟著 -half 走")
 		appDir    = flag.String("app", "", "跑完整的 app(含選單、模式切換)並瀏覽這個目錄")
+		thumbDir  = flag.String("thumbs", "", "畫這個目錄的縮圖列表(與 Rust 版逐像素比對用)")
 		keyStr    = flag.String("keys", "", "先送這一串按鍵再截圖,逗號分隔,例如 F1,Down,Down")
 		fbFont    = flag.String("fallback", "", "後備字型(TTF/TTC),補倚天沒有的字;留空自動找")
 		noFB      = flag.Bool("no-fallback", false, "不要後備字型")
@@ -185,6 +204,12 @@ func main() {
 		if err := drawEdit(s, *edit, *cfgDir); err != nil {
 			die(err)
 		}
+	} else if *thumbDir != "" {
+		ov, err := drawThumbs(s, *thumbDir, r.CellW, r.CellH)
+		if err != nil {
+			die(err)
+		}
+		overlay = ov
 	} else if *file != "" {
 		ov, err := drawFile(s, *file, r.CellW, r.CellH)
 		if err != nil {

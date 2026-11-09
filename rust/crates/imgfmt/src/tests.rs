@@ -159,3 +159,14 @@ fn formats_match_go() {
     let rust: Vec<_> = FORMATS.iter().map(|f| (f.ext.iter().map(|e| e.to_string()).collect::<Vec<_>>(), f.name.to_string())).collect();
     assert_eq!(rust, go);
 }
+
+/// 副檔名是 .ico、內容其實是 PNG:依 magic number 解得開。
+#[test]
+fn misnamed_png_falls_back_to_magic() {
+    let im = image::RgbaImage::from_pixel(3, 2, image::Rgba([1, 2, 3, 255]));
+    let mut buf = std::io::Cursor::new(Vec::new());
+    im.write_to(&mut buf, image::ImageFormat::Png).unwrap();
+    let (img, kind) = decode("x.ico", buf.get_ref()).unwrap();
+    assert_eq!((img.w, img.h, kind), (3, 2, "PNG"));
+    assert!(decode("x.ico", b"not an image").unwrap_err().contains("ICO"));
+}

@@ -99,3 +99,22 @@ BEGIN
   For i := 1 To 3 Do WriteLn('第 ', i, ' 次');
 END.
 """)
+
+# 看圖場景:32 位元 TGA 的 alpha 漸層(半透明疊色)與 PGM 灰階。
+im = os.path.join(root, "img")
+os.makedirs(im, exist_ok=True)
+w, h = 64, 48
+tga = bytearray(18)
+tga[2] = 2                                  # 不壓縮 RGB
+tga[12:14] = w.to_bytes(2, "little")
+tga[14:16] = h.to_bytes(2, "little")
+tga[16] = 32
+tga[17] = 0x28                              # 原點在上、8 位元 alpha
+for y in range(h):
+    for x in range(w):
+        tga += bytes([x * 4 % 256, y * 5 % 256, 200, x * 255 // (w - 1)])   # BGRA
+with open(os.path.join(im, "grad.tga"), "wb") as f: f.write(tga)
+with open(os.path.join(im, "gray.pgm"), "wb") as f:
+    f.write(b"P5\n32 16\n255\n" + bytes((x * 8 + y * 3) % 256 for y in range(16) for x in range(32)))
+for n in ("grad.tga", "gray.pgm"):
+    os.utime(os.path.join(im, n), (1_000_000_000, 1_000_000_000))

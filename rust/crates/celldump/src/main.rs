@@ -24,6 +24,7 @@ struct Args {
     file: Option<PathBuf>,
     edit: Option<PathBuf>,
     cfg: Option<PathBuf>,
+    thumbs: Option<PathBuf>,
 }
 
 fn parse_args() -> Args {
@@ -38,6 +39,7 @@ fn parse_args() -> Args {
         file: None,
         edit: None,
         cfg: None,
+        thumbs: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
@@ -53,6 +55,7 @@ fn parse_args() -> Args {
             "-file" => a.file = Some(v().into()),
             "-edit" => a.edit = Some(v().into()),
             "-cfg" => a.cfg = Some(v().into()),
+            "-thumbs" => a.thumbs = Some(v().into()),
             _ => die(&format!("不認得的參數 {k}")),
         }
     }
@@ -88,6 +91,7 @@ fn main() {
     r.missing_mark = true;
 
     let mut s = Screen::new(a.cols, a.rows);
+    let mut overlay: Option<wincv_render::Overlay> = None;
     if let Some(f) = &a.edit {
         // 與 Go 版 celldump -edit 相同:語法設定目錄留空時跟著 -half 走。
         let cfg_dir = a.cfg.clone().unwrap_or_else(|| a.half.parent().map(PathBuf::from).unwrap_or_default());
@@ -95,8 +99,10 @@ fn main() {
         let syn = wincv_syntax::Set::load(&cfg_dir).ok().and_then(|set| set.for_name(&f.to_string_lossy()));
         let base = f.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         wincv_editor::Model::load(&base, &data, wincv_textenc::Enc::Unknown, syn).draw(&mut s);
+    } else if let Some(d) = &a.thumbs {
+        overlay = draw_thumbs(&mut s, d, r.cell_w, r.cell_h);
     } else if let Some(f) = &a.file {
-        draw_file(&mut s, f);
+        overlay = draw_file(&mut s, f, r.cell_w, r.cell_h);
     } else { match &a.dir {
         // 檔案列表:與 Go 版 celldump -dir 相同,不帶磁碟統計與註解。
         Some(dir) => {
@@ -116,7 +122,8 @@ fn main() {
         None => demo(&mut s),
     } }
     let (w, h) = r.size(s.cols, s.rows);
-    let px = r.draw(&s);
+    let ovs: Vec<&wincv_render::Overlay> = overlay.iter().collect();
+    let px = r.draw_with(&s, &ovs);
 
     let f = std::fs::File::create(&a.out).unwrap_or_else(|e| die(&format!("{}: {e}", a.out.display())));
     let mut enc = png::Encoder::new(std::io::BufWriter::new(f), w as u32, h as u32);
@@ -132,16 +139,41 @@ fn main() {
 
 /// 看檔(與 Go 版 celldump -file 相同):文字用文字檢視,二進位用 HEX。
 /// 圖檔還沒搬,先不處理。
-fn draw_file(s: &mut Screen, path: &std::path::Path) {
+fn draw_file(s: &mut Screen, path: &std::path::Path, cw: i32, ch: i32) -> Option<wincv_render::Overlay> {
     let data = std::fs::read(path).unwrap_or_else(|e| die(&format!("{}: {e}", path.display())));
     let name = path.file_name().map(wincv_vfs::display_name).unwrap_or_default();
+    // 與 Go 版相同:看起來是圖檔就用看圖模式,解不開才退回 16 進位。
+    if wincv_imgfmt::is_image(&name) {
+        if let Ok(m) = wincv_imgview::Model::load(&name, &data) {
+            return Some(m.draw(s, cw, ch));
+        }
+        wincv_hexview::Model::load(&name, data).draw(s);
+        return None;
+    }
     let v = wincv_viewer::Model::load(&name, &data, wincv_textenc::Enc::Unknown);
     if v.enc == wincv_textenc::Enc::Binary {
         wincv_hexview::Model::load(&name, data).draw(s);
-        return;
+        return None;
     }
     let mut v = v;
     v.draw(s);
+    None
+}
+
+/// 縮圖列表:目錄裡的圖檔依名稱排序,解畫面上看得到的那些。
+fn draw_thumbs(s: &mut Screen, dir: &std::path::Path, cw: i32, ch: i32) -> Option<wincv_render::Overlay> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap_or_else(|e| die(&format!("{}: {e}", dir.display())))
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| !t.is_dir()))
+        .map(|e| wincv_vfs::display_name(&e.file_name()))
+        .filter(|n| wincv_imgfmt::is_image(n))
+        .collect();
+    names.sort();
+    let mut m = wincv_thumbs::Model::new(&names);
+    let load = |n: &str| std::fs::read(dir.join(n)).map_err(|e| e.to_string());
+    m.decode_visible(s.cols, s.rows - 1, &load);
+    m.draw(s, cw, ch)
 }
 
 /// 一眼看出「半形、全形、配色、格點」都對的畫面。內容與 Go 版逐字相同。

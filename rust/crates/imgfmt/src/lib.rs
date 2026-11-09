@@ -71,15 +71,17 @@ pub fn decode(name: &str, data: &[u8]) -> Result<(Image, &'static str), String> 
         let base = name.rsplit(['/', std::path::MAIN_SEPARATOR]).next().unwrap_or(name);
         return Err(tr!("%s: %s 格式還沒實作(%s)", base, f.name, wincv_i18n::t(f.note)));
     }
-    match f.map(|f| f.name) {
-        Some("PCX") => return pcx::decode(data).map(|i| (i, "PCX")),
-        Some("TGA") => return tga::decode(data).map(|i| (i, "TGA")),
-        Some("PNM") => return pnm::decode(data).map(|i| (i, "PNM")),
-        Some("ICO") => return ico::decode(data).map(|i| (i, "ICO")),
-        Some("Koala") => return koa::decode(data).map(|i| (i, "KOA")),
-        _ => {}
-    }
-    decode_magic(data)
+    let own = match f.map(|f| f.name) {
+        Some("PCX") => pcx::decode(data).map(|i| (i, "PCX")),
+        Some("TGA") => tga::decode(data).map(|i| (i, "TGA")),
+        Some("PNM") => pnm::decode(data).map(|i| (i, "PNM")),
+        Some("ICO") => ico::decode(data).map(|i| (i, "ICO")),
+        Some("Koala") => koa::decode(data).map(|i| (i, "KOA")),
+        _ => return decode_magic(data),
+    };
+    // 副檔名寫錯的檔案很常見(.ico 其實是 PNG、.gif 其實是 JPEG):自寫的解碼器
+    // 認不得時,再依 magic number 試一次。都不行才報自寫解碼器的錯。
+    own.or_else(|e| decode_magic(data).map_err(|_| e))
 }
 
 /// 依 magic number 解 JPEG、PNG、GIF、BMP、TIFF、WebP。

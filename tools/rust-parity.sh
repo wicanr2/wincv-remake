@@ -53,6 +53,13 @@ SCENES=(
     "edit-pas|-edit /src/$OUT/fixture/edit/sample.pas"
     "edit-big5|-edit /src/original/app/whatsnew.txt"
     "edit-small|-edit /src/$OUT/fixture/edit/sample.c -cols 30 -rows 6"
+    "img-png|-file /src/docs/ui/shot-main.png"
+    "img-ico|-file /src/original/app/WinCV.ico"
+    "img-alpha-png|-file /src/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+    "img-alpha-tga|-file /src/$OUT/fixture/img/grad.tga"
+    "img-pgm|-file /src/$OUT/fixture/img/gray.pgm"
+    "thumbs-ui|-thumbs /src/docs/ui"
+    "thumbs-small|-thumbs /src/$OUT/fixture/img -cols 40 -rows 12"
 )
 # 不放 GBK 的檔案:文字解碼以 Rust 版(WHATWG)為準,與 Go 版不同是預期的。
 

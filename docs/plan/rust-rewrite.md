@@ -134,6 +134,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第二階段 3：`viewer`、`hexview`、`session` | 完成（見下） | `tools/rust-parity.sh` |
 | 第二階段 4：壓縮檔（`wincv-archive`） | 完成：12 種格式；737 個真實壓縮檔的 116,959 個檔案與 Go 版相同，另外多解出 2,839 個 Go 版解不開的檔（見下） | `tools/archive-parity.sh`、`tools/rust-parity.sh` |
 | 第二階段 5a：`syntax`、`editor`、`checksum`、`convert`、`note`、`search`、`fileop`、`dict` | 完成：Go 版的單元測試全部照搬並通過；4 個編輯器場景與 Go 版逐像素相同（見下） | `cargo test`、`tools/rust-parity.sh` |
+| 第二階段 5b：`imgfmt`、`imgview`、`thumbs`（SVG 除外） | 完成：1,922 張真實圖檔與 Go 版比對，JPEG 與 WebP 另以 Pillow 當第三方真值；7 個看圖與縮圖場景逐像素相同（見下） | `tools/img-parity.sh`、`tools/rust-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -329,6 +330,38 @@ Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模�
 - 編輯器存 UTF-16 檔時寫回 UTF-16（帶 BOM）。Go 版的編碼器對 UTF-16 直接輸出 UTF-8 位元組。
 - `convert.rename_case` 的首字母大寫以字元為單位。Go 版取第一個位元組，首字是中文或 é 時會把檔名弄壞（已在 master 修正）。
 - 狀態列靠右對齊用顯示寬度。Go 版用位元組數，含中文時離右緣空出幾格（已在 master 修正，新增 `cell.Width`）。
+
+### 第二階段 5b：看圖與縮圖（2026-11-09）
+
+- JPEG、PNG、GIF、BMP、TIFF、WebP 用 image 0.25（zune-jpeg、image-webp 等純 Rust 解碼器）；PCX、TGA、PNM、ICO、Koala 從 Go 版搬過來。
+  image crate 解不開的 TIFF（調色盤、CCITT Group 3）由自寫的備援解碼器接手，Group 3 交給 fax crate。
+- 自寫的解碼器認不得時，再依 magic number 試一次（副檔名寫錯的檔案很常見：`.ico` 其實是 PNG、`.gif` 其實是 JPEG）。
+- SVG 要等字型模組（`ttf`、`vecfont`）搬完，格式表暫時標成未支援。
+
+`tools/img-parity.sh` 用 `~/cht` 底下 1,922 張真實圖檔（依格式分層抽樣）比較兩邊解出的像素，比的是疊在黑底上的結果，
+全透明像素的 RGB 不算：
+
+| 格式 | 結果 |
+|---|---|
+| PNG、PPM、PGM、PBM、PCX、TGA、ICO | 兩邊都解得開的全部逐像素相同 |
+| BMP | 117 張相同；另 33 張（1bpp、OS/2 格式等）Go 版解不開，Rust 解得開 |
+| TIFF | 142 張相同；另 8 張 Go 版解不開；FM Towns 的 16 張灰階圖差在 16 位元轉 8 位元的進位（最多差 2） |
+| GIF | 136 張相同，11 張只差在透明像素；另 3 張其實是 JPEG 與 WebP |
+| JPEG、WebP | 兩邊不同，改用 Pillow 11.3.0（libjpeg-turbo、libwebp）當真值比較，見下表 |
+
+| 格式 | 張數 | 與 Pillow 的平均差（Go / Rust） | 平均最大差（Go / Rust） | 與 Pillow 完全相同（Go / Rust） |
+|---|---|---|---|---|
+| JPEG | 399 | 0.84 / 0.10 | 46.4 / 3.6 | 0 / 0 |
+| WebP | 149 | 3.03 / 0.000 | 36.6 / 0.0 | 49 / 149 |
+
+Rust 版在兩種格式上都比較接近參考實作：WebP 與 libwebp 逐像素相同；Go 版的有損 WebP 顏色偏移（最大差 36），
+JPEG 的色度上採樣也比較粗。
+
+`tools/rust-parity.sh` 加 7 個場景（PNG、ICO、帶透明的 PNG、32 位元 TGA 的 alpha 漸層、PGM、兩個縮圖列表），
+全部 34 個場景與 Go 版逐像素相同。
+
+比對時找到的 Go 版問題（已在 master 修正）：ICO 與 TGA 的 32 位元圖把非預乘的 BGRA 存進 `image.RGBA`，
+半透明像素（圖示的反鋸齒邊緣）顏色算錯。
 
 ### 比對時找到的 Go 版 bug：Big5 編碼器的 HKSCS 碼
 

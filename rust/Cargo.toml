@@ -32,6 +32,8 @@ wincv-search = { path = "crates/search" }
 wincv-fileop = { path = "crates/fileop" }
 wincv-dict = { path = "crates/dict" }
 wincv-imgfmt = { path = "crates/imgfmt" }
+wincv-imgview = { path = "crates/imgview" }
+wincv-thumbs = { path = "crates/thumbs" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"
