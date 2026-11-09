@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/wicanr2/wincv-remake/internal/fnt"
+	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"golang.org/x/text/encoding/traditionalchinese"
 )
 
@@ -252,11 +253,9 @@ func (f *Font) big5Bytes(r rune) ([2]byte, bool) {
 	if b, ok := f.b5[r]; ok {
 		return b, b != [2]byte{}
 	}
-	out, err := traditionalchinese.Big5.NewEncoder().Bytes([]byte(string(r)))
-	var b [2]byte
-	if err == nil && len(out) == 2 {
-		b = [2]byte{out[0], out[1]}
-	}
+	// 不用 x/text 的 Big5 編碼器:它把「包」「港」等字編成 HKSCS 的 FA–FE 碼,
+	// 倚天字庫沒有那一區,會變成缺字框。見 textenc.Big5Code。
+	b, _ := textenc.Big5Code(r)
 	f.b5[r] = b
 	return b, b != [2]byte{}
 }

@@ -16,7 +16,6 @@ import (
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/encoding/korean"
 	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/encoding/traditionalchinese"
 )
 
 // EOL 是換行樣式。
@@ -73,7 +72,8 @@ func encodeTo(utf8b []byte, to textenc.Enc) ([]byte, error) {
 	case textenc.UTF8, textenc.ASCII:
 		return utf8b, nil
 	case textenc.Big5:
-		return traditionalchinese.Big5.NewEncoder().Bytes(utf8b)
+		// x/text 的編碼器會寫出 HKSCS 碼,見 textenc.EncodeBig5。
+		return textenc.EncodeBig5(string(utf8b))
 	case textenc.GBK:
 		return simplifiedchinese.GBK.NewEncoder().Bytes(utf8b)
 	case textenc.ShiftJIS:
