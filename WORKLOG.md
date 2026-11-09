@@ -60,3 +60,8 @@
 - 編輯器、文字檢視（有搜尋結果時）、Markdown 檢視的狀態列右側文字含中文，位置用 `len`（位元組數）算，一個中文字 3 個位元組只佔 2 格，所以離右緣空出幾格。例：編輯器的「1 行 1 欄 / 10」是 16 個位元組、14 格，右邊空 2 格。
 - 新增 `cell.Width`，六處靠右對齊（editor、viewer、app/mdview、app/actions、hexview、thumbs）都改用它；後三處目前只有 ASCII，一起改以免日後加中文再出錯。`TestWidth` 盯著。
 - 由 Rust 改寫的編輯器逐像素比對發現（Rust 版一開始就用顯示寬度）。
+
+## 2026-11-09：`convert.RenameCase` 首字母大寫以字元為單位
+
+- `CaseTitle` 以前用 `low[:1]` 取第一個位元組轉大寫。首字是中文或 é 時只拿到半個 UTF-8 字，`strings.ToUpper` 把它換成 U+FFFD，檔名被弄壞（實測 `中文.TXT` → `"�\xb8\xad文.txt"`）。改成取第一個字元。
+- 目前 app 沒有用到 `RenameCase`（批次改名的大小寫還沒接上介面），使用者碰不到；先修好，免得接上時寫壞檔名。由 Rust 改寫 `convert` 時發現。

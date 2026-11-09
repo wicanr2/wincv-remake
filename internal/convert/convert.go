@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"golang.org/x/text/encoding/japanese"
@@ -168,11 +169,13 @@ func RenameCase(name string, c NameCase) string {
 	case CaseUpper:
 		return strings.ToUpper(base) + strings.ToUpper(ext)
 	case CaseTitle:
-		low := strings.ToLower(base)
-		if low == "" {
-			return low + strings.ToLower(ext)
+		// 以字元為單位取首字:取第一個位元組的話,首字是中文或 é 時
+		// 只拿到半個字,ToUpper 會把它換成 U+FFFD,檔名就壞了。
+		low := []rune(strings.ToLower(base))
+		if len(low) == 0 {
+			return strings.ToLower(ext)
 		}
-		return strings.ToUpper(low[:1]) + low[1:] + strings.ToLower(ext)
+		return string(unicode.ToUpper(low[0])) + string(low[1:]) + strings.ToLower(ext)
 	}
 	return strings.ToLower(base) + strings.ToLower(ext)
 }
