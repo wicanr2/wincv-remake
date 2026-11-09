@@ -2871,7 +2871,9 @@ name = "wincv-eten"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
+ "sha2 0.10.9",
  "wincv-fnt",
+ "wincv-i18n",
 ]
 
 [[package]]
@@ -2952,8 +2954,11 @@ dependencies = [
  "png 0.17.16",
  "sha2 0.10.9",
  "wincv-archive",
+ "wincv-fnt",
  "wincv-imgfmt",
+ "wincv-render",
  "wincv-textenc",
+ "wincv-ttf",
  "wincv-vfs",
 ]
 
@@ -3002,6 +3007,17 @@ dependencies = [
  "wincv-cell",
  "wincv-i18n",
  "wincv-imgfmt",
+ "wincv-render",
+]
+
+[[package]]
+name = "wincv-ttf"
+version = "0.1.0"
+dependencies = [
+ "ttf-parser",
+ "wincv-cell",
+ "wincv-fnt",
+ "wincv-i18n",
  "wincv-render",
 ]
 

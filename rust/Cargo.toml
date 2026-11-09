@@ -34,6 +34,7 @@ wincv-dict = { path = "crates/dict" }
 wincv-imgfmt = { path = "crates/imgfmt" }
 wincv-imgview = { path = "crates/imgview" }
 wincv-thumbs = { path = "crates/thumbs" }
+wincv-ttf = { path = "crates/ttf" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"

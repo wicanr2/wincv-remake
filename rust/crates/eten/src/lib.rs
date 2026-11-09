@@ -12,6 +12,11 @@
 //! STDFONT 從 A440「一」起,不含 A140–A3BF 的全形標點,所以一定要一起載
 //! SPCFONT。
 
+pub mod cjk24;
+mod etunpack;
+
+pub use etunpack::unpack as unpack_etunpack;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
@@ -119,6 +124,22 @@ impl Font {
             supp = std::fs::read(supp_path_for(p)).ok();
         }
         Font::load_bytes(std, spc, supp, w, h)
+    }
+
+    /// 讀 24×24 漢字區與符號區。`std_path` 可為 ETUNPACK V1.00 壓縮檔(STD.24M/K/L/R/B/S)
+    /// 或已解開的裸字模(國喬相容的裸字模也能用同一個介面)。`spc_path` 是裸格式
+    /// SPCFONT.24,補充區自動找同目錄的 SPCFSUPP.24。
+    pub fn load24(std_path: &Path, spc_path: Option<&Path>) -> Result<Font, Error> {
+        let mut std = std::fs::read(std_path).map_err(|e| Error(wincv_i18n::tr!("讀 24 點漢字區: %w", e.to_string())))?;
+        if std.starts_with(etunpack::MAGIC) {
+            std = etunpack::unpack(&std).map_err(Error)?;
+        }
+        let (mut spc, mut supp) = (None, None);
+        if let Some(p) = spc_path {
+            spc = Some(std::fs::read(p).map_err(|e| Error(wincv_i18n::tr!("讀 24 點符號區: %w", e.to_string())))?);
+            supp = std::fs::read(supp_path_for(p)).ok();
+        }
+        Font::load_bytes(std, spc, supp, NATIVE24_W, NATIVE24_H)
     }
 
     /// 與 [`Font::load`] 相同,但字庫直接給位元組(內嵌字型用)。
