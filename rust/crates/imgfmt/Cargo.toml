@@ -1,0 +1,16 @@
+[package]
+name = "wincv-imgfmt"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# 圖檔解碼(對應 Go 版 internal/imgfmt)。全部純 Rust。
+
+[dependencies]
+wincv-render.workspace = true
+wincv-i18n.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp"] }
+weezl = "0.1"
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
+fax = "0.2"

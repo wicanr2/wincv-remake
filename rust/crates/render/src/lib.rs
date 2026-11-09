@@ -158,6 +158,13 @@ impl Rasterizer {
 
     /// 畫整個畫面,回傳 RGBA 緩衝區(寬 × 高 × 4)。緩衝區下一次呼叫會重用。
     pub fn draw(&mut self, s: &Screen) -> &[u8] {
+        self.draw_with(s, &[])
+    }
+
+    /// 畫格點,再把 overlay 依序疊上去。
+    ///
+    /// 收多個而不是一個:markdown 一頁可以有好幾張圖,每張各佔自己的格位。
+    pub fn draw_with(&mut self, s: &Screen, ovs: &[&Overlay]) -> &[u8] {
         let (w, h) = self.size(s.cols, s.rows);
         if self.buf_w != w || self.buf_h != h {
             self.buf = vec![0; (w * h * 4).max(0) as usize];
@@ -174,7 +181,88 @@ impl Rasterizer {
                 self.draw_glyph(s, x, y);
             }
         }
+        for ov in ovs {
+            self.blit(ov);
+        }
         &self.buf
+    }
+
+    /// 把 overlay 的圖片畫進緩衝區。用最近鄰取樣:這是點陣風格的介面,平滑縮放
+    /// 會跟旁邊的點陣字打架。
+    fn blit(&mut self, ov: &Overlay) {
+        let img = &ov.img;
+        let (x0, y0) = (ov.x.max(0), ov.y.max(0));
+        let (x1, y1) = ((ov.x + ov.w).min(self.buf_w), (ov.y + ov.h).min(self.buf_h));
+        if x0 >= x1 || y0 >= y1 {
+            return;
+        }
+        let (sw, sh) = (img.w as i64, img.h as i64);
+        if sw == 0 || sh == 0 {
+            return;
+        }
+        if ov.fit {
+            // 等比例縮放後置中。
+            let (rw, rh) = (ov.w as i64, ov.h as i64);
+            let (num, den) = if rh * sw < rw * sh { (rh, sh) } else { (rw, sw) };
+            let (out_w, out_h) = (sw * num / den, sh * num / den);
+            let off_x = ov.x as i64 + (rw - out_w) / 2;
+            let off_y = ov.y as i64 + (rh - out_h) / 2;
+            for y in 0..out_h {
+                let dy = off_y + y;
+                if dy < y0 as i64 || dy >= y1 as i64 {
+                    continue;
+                }
+                let sy = y * sh / out_h;
+                for x in 0..out_w {
+                    let dx = off_x + x;
+                    if dx < x0 as i64 || dx >= x1 as i64 {
+                        continue;
+                    }
+                    self.set_pix(dx as i32, dy as i32, img.at((x * sw / out_w) as u32, sy as u32));
+                }
+            }
+            return;
+        }
+        let z = if ov.zoom <= 0.0 { 1.0 } else { ov.zoom };
+        for dy in y0..y1 {
+            let sy = ((dy - ov.y) as f64 / z) as i64 + ov.pan_y as i64;
+            if sy < 0 || sy >= sh {
+                continue;
+            }
+            for dx in x0..x1 {
+                let sx = ((dx - ov.x) as f64 / z) as i64 + ov.pan_x as i64;
+                if sx < 0 || sx >= sw {
+                    continue;
+                }
+                self.set_pix(dx, dy, img.at(sx as u32, sy as u32));
+            }
+        }
+    }
+
+    /// 把一個像素疊上去,尊重 alpha。
+    ///
+    /// 透明度不能忽略:.ICO 的 AND 遮罩、PNG 與 GIF 的透明色都會產生 alpha = 0 的
+    /// 像素,直接寫 RGB 會把「應該看不見」的顏色畫出來。半透明的算法與 Go 版相同
+    /// (16 位元預乘再疊上背景),兩邊畫出來逐像素一樣。
+    fn set_pix(&mut self, x: i32, y: i32, c: [u8; 4]) {
+        let o = self.offset(x, y);
+        if o < 0 || o + 3 >= self.buf.len() as i64 {
+            return;
+        }
+        let o = o as usize;
+        let a = c[3] as u32 * 0x101;
+        match c[3] {
+            0 => return, // 全透明,保留底下的格點畫面
+            255 => self.buf[o..o + 3].copy_from_slice(&c[..3]),
+            _ => {
+                let inv = 0xFFFF - a;
+                for k in 0..3 {
+                    let pre = c[k] as u32 * 0x101 * a / 0xFFFF;
+                    self.buf[o + k] = ((pre + self.buf[o + k] as u32 * 257 * inv / 0xFFFF) >> 8) as u8;
+                }
+            }
+        }
+        self.buf[o + 3] = 0xFF;
     }
 
     fn offset(&self, x: i32, y: i32) -> i64 {
@@ -324,3 +412,51 @@ mod tests {
         assert_eq!(&px[last_row..last_row + 4], &[0x00, 0x00, 0x80, 0xFF]);
     }
 }
+
+/// 一張解好的圖:RGBA,每個像素 4 個位元組,**非預乘**(alpha 不乘進顏色)。
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct Image {
+    pub w: u32,
+    pub h: u32,
+    pub pix: Vec<u8>,
+}
+
+impl Image {
+    pub fn new(w: u32, h: u32) -> Image {
+        Image { w, h, pix: vec![0; w as usize * h as usize * 4] }
+    }
+
+    pub fn at(&self, x: u32, y: u32) -> [u8; 4] {
+        let o = (y as usize * self.w as usize + x as usize) * 4;
+        self.pix.get(o..o + 4).map_or([0; 4], |p| [p[0], p[1], p[2], p[3]])
+    }
+
+    pub fn set(&mut self, x: u32, y: u32, c: [u8; 4]) {
+        if x < self.w && y < self.h {
+            let o = (y as usize * self.w as usize + x as usize) * 4;
+            self.pix[o..o + 4].copy_from_slice(&c);
+        }
+    }
+}
+
+/// 畫在格點之上的像素層。
+///
+/// 看圖模式需要它:圖片不是字元,硬塞進格點會失去解析度。格點仍然負責周邊的
+/// 狀態列與訊息,只有圖片本身跳出格點。
+#[derive(Clone, Debug)]
+pub struct Overlay {
+    pub img: std::sync::Arc<Image>,
+    /// 目標矩形(像素座標)。
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+    /// true 時圖片等比例縮放後置中放進來;false 時依 zoom 貼上,超出的部分裁掉。
+    pub fit: bool,
+    /// 非 fit 模式下的平移量(來源座標)。
+    pub pan_x: i32,
+    pub pan_y: i32,
+    /// 非 fit 模式下的放大倍率,0 或 1 表示原尺寸。
+    pub zoom: f64,
+}
+
