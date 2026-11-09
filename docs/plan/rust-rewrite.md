@@ -127,7 +127,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第一階段 1：`cell`、`fnt`、`eten`、`render` 與示範畫面 | 完成，與 Go 版逐像素相同（640×400，256,000 個像素） | `tools/rust-parity.sh` |
 | 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、wasm 完成（見下表）；macOS、Android 未做；wasm 尚未在瀏覽器執行 | `rust/crates/wincv` |
 | 第一階段 3：RAR 候選 crate 對語料 | 完成：rars 0.12.4 在 28 個真實 RAR、1,496 個檔案上與 Go 版完全相同，速度約 2 倍（見下） | `tools/archive-parity.sh` |
-| 第一階段 4：PDF（hayro）對測試檔 | 未開始 | |
+| 第一階段 4：PDF（hayro）對測試檔 | 完成：9 個測試檔上與 Go 版相當，一項較好（見下） | `tools/pdf-parity.sh` |
 | 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
@@ -176,6 +176,30 @@ Go 試作用現有的 `cell`、`fnt`、`eten`、`render` 加 Ebiten；Rust 試�
 
 rars 的 README 自述起源是「agentic development experiment」，也說還需要更多大量測試。
 本專案的語料都通過，但 SFX、分卷、加密、RAR 1.x 沒有涵蓋，正式採用前要補這幾類樣本。
+
+### 第一階段 4 的量測（2026-11-09）
+
+`internal/pdf/testdata` 的 9 份 PDF，第 1 頁以 96 dpi 各畫一張：LibreOffice（真值）、Go 版
+`tools/pdfshot`、hayro 0.9.0（開 `embed-fonts`，`rust/crates/oracle` 的 `pdfshot`）。
+用 `tools/inkdiff`（32×44 格的墨水密度）比對各自與 LibreOffice 的差距。
+
+| 檔案 | Go：平均差／最大差／相關 | hayro：平均差／最大差／相關 |
+|---|---|---|
+| evenodd | 0.0000／0.0000／1.0000 | 0.0000／0.0000／1.0000 |
+| image | 0.0079／0.8654／0.9584 | 0.0082／0.8654／0.9581 |
+| inline | 0.0009／0.0750／0.9998 | 0.0009／0.0750／0.9998 |
+| rich（CID 中文字型） | 0.0024／0.2169／0.9464 | 0.0024／0.1855／0.9478 |
+| seac | 0.0081／1.0000／0.7363 | 0.0080／1.0000／0.7379 |
+| shading | 0.0099／0.7200／0.9770 | 0.0101／0.6800／0.9777 |
+| shading-unsupported | 0.0344／1.0000／0.0000 | 0.0028／0.4400／0.9850 |
+| softmask | 0.0098／1.0000／0.9433 | 0.0098／1.0000／0.9433 |
+| twocol | 0.0098／0.0593／0.9952 | 0.0133／0.0755／0.9906 |
+
+- hayro 與 Go 版相當；`shading-unsupported`（Go 版刻意不支援的漸層類型）hayro 畫對了。
+- `image`、`seac`、`softmask` 兩邊與 LibreOffice 的差距數字相同，差異在 LibreOffice 那一側。
+- hayro 每頁 2.5–5.6 ms（816×1056）。
+- 這 9 份是為 Go 版功能寫的小檔，涵蓋面有限。正式採用前要再跑一批真實 PDF（`WINCV_PDF_CORPUS`）。
+  hayro 的 README 自述仍缺加密 PDF、混合模式與隔離、knockout 群組等功能。
 
 ### 第一階段 5 的量測（2026-11-09）
 
