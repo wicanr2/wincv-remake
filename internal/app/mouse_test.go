@@ -60,21 +60,20 @@ func TestDoubleClickOpens(t *testing.T) {
 // 點選單列展開對應的分類,再點同一個收起來。
 func TestMenuBarClick(t *testing.T) {
 	a := clickApp(t)
-	// 版面:第 1 格起,每個標題「 檔案 」佔 6 格。「檢視」在 7–12。
-	a.MenuBarClick(8)
+	a.MenuBarClick(catCol(a, 1))
 	if !a.Menuing() || a.menu.cat != 1 {
-		t.Fatalf("點「檢視」後 active=%v cat=%d", a.Menuing(), a.menu.cat)
+		t.Fatalf("點「目錄/磁碟」後 active=%v cat=%d", a.Menuing(), a.menu.cat)
 	}
-	a.MenuBarClick(8)
+	a.MenuBarClick(catCol(a, 1))
 	if a.Menuing() {
 		t.Error("再點一次同一個分類應該收起來")
 	}
-	a.MenuBarClick(2)
+	a.MenuBarClick(catCol(a, 0))
 	if !a.Menuing() || a.menu.cat != 0 {
 		t.Fatalf("點「檔案」後 active=%v cat=%d", a.Menuing(), a.menu.cat)
 	}
 	// 點在分類以外的空白處收起來。
-	a.MenuBarClick(60)
+	a.MenuBarClick(catCol(a, len(a.menuCats())) + 1)
 	if a.Menuing() {
 		t.Error("點空白處應該收起來")
 	}
@@ -98,7 +97,7 @@ func TestClickOutsideClosesMenu(t *testing.T) {
 func TestMenuDropClick(t *testing.T) {
 	a := clickApp(t)
 	a.HandleKey(keys.Named(keys.F9))
-	a.selectCat(4) // 說明
+	a.selectCat(7) // 說明
 	a.MenuLayer(80, 25)
 	items := a.menu.items
 	// 找一個不是分隔線的項目。
@@ -122,35 +121,35 @@ func TestMenuDropClick(t *testing.T) {
 
 func TestMenuDropHover(t *testing.T) {
 	a := clickApp(t)
-	a.MenuBarClick(20) // 設定
+	a.MenuBarClick(catCol(a, 6)) // 設定
 	a.MenuLayer(80, 25)
 	zoom := a.Zoom
-	if !a.MenuDropHover(3) { // 放大字體
-		t.Fatal("移入放大字體沒有更新選取列")
+	if !a.MenuDropHover(1) { // 縮小字體
+		t.Fatal("移入縮小字體沒有更新選取列")
 	}
 	if !a.Menuing() || a.Zoom != zoom {
 		t.Fatal("移入項目不應執行功能或關閉選單")
 	}
 	drop := a.MenuLayer(80, 25).Drop
-	if drop.At(0, 3).BG != cell.Blue || drop.At(0, 0).BG == cell.Blue {
-		t.Fatal("藍色選取列沒有移到放大字體")
+	if drop.At(0, 1).BG != cell.Blue || drop.At(0, 0).BG == cell.Blue {
+		t.Fatal("藍色選取列沒有移到縮小字體")
 	}
-	for _, row := range []int{3, 2, -1, a.menu.rows, 100} {
-		if a.MenuDropHover(row) || a.menu.cursor != 3 {
+	for _, row := range []int{1, 2, -1, a.menu.rows, 100} {
+		if a.MenuDropHover(row) || a.menu.cursor != 1 {
 			t.Fatalf("重複位置或非項目列 %d 不應改變選取", row)
 		}
 	}
 	a.HandleKey(keys.Named(keys.Esc))
-	if a.MenuDropHover(3) {
+	if a.MenuDropHover(1) {
 		t.Fatal("選單關閉後不應回應移入")
 	}
 }
 
 func TestMenuDropHoverSubmenuAndScroll(t *testing.T) {
 	a := clickApp(t)
-	a.MenuBarClick(20)
+	a.MenuBarClick(catCol(a, 6)) // 設定
 	a.MenuLayer(80, 25)
-	a.MenuDropClick(8) // 視窗大小
+	a.MenuDropClick(5) // 視窗大小
 	drop := a.MenuLayer(80, 6).Drop
 	if !a.MenuDropHover(2) || a.menu.cursor != 1 {
 		t.Fatal("子選單移入項目時沒有扣掉標題列")
@@ -209,4 +208,17 @@ func TestClickEditor(t *testing.T) {
 	if a.Editor.Cur.Line != 1 || a.Editor.Cur.Col != 3 {
 		t.Fatalf("游標在 %+v,預期 {1 3}", a.Editor.Cur)
 	}
+}
+
+// catCol 是選單列上第 i 個分類標題的第一格(與 drawMenuBar 同一套算法)。
+// i 等於分類數時回傳最後一個標題之後的那一格。
+func catCol(a *App, i int) int {
+	x := 1
+	for j, c := range a.menuCats() {
+		if j == i {
+			return x + 1
+		}
+		x += cellWidth(catLabel(j, c.name))
+	}
+	return x
 }

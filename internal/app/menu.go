@@ -66,17 +66,29 @@ func (a *App) Menuing() bool { return a.menu.active }
 
 // menuCats 是選單列上的分類。
 //
-// 分類的依據是「這個動作對誰做」:檔案是對選到的檔案做的事,
-// 檢視是改變看的方式,工具是產生新東西(校驗碼、轉換、連出去),
-// 設定是改變程式本身。
+// 分類與順序照原版的八類(WINCV.IMG 0x101fd0 起的 `&1檔案` 到
+// `&8說明/註冊/更新版本`),所以 Alt-1 到 Alt-8 的肌肉記憶與原版一致。
+// 原版沒有、重製版才有的功能(網路瀏覽、視窗大小、介面語言、CJK 字形
+// 來源、選單字級、放大倍率、全螢幕)放進意思最接近的那一類,不另開分類。
+// 第八類原版叫「說明/註冊/更新版本」,重製版沒有註冊與線上更新,只留「說明」。
 func (a *App) menuCats() []menuCat {
 	return []menuCat{
 		{i18n.T("檔案"), a.fileMenuItems},
+		{i18n.T("目錄/磁碟"), a.dirMenuItems},
+		{i18n.T("網路"), a.netMenuItems},
+		{i18n.T("標記"), a.markMenuItems},
 		{i18n.T("檢視"), a.viewMenuItems},
-		{i18n.T("工具"), a.toolMenuItems},
+		{i18n.T("轉檔/轉碼/其他"), a.toolMenuItems},
 		{i18n.T("設定"), a.setupMenuItems},
 		{i18n.T("說明"), a.helpMenuItems},
 	}
+}
+
+// catLabel 是選單列上第 i 個分類的字樣:前面帶原版的編號,
+// 那個數字就是 Alt-數字 的鍵。畫選單列與點選單列都要用同一份,
+// 寬度才對得起來。
+func catLabel(i int, name string) string {
+	return fmt.Sprintf(" %d%s ", i+1, name)
 }
 
 func (a *App) fileMenuItems() []menuItem {
@@ -91,11 +103,7 @@ func (a *App) fileMenuItems() []menuItem {
 		{label: i18n.T("移動"), key: k('M')},
 		{label: i18n.T("更名"), key: k('R')},
 		{label: i18n.T("刪除"), key: k('D')},
-		{sep: true},
-		{label: i18n.T("標記全部檔案"), key: k('T')},
-		{label: i18n.T("標記全部(含目錄)"), key: alt('T')},
-		{label: i18n.T("解除所有標記"), key: k('U')},
-		{label: i18n.T("比對兩個標記的檔案"), key: alt('C')},
+		{label: i18n.T("註解"), key: alt('E')},
 		{sep: true},
 		{label: i18n.T("解壓縮"), key: k('Z')},
 		{label: i18n.T("製作壓縮檔(.zip)"), key: alt('Z')},
@@ -104,18 +112,42 @@ func (a *App) fileMenuItems() []menuItem {
 	}
 }
 
-func (a *App) viewMenuItems() []menuItem {
+func (a *App) dirMenuItems() []menuItem {
 	k, alt := keys.Ch, keys.AltCh
 	return []menuItem{
 		{label: i18n.T("改變路徑"), key: k('P')},
 		{label: i18n.T("排序方式"), key: k('S')},
-		{label: i18n.T("縮圖列表"), key: k('5')},
-		{sep: true},
-		{label: i18n.T("預視窗格"), key: alt('P')},
 		{label: i18n.T("磁碟窗格"), key: alt('D')},
 		{sep: true},
 		{label: i18n.T("尋找 檔名/字串/註解"), key: k('W')},
-		{label: i18n.T("註解"), key: alt('E')},
+	}
+}
+
+func (a *App) netMenuItems() []menuItem {
+	return []menuItem{
+		{label: i18n.T("網路瀏覽(gopher / http)"), key: keys.Named(keys.F2)},
+	}
+}
+
+func (a *App) markMenuItems() []menuItem {
+	k, alt := keys.Ch, keys.AltCh
+	return []menuItem{
+		{label: i18n.T("標記全部檔案"), key: k('T')},
+		{label: i18n.T("標記全部(含目錄)"), key: alt('T')},
+		{label: i18n.T("解除所有標記"), key: k('U')},
+		{sep: true},
+		{label: i18n.T("比對兩個標記的檔案"), key: alt('C')},
+	}
+}
+
+func (a *App) viewMenuItems() []menuItem {
+	alt := keys.AltCh
+	return []menuItem{
+		{label: i18n.T("縮圖列表"), key: keys.Ch('5')},
+		{label: i18n.T("預視窗格"), key: alt('P')},
+		{sep: true},
+		{label: i18n.T("切換 中英文顯示"), key: keys.Named(keys.F8)},
+		{label: i18n.T("全螢幕"), key: keys.Named(keys.F11)},
 	}
 }
 
@@ -126,16 +158,11 @@ func (a *App) toolMenuItems() []menuItem {
 		{label: i18n.T("算 MD5"), run: a.runMD5},
 		{label: i18n.T("建 SFV(.sfv)"), run: a.runMakeSFV},
 		{label: i18n.T("驗 SFV"), run: a.runVerifySFV},
-		{sep: true},
-		{label: i18n.T("網路瀏覽(gopher / http)"), key: keys.Named(keys.F2)},
 	}
 }
 
 func (a *App) setupMenuItems() []menuItem {
 	return []menuItem{
-		{label: i18n.T("切換 中英文顯示"), key: keys.Named(keys.F8)},
-		{label: i18n.T("全螢幕"), key: keys.Named(keys.F11)},
-		{sep: true},
 		{label: i18n.T("放大字體"), key: keys.CtrlCh('+')},
 		{label: i18n.T("縮小字體"), key: keys.CtrlCh('-')},
 		{sep: true},
@@ -298,6 +325,39 @@ func (a *App) helpMenuItems() []menuItem {
 	}
 }
 
+// menuShortcut 處理叫出選單的兩種鍵盤操作,與原版的 Win32 選單相同:
+//
+//   - Alt-1 到 Alt-8 直接展開對應的分類(原版標題是 `&1檔案` 這種寫法)。
+//     下拉開著時按,換到那一類。
+//   - 單按一下 Alt(放開前沒有按別的鍵)展開第一類;下拉開著時按,
+//     一次收起所有層 —— Esc 只退一層,這是 Win32 選單的慣例。
+//
+// 不是這兩種鍵回 nil,交給後面的分派。
+func (a *App) menuShortcut(k keys.Key) *bool {
+	t := true
+	if k.Code == keys.MenuKey {
+		if a.menu.active {
+			a.menu = menu{}
+		} else {
+			a.menu = menu{active: true}
+			a.selectCat(0)
+		}
+		return &t
+	}
+	if k.Code != keys.Rune || !k.Alt || k.Ctrl || k.R < '1' || k.R > '9' {
+		return nil
+	}
+	i := int(k.R - '1')
+	if i >= len(a.menuCats()) {
+		return nil
+	}
+	if !a.menu.active {
+		a.menu = menu{active: true}
+	}
+	a.selectCat(i)
+	return &t
+}
+
 // openMenu 展開下拉,已經展開的話收起來。
 func (a *App) openMenu() bool {
 	if a.menu.active {
@@ -394,12 +454,17 @@ func (a *App) menuKey(k keys.Key) bool {
 			m.items, m.cursor, m.top = it.sub(), 0, 0
 			return true
 		}
+		// 下拉收起來本身就是畫面變化。項目的動作可能什麼都沒改
+		// (字級已到頂、倍率已到底),那時它回 false;照傳的話外殼不重繪,
+		// 畫面會停在一個已經不存在的下拉上,而點下拉的位置也不再有反應。
 		a.menu = menu{}
 		a.Message = ""
 		if it.run != nil {
-			return it.run()
+			it.run()
+		} else {
+			a.HandleKey(it.key)
 		}
-		return a.HandleKey(it.key)
+		return true
 	}
 	// 直接按該功能的鍵也算數:下拉同時是說明書。
 	for _, it := range m.items {
@@ -408,7 +473,8 @@ func (a *App) menuKey(k keys.Key) bool {
 		}
 		a.menu = menu{}
 		a.Message = ""
-		return a.HandleKey(k)
+		a.HandleKey(k)
+		return true // 同上:下拉收起來了,一定要重繪
 	}
 	return true // 下拉開著,其他鍵一律吃掉
 }
@@ -448,7 +514,7 @@ func (a *App) drawMenuBar(s *cell.Screen) {
 	s.Fill(0, 0, s.Cols, 1, ' ', cell.Black, cell.LtGray)
 	x := 1
 	for i, c := range a.menuCats() {
-		label := " " + c.name + " "
+		label := catLabel(i, c.name)
 		w := cellWidth(label)
 		fg, bg := cell.Black, cell.LtGray
 		if a.menu.active && i == a.menu.cat {

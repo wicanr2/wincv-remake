@@ -14,3 +14,12 @@
 - 固定入口：已原子替換 `dist-all/wincv-linux-amd64-full`，`-version` 回報 `v.0.53.2-20261028`，`BUILT-FROM-full` 指向上述來源提交。執行檔 SHA-256 為 `f9e3b423e3e04e0a7f52be86d0835ce0f07548f52b4f64269cd05e52a967ef02`，與版本目錄內的完整版相同；原有 alias 無需修改。
 - 證據：`dist-all/v.0.53.2-20261028/SHA256SUMS.json` 記錄所有正式包與本機完整版的大小、雜湊及權利分類；`smoke/` 保存全套測試 log、公開版與完整版的視窗截圖、GUI 結果、macOS 靜態檢查與建置資訊。
 - 清理：本次容器均已移除，暫存內嵌字型已清除；完整工作樹檢查未見 root-owned 檔案或誤建的 `.md` 目錄，交付物 UID/GID 為 `1000:1000`。保留目前可重現工具鏈；依專案規則未執行 image prune 或 rmi。使用者提供的未追蹤 `AGENTS.md` 維持原狀。
+
+## 2026-11-09：處理 GitHub issue #7 到 #11（v.0.53.3-20261109）
+
+- #7 記憶視窗大小：`Snapshot` 存欄數用的是只在縮圖模式才有值的 `thumbCols`，列數存的是內容區列數，改存 `screenCols` / `screenRows`。另外啟動時 `-rows` 會被扣掉選單列，與執行中改尺寸的 `applySize` 算法不一致，記住尺寸後每重開一次少一列；啟動時改成同一算法。實際視窗驗證：自訂 100×30 後連續重開兩次都是 800×496。
+- #8 選單鍵盤操作：選單改成原版八類（`WINCV.IMG` 0x101fd0 起的 `&1檔案` 到 `&8說明/註冊/更新版本`），加 `Alt-1`～`Alt-8` 與單按 `Alt`（`keys.MenuKey`，由 `internal/ebikeys` 偵測按下到放開之間沒有別的鍵）。`Esc` 維持退一層（Win32 慣例），單按 `Alt` 一次收起所有層。原版下拉在 Wine/Xvfb 底下畫不出內容，所以分類名稱以 image 字串為據，1、2、4 類的項目沒有抽到。
+- #9 應用程式圖示：重製版自繪像素圖示（`internal/appicon`），不用原版 `WinCV.ico`。執行時 `ebiten.SetWindowIcon`；Windows 執行檔由 `tools/win-rsrc.sh` 以 windres 產生 `.syso`，建完就刪；Android manifest 指向 `mipmap/ic_launcher`。macOS 的發行物是裸執行檔，沒有 `.app` 封包，所以沒有圖示。
+- #10 字體大小選單卡住：選了一個沒改變任何狀態的項目（字級已到頂）時，`menuKey` 已收起下拉卻回 false，外殼不重繪，畫面停在不存在的下拉上。改成收起下拉一律回 true。實際視窗驗證：字級到頂後選「放大字體」，下拉收起。
+- #11 CJK 字型：`cjk24` 加倚天 2000 的檔名（`STDFONT.24`、`STDFONT.24K` 等）當候選；找不到時訊息列出要找的檔名，不再顯示 `original/eten/` 這個相對路徑。`SPCFSUPP` 認兩種排法：3.53 的 365 格，與一碼位一格的 408 格（43 個洞必須全空才接受，否則只放棄這一區，其餘照常載入）。408 格排法依回報者截圖的錯誤訊息推得，沒有倚天 2000 的實檔可對照。
+- 驗證環境：`wincv-build:1` 映像裡只有 `xvfb-run` 腳本沒有 `Xvfb` 本體，`xvfb-run` 會一直等。cmd 測試與實際視窗驗證改用主機的 `xvfb-run -a -s "-ac …"`，容器以 `DISPLAY` 與 `/tmp/.X11-unix` 連過去。`tools/remake-shot.sh` 也受影響，尚未修。

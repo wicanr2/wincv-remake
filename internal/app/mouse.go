@@ -178,7 +178,7 @@ func (a *App) MenuBarClick(col int) bool {
 func (a *App) menuCatAt(col int) int {
 	x := 1
 	for i, c := range a.menuCats() {
-		w := cellWidth(" " + c.name + " ")
+		w := cellWidth(catLabel(i, c.name))
 		if col >= x && col < x+w {
 			return i
 		}

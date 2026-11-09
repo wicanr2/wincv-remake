@@ -20,7 +20,7 @@ func TestMenuBarAlwaysVisible(t *testing.T) {
 		t.Fatal("選單列不見了")
 	}
 	row0 := strings.TrimRight(rowText(l.Bar, 0), " ")
-	for _, want := range []string{"檔案", "檢視", "工具", "設定", "說明"} {
+	for _, want := range []string{"1檔案", "2目錄/磁碟", "3網路", "4標記", "5檢視", "6轉檔/轉碼/其他", "7設定", "8說明"} {
 		if !strings.Contains(row0, want) {
 			t.Fatalf("選單列上沒有「%s」:%q", want, row0)
 		}
@@ -178,5 +178,98 @@ func TestHelpOpens(t *testing.T) {
 	txt := all.String()
 	if !strings.Contains(txt, "使用說明") {
 		t.Fatalf("說明畫面上沒有標題\n%s", txt)
+	}
+}
+
+// 原版的選單是 `&1檔案` 到 `&8說明/…`,Alt-數字直接打開那一類。
+// 下拉開著時按別的數字,換到那一類。
+func TestMenuAltDigitOpensCategory(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	if !a.HandleKey(keys.AltCh('7')) || !a.menu.active || a.menu.cat != 6 {
+		t.Fatalf("Alt-7 應該打開第七類(設定),現在 active=%v cat=%d", a.menu.active, a.menu.cat)
+	}
+	if !a.HandleKey(keys.AltCh('2')) || !a.menu.active || a.menu.cat != 1 {
+		t.Fatalf("下拉開著時 Alt-2 應該換到第二類,現在 cat=%d", a.menu.cat)
+	}
+	// 超過分類數的數字不歸選單管。
+	b := New(vfs.OS{}, t.TempDir())
+	b.HandleKey(keys.AltCh('9'))
+	if b.menu.active {
+		t.Fatal("只有八類,Alt-9 不該打開選單")
+	}
+}
+
+// 單按 Alt:收著時打開第一類,開著時(即使在子選單裡)一次全部收起。
+// Esc 只退一層,這是 Win32 選單的慣例。
+func TestMenuKeyAloneAltTogglesAll(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	a.HandleKey(keys.Named(keys.MenuKey))
+	if !a.menu.active || a.menu.cat != 0 {
+		t.Fatalf("單按 Alt 應該打開第一類,現在 active=%v cat=%d", a.menu.active, a.menu.cat)
+	}
+	a.HandleKey(keys.AltCh('7'))
+	enterSub(t, a)
+	a.HandleKey(keys.Named(keys.Esc))
+	if !a.menu.active || a.menu.back != nil {
+		t.Fatal("子選單裡 Esc 應該只退回上一層")
+	}
+	enterSub(t, a)
+	if !a.HandleKey(keys.Named(keys.MenuKey)) || a.menu.active {
+		t.Fatal("子選單裡單按 Alt 應該收起所有選單")
+	}
+}
+
+// enterSub 在目前的下拉裡找第一個子選單並進去。
+func enterSub(t *testing.T, a *App) {
+	t.Helper()
+	for i, it := range a.menu.items {
+		if it.sub != nil {
+			a.menu.cursor = i
+			a.HandleKey(keys.Named(keys.Enter))
+			if a.menu.back == nil {
+				t.Fatal("沒有進到子選單")
+			}
+			return
+		}
+	}
+	t.Fatal("這一類沒有子選單")
+}
+
+// 選了一個「什麼都沒改」的項目(字級已到頂),下拉照樣收起來,
+// 而且要回報畫面有變 —— 否則外殼不重繪,畫面停在已經收起的下拉上,
+// 點下拉的位置也不再有反應(GitHub issue #10)。
+func TestMenuNoOpItemStillRedraws(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	a.MaxZoom, a.Zoom = 2, 2
+	a.HandleKey(keys.AltCh('7'))
+	found := false
+	for i, it := range a.menu.items {
+		if it.key == keys.CtrlCh('+') {
+			a.menu.cursor, found = i, true
+		}
+	}
+	if !found {
+		t.Fatal("設定裡找不到「放大字體」")
+	}
+	if !a.HandleKey(keys.Named(keys.Enter)) {
+		t.Fatal("字級已到頂時選「放大字體」,下拉收起來了卻回報沒變化")
+	}
+	if a.menu.active {
+		t.Fatal("下拉應該收起來")
+	}
+	if a.Zoom != 2 {
+		t.Fatalf("字級不該變,現在是 %d", a.Zoom)
+	}
+	// 滑鼠點下拉走同一條路。
+	a.HandleKey(keys.AltCh('7'))
+	for i, it := range a.menu.items {
+		if it.key == keys.CtrlCh('+') {
+			a.menu.cursor = i
+		}
+	}
+	a.MenuLayer(80, 25) // 下拉要畫過一次才知道裝得下幾列
+	row := a.menu.cursor - a.menu.top
+	if !a.MenuDropClick(row) {
+		t.Fatal("滑鼠點「放大字體」(已到頂)應該回報畫面有變")
 	}
 }

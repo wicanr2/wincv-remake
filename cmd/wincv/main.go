@@ -6,17 +6,21 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"image"
 	"image/color"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/wicanr2/wincv-remake/internal/app"
+	"github.com/wicanr2/wincv-remake/internal/appicon"
 	"github.com/wicanr2/wincv-remake/internal/cell"
 	"github.com/wicanr2/wincv-remake/internal/cjk24"
 	"github.com/wicanr2/wincv-remake/internal/datadir"
@@ -102,6 +106,11 @@ func cjk24Paths(id string) (std, spc string, ok bool) {
 	if !ok {
 		return "", "", false
 	}
+	for _, name := range source.StdNames() {
+		if d, found := datadir.Find(name); found {
+			return filepath.Join(d, name), datadir.Resolve(source.Spc), true
+		}
+	}
 	return datadir.Resolve(source.Std), datadir.Resolve(source.Spc), true
 }
 
@@ -112,8 +121,14 @@ func (g *game) reloadCJK24() {
 		return
 	}
 	std24, spc24, _ := cjk24Paths(source.ID)
-	if _, err := fontset.Eten24(std24, spc24); err != nil {
+	f24, err := fontset.Eten24(std24, spc24)
+	if err != nil {
 		g.app.CJK24 = g.cjk24
+		if _, serr := os.Stat(std24); serr != nil && errors.Is(err, fs.ErrNotExist) {
+			// 找不到時 datadir 給的是「最後一個找過的位置」,那個路徑
+			// 對使用者沒有意義。講要找的檔名,與該放在哪裡。
+			err = fmt.Errorf(i18n.T("找不到 %s,請放在程式旁"), strings.Join(source.StdNames(), " / "))
+		}
 		g.app.Message = fmt.Sprintf(i18n.T("CJK 字形未變更: %v"), err)
 		return
 	}
@@ -141,6 +156,9 @@ func (g *game) reloadCJK24() {
 	g.cjk24 = source.ID
 	g.canvas, g.dirty = nil, true
 	g.app.Message = fmt.Sprintf(i18n.T("CJK 字形已套用: %s"), app.CJK24Name(source.ID))
+	if f24.SuppNote != "" {
+		g.app.Message += "; " + f24.SuppNote
+	}
 }
 
 // rastFor 取第 i 個字級的光柵器,建過就留著。
@@ -656,12 +674,18 @@ func main() {
 		fallback: *fbFont, noFallback: *noFB}
 	g.setZoom(*zoom)
 	cw, ch := g.cellPx()
-	g.resize(*cols*cw, *rows*ch)
+	// -cols / -rows 與選單「視窗大小」、session 記住的格數是同一個意思:
+	// 內容區的格數,選單列另外加在上面(與 applySize 相同)。resize 會把
+	// 選單列的像素扣掉,所以這裡要先加回去 —— 少加的話每次啟動都少一列,
+	// 而 session 存的是少掉之後的列數,重開一次就再少一列。
+	g.resize(*cols*cw, *rows*ch+g.menuBarPx())
 
 	w, h := g.rast.Size(g.cols, g.rows)
 	ebiten.SetWindowSize(int(math.Ceil(float64(w)*g.effScale)),
 		int(math.Ceil(float64(h)*g.effScale))+g.menuBarPx())
 	ebiten.SetWindowTitle("WinCV")
+	// 標題列與工作列的圖示。macOS 不吃這個(那邊的圖示屬於 .app 封包)。
+	ebiten.SetWindowIcon(appicon.All())
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	// 畫面只在有事情發生時重畫 —— 這是檔案管理程式,不是遊戲。
 	ebiten.SetScreenClearedEveryFrame(false)

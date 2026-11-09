@@ -33,12 +33,15 @@ $RUN
 ----
 
 公開版不含原版或第三方點陣字型，會以系統字型啟動。若持有合法字型，
-可放在程式旁、或以 WINCV_HOME 指向的資料目錄，再用這些參數指定:
+放在程式旁、或以 WINCV_HOME 指向的資料目錄，程式會自動找到。檔名照
+原本的就好:倚天 3.53 的 STD.24M、STD.24K…，或倚天 2000 的 STDFONT.24、
+STDFONT.24K…，兩種都認。24 點的字形在選單「7設定 → CJK 字形」切換。
+放在別處時，用這些參數指定:
 
   -half      半形點陣字型(原版的 cvga.fon 是 8x15)
   -eten-std  全形漢字(倚天 STDFONT.15)
   -eten-spc  全形標點(倚天 SPCFONT.15)
-  -eten24-std  24 點漢字(ETUNPACK 的 STD.24M 等，或國喬 stdfont.24f)
+  -eten24-std  24 點漢字(倚天 STD.24M / STDFONT.24 等，或國喬 stdfont.24f)
   -eten24-spc  24 點標點(SPCFONT.24 或國喬 spcfont.24)
 
 Big5 以外的字(簡體、日文、韓文、符號)靠系統字型補。缺字的話裝一份

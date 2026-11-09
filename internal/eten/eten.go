@@ -147,6 +147,9 @@ type Font struct {
 	W, H           int
 	stride         int
 
+	// SuppNote 說明符號補充區為什麼沒用上。空字串表示用上了,或本來就沒給。
+	SuppNote string
+
 	mu sync.Mutex
 	b5 map[rune][2]byte // rune -> Big5 的快取
 }
@@ -180,15 +183,52 @@ func LoadBytes(std, spc, supp []byte, w, h int) (*Font, error) {
 		return nil, fmt.Errorf(i18n.T("STDFONT 大小 %d 不是 stride %d 的整數倍"), len(std), f.stride)
 	}
 	f.spc = spc
-	if len(supp) > 0 {
-		if len(supp)%f.stride == 0 && len(supp)/f.stride == suppCount {
-			f.supp = supp
-		} else {
-			return nil, fmt.Errorf(i18n.T("SPCFSUPP 有 %d 個字模,但 Big5 在 C6A1-C8FE 只定義 %d 個碼位"),
-				len(supp)/f.stride, suppCount)
+	f.supp, f.SuppNote = suppLayout(supp, f.stride)
+	return f, nil
+}
+
+// suppSlots 是 C6A1-C8FE 這一區的碼位總數(含 Big5 沒定義的 43 個洞)。
+var suppSlots = lastC8FE - baseC6A1 + 1
+
+// suppLayout 認出 SPCFSUPP 是哪一種排法,一律換成「擠掉洞」的排法回傳。
+//
+// 實際見過兩種:
+//
+//	倚天 3.53      365 個字模,只存有定義的碼位(本檔開頭的說明)
+//	倚天 2000 5.0  408 個字模,一個碼位一格,洞也佔位
+//
+// 408 格那種要先確認它真的是「一碼位一格」才能用:洞的那 43 格必須
+// 全空。洞上有字形就表示排法不是我們以為的那樣,而錯位取到的會是
+// 另一個看起來正常的字 —— 那時寧可整區不用,交給後備字型。
+//
+// 認不出來不是錯誤:只有這一區缺字,其餘一萬三千多字照常可用。
+// 原因放在第二個回傳值,給介面顯示。
+func suppLayout(supp []byte, stride int) ([]byte, string) {
+	if len(supp) == 0 {
+		return nil, ""
+	}
+	n := len(supp) / stride
+	if len(supp)%stride != 0 || (n != suppCount && n != suppSlots) {
+		return nil, fmt.Sprintf(i18n.T("SPCFSUPP 有 %d 個字模,不是已知的 %d 或 %d 格排法,C6A1-C8FE 改用後備字型"),
+			n, suppCount, suppSlots)
+	}
+	if n == suppCount {
+		return supp, ""
+	}
+	packed := make([]byte, 0, suppCount*stride)
+	for i, idx := range suppIndex {
+		g := supp[i*stride : (i+1)*stride]
+		if idx >= 0 {
+			packed = append(packed, g...)
+			continue
+		}
+		for _, b := range g {
+			if b != 0 {
+				return nil, i18n.T("SPCFSUPP 在 Big5 未定義的碼位上有字形,排法無法確認,C6A1-C8FE 改用後備字型")
+			}
 		}
 	}
-	return f, nil
+	return packed, ""
 }
 
 // suppPathFor 由 SPCFONT 的路徑推出 SPCFSUPP 的路徑(同目錄、同副檔名)。

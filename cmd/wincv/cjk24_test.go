@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wicanr2/wincv-remake/internal/app"
@@ -45,5 +46,33 @@ func TestReloadCJK24UsesGuoqiaoAndKeepsPriorOnFailure(t *testing.T) {
 	g.reloadCJK24()
 	if g.cjk24 != "guoqiao" || a.CJK24 != "guoqiao" {
 		t.Fatalf("失敗來源覆寫了目前字形: game=%q app=%q", g.cjk24, a.CJK24)
+	}
+}
+
+// 倚天 2000 的檔名放在素材目錄裡就認得,不必改名成 STD.24*(GitHub issue #11)。
+func TestCJK24PathsFindsEten2000Names(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "STDFONT.24K"), make([]byte, 72), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("WINCV_HOME", dir)
+	std, _, ok := cjk24Paths("eten-k")
+	if !ok || std != filepath.Join(dir, "STDFONT.24K") {
+		t.Fatalf("找到的是 %q", std)
+	}
+}
+
+// 找不到時要講要找的檔名,不能丟出一個使用者看不懂的相對路徑。
+func TestReloadCJK24MissingNamesTheFiles(t *testing.T) {
+	t.Setenv("WINCV_HOME", t.TempDir())
+	a := app.New(vfs.OS{}, t.TempDir())
+	g := &game{app: a, cjk24: "eten-m"}
+	a.CJK24 = "eten-k"
+	g.reloadCJK24()
+	if a.CJK24 != "eten-m" {
+		t.Fatalf("失敗時應退回原本的來源,現在是 %q", a.CJK24)
+	}
+	if !strings.Contains(a.Message, "STD.24K / STDFONT.24K") || strings.Contains(a.Message, "original") {
+		t.Fatalf("訊息沒講清楚要找哪個檔:%q", a.Message)
 	}
 }

@@ -2,7 +2,7 @@
 
 Press `Esc` to return to the file list. This help text can also be scrolled: `↑` `↓` `PgUp` `PgDn`.
 
-The top line is the menu bar. Press `F9` to open it, `←` `→` to switch categories, `↑` `↓` to select an item, and `Enter` to run it. Each entry shows its shortcut key on the right — once you memorize it, you no longer need to open the menu.
+The top line is the menu bar. Its categories follow the original: 1 File, 2 Dir/Drive, 3 Network, 4 Mark, 5 View, 6 Convert/Other, 7 Settings, 8 Help. `Alt-1` to `Alt-8` open a category directly; a single tap of `Alt`, or `F9`, opens the first one. `←` `→` switch categories, `↑` `↓` select an item, and `Enter` runs it; `Esc` goes back one level, and another tap of `Alt` closes everything. Each entry shows its shortcut key on the right — once you memorize it, you no longer need to open the menu.
 
 ## File List
 
@@ -34,7 +34,7 @@ ARJ, CAB, ARC, ACE, `.Z`.
 | Alt-E | Comment (written to that directory's `dir.doc`) |
 | O / G | Open with the system's default program / Run |
 
-MD5 and SFV checksums are under the "Tools" menu.
+MD5 and SFV checksums are under the "6 Convert/Other" menu.
 
 ## Viewing Files
 
@@ -86,7 +86,7 @@ follow a link** — the program never connects anywhere on its own.
 | F1 | This help |
 | F9 | Menu |
 
-The menu layer can use **a different font from the content**: `F9` → Settings →
+The menu layer can use **a different font from the content**: `7 Settings` →
 Menu Font Size, or pass `-menu-font <font file> -menu-size <pixels>` at startup to
 use a TTF. Content needs a bitmap font pixel-aligned with the original; the menu is
 just interface — on a high-resolution screen, one size larger is actually easier to
@@ -104,8 +104,8 @@ designed. Other zoom levels still show some unevenness in stroke weight, but far
 less than stretching 8×15 directly (1.4x zoom is really 10×18 stretched by only
 1.18x). The full table is in `docs/ui/keymap.md`.
 
-At 12×24, choose one of the six 24-dot ETEN faces or Guoqiao under `F9` →
-Settings → CJK Glyph. The choice applies immediately and its identifier is
+At 12×24, choose one of the six 24-dot ETEN faces or Guoqiao under `7 Settings` →
+CJK Glyph. The choice applies immediately and its identifier is
 saved in `session.json`. Glyph files are found through `WINCV_HOME`; a missing
 or invalid source leaves the current glyph unchanged. Other sizes still use the
 native 16×15 ETEN glyphs or a fallback font. To force ETEN scaling everywhere,
@@ -113,7 +113,7 @@ pass `-bitmap-cjk` at startup.
 
 Resizing the window larger makes the content **show more**, not bigger — the cell
 size is fixed, so the extra space just adds more cells. To fix the cell count, use
-"Settings → Window Size" in the menu.
+"7 Settings → Window Size" in the menu.
 
 ## Image and Full-Page PDF View
 
@@ -171,4 +171,4 @@ Wizard), Taiwanese shareware from 1999–2011, rewritten in Go with open source
 code. Copyright in the original belongs to its author; this rewrite exists to
 preserve the software, not to claim rights to the original.
 
-`F9` → Help → About has version and license information.
+`8 Help` → About has version and license information.

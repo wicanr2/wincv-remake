@@ -16,6 +16,7 @@
 
     <application
         android:label="WinCV"
+        android:icon="@mipmap/ic_launcher"
         android:hardwareAccelerated="true"
         android:requestLegacyExternalStorage="true">
         <!-- configChanges 要列得夠寬:Ebiten 的 Android view 用一個 static

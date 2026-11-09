@@ -103,10 +103,13 @@ fi
 
 if [ "$WHAT" = all ] || [ "$WHAT" = desktop ]; then
     echo "=== windows/amd64(含字型)==="
+    # 圖示資源由 tools/win-rsrc.sh 現場產生,建完就刪。
     $DOCKER "$BUILD_IMG" sh -c '
+        sh tools/win-rsrc.sh &&
         CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
         go build -tags fonts -trimpath -ldflags "-s -w -H windowsgui -X github.com/wicanr2/wincv-remake/internal/app.Version=$WINCV_VERSION" \
-            -o /src/dist-all/$WINCV_VERSION/full-local/wincv-windows-amd64-full.exe ./cmd/wincv'
+            -o /src/dist-all/$WINCV_VERSION/full-local/wincv-windows-amd64-full.exe ./cmd/wincv;
+        st=$?; rm -f cmd/wincv/rsrc_windows_amd64.syso; exit $st'
     expect wincv-windows-amd64-full.exe
 
     echo "=== darwin universal(含字型)==="

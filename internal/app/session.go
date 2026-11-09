@@ -18,8 +18,8 @@ import (
 func (a *App) Snapshot() session.State {
 	st := session.State{
 		Dir:      a.Browser.Dir,
-		Cols:     a.thumbCols,
-		Rows:     a.rows,
+		Cols:     a.screenCols,
+		Rows:     a.screenRows,
 		Zoom:     a.Zoom,
 		Lang:     a.Lang,
 		CJK24:    a.CJK24,

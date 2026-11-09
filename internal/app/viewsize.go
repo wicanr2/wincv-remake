@@ -120,7 +120,7 @@ func (a *App) sizeMenuItems() []menuItem {
 
 // startCustomSize 問使用者要幾欄幾列。
 func (a *App) startCustomSize() bool {
-	a.ask(i18n.T("欄×列"), fmt.Sprintf("%d×%d", a.thumbCols, a.rows+3), func(s string) {
+	a.ask(i18n.T("欄×列"), fmt.Sprintf("%d×%d", a.screenCols, a.screenRows), func(s string) {
 		var c, r int
 		// 逗號、x、×、空白都收 —— 使用者不會記得該用哪一個。
 		norm := make([]rune, 0, len(s))

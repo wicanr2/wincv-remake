@@ -176,3 +176,14 @@ func TestSnapshotRestoreCJK24(t *testing.T) {
 		t.Fatalf("未知字形代號不應覆寫既有設定: %q", b.CJK24)
 	}
 }
+
+// 視窗的格數要記住:存的是整個畫面的欄列數,不是內容區的列數,
+// 也不能只在縮圖模式才有值(GitHub issue #7)。
+func TestSnapshotKeepsWindowSize(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	a.Draw(cell.New(120, 40))
+	st := a.Snapshot()
+	if st.Cols != 120 || st.Rows != 40 {
+		t.Fatalf("120×40 的畫面存成 %d×%d", st.Cols, st.Rows)
+	}
+}

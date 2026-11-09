@@ -65,7 +65,13 @@ func Translate(textMode bool) []keys.Key {
 		ebiten.IsKeyPressed(ebiten.KeyShiftLeft) ||
 		ebiten.IsKeyPressed(ebiten.KeyShiftRight)
 
+	if aloneAlt(ctrl, shift) {
+		out = append(out, keys.Named(keys.MenuKey))
+	}
 	for _, ek := range inpututil.AppendJustPressedKeys(nil) {
+		if isAltKey(ek) {
+			continue
+		}
 		if c, ok := named[ek]; ok {
 			out = append(out, keys.Key{Code: c, Alt: alt, Ctrl: ctrl, Shift: shift})
 			continue
@@ -93,6 +99,48 @@ func Translate(textMode bool) []keys.Key {
 		}
 	}
 	return out
+}
+
+// altArmed 是「Alt 按下之後還沒有按過別的東西」。放開 Alt 時它還成立,
+// 就是單按一下 Alt —— Win32 程式用它把鍵盤焦點移到選單列。
+var altArmed bool
+
+func isAltKey(ek ebiten.Key) bool {
+	return ek == ebiten.KeyAlt || ek == ebiten.KeyAltLeft || ek == ebiten.KeyAltRight
+}
+
+// aloneAlt 每幀呼叫一次,單按 Alt 放開的那一幀回 true。
+//
+// 下列情形都不算:中間按了別的鍵或滑鼠(那是 Alt-x 或 Alt-點擊)、
+// 同時按著 Ctrl 或 Shift(AltGr 在歐洲鍵盤上就是 Ctrl+Alt)、
+// 視窗失去焦點(Alt-Tab 切走,回來時放開 Alt 不該彈出選單)。
+func aloneAlt(ctrl, shift bool) bool {
+	if !ebiten.IsFocused() || ctrl || shift {
+		altArmed = false
+		return false
+	}
+	for _, ek := range inpututil.AppendJustPressedKeys(nil) {
+		if isAltKey(ek) {
+			altArmed = true
+		} else {
+			altArmed = false
+			return false
+		}
+	}
+	for b := ebiten.MouseButton0; b <= ebiten.MouseButtonMax; b++ {
+		if ebiten.IsMouseButtonPressed(b) {
+			altArmed = false
+			return false
+		}
+	}
+	released := inpututil.IsKeyJustReleased(ebiten.KeyAltLeft) ||
+		inpututil.IsKeyJustReleased(ebiten.KeyAltRight)
+	stillDown := ebiten.IsKeyPressed(ebiten.KeyAltLeft) || ebiten.IsKeyPressed(ebiten.KeyAltRight)
+	if released && !stillDown && altArmed {
+		altArmed = false
+		return true
+	}
+	return false
 }
 
 // repeating 是按住會自動重複的鍵。

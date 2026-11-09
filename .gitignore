@@ -7,6 +7,8 @@
 
 # Go
 /bin/
+# tools/win-rsrc.sh 在 windows 建置時產生、建完就刪
+/cmd/wincv/rsrc_windows_amd64.syso
 /dist/
 *.exe
 !wincv052a.exe

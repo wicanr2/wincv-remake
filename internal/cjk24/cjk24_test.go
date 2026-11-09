@@ -13,3 +13,15 @@ func TestSourcesHaveStableFiles(t *testing.T) {
 		t.Fatal("未知值不可被當成可持久化代號")
 	}
 }
+
+// 倚天 2000 的檔名排在 3.53 之後,當作同一個來源的候選。
+func TestStdNamesIncludeEten2000(t *testing.T) {
+	m, _ := Find("eten-m")
+	if got := m.StdNames(); len(got) < 2 || got[0] != "STD.24M" || got[1] != "STDFONT.24" {
+		t.Fatalf("明體的候選檔名不對: %v", got)
+	}
+	k, _ := Find("eten-k")
+	if got := k.StdNames(); len(got) != 2 || got[1] != "STDFONT.24K" {
+		t.Fatalf("楷體的候選檔名不對: %v", got)
+	}
+}

@@ -252,3 +252,43 @@ func sameGlyph(a, b *fnt.Glyph) bool {
 	}
 	return true
 }
+
+// 倚天 2000 的 SPCFSUPP 是一碼位一格(408 格,洞也佔位)。洞全空時
+// 要換成擠掉洞的排法,取到的字與 3.53 那種 365 格的完全相同。
+func TestSuppLinear408(t *testing.T) {
+	const stride = 72
+	packed := make([]byte, suppCount*stride)
+	for i := 0; i < suppCount; i++ {
+		packed[i*stride] = byte(i%250 + 1)
+		packed[i*stride+1] = byte(i / 250)
+	}
+	linear := make([]byte, len(suppIndex)*stride)
+	for slot, idx := range suppIndex {
+		if idx >= 0 {
+			copy(linear[slot*stride:], packed[idx*stride:(idx+1)*stride])
+		}
+	}
+	got, note := suppLayout(linear, stride)
+	if note != "" || string(got) != string(packed) {
+		t.Fatalf("408 格排法沒有換成 365 格:note=%q", note)
+	}
+	// 洞上有字形就無法確認排法,整區不用,但不是錯誤。
+	for slot, idx := range suppIndex {
+		if idx < 0 {
+			linear[slot*stride] = 0xFF
+			break
+		}
+	}
+	got, note = suppLayout(linear, stride)
+	if got != nil || note == "" {
+		t.Fatal("洞上有字形時應該放棄這一區並說明原因")
+	}
+	f, err := LoadBytes(make([]byte, stride), nil, linear, Native24W, Native24H)
+	if err != nil || f.SuppNote == "" {
+		t.Fatalf("補充區認不出來不該讓整套字型載入失敗:err=%v", err)
+	}
+	// 數量對不上任何一種排法。
+	if got, note := suppLayout(make([]byte, 100*stride), stride); got != nil || note == "" {
+		t.Fatal("100 格的 SPCFSUPP 應該放棄這一區")
+	}
+}

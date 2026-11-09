@@ -210,6 +210,7 @@ internal/
   rtf/        Rich Text Format(自寫的 tokenizer,含字碼頁與內嵌圖片)
   officedoc/  把上面五種格式收在同一個窄介面後面,app 只認得這一層
   checksum/   MD5 / SFV      launch/ 跨平台開啟與執行
+  appicon/    應用程式圖示(重製版自繪的像素圖;視窗、.ico、Android mipmap 共用)
   archive/    壓縮檔讀取(見 §4.3)
     lzh/ arj/ cab/ arc/ zcompress/   自寫的解碼器
   app/        把上面全部接起來:模式切換、按鍵分派、選單、輸入列

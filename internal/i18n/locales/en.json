@@ -115,7 +115,6 @@
   "PNM 檔頭不完整": "PNM header incomplete",
   "PNM 檔頭讀不到數字": "PNM header: cannot read a number",
   "SFV 驗證": "SFV verification",
-  "SPCFSUPP 有 %d 個字模,但 Big5 在 C6A1-C8FE 只定義 %d 個碼位": "SPCFSUPP has %d glyphs, but Big5 only defines %d code points in C6A1-C8FE",
   "STDFONT 大小 %d 不是 stride %d 的整數倍": "STDFONT size %d is not a multiple of stride %d",
   "SVG 解析失敗: %w": "SVG parse failed: %w",
   "TGA 尺寸不合理 %dx%d": "TGA size invalid %dx%d",
@@ -276,7 +275,6 @@
   "尾註": "Endnote",
   "工作表": "Sheet",
   "工作表 %d": "Sheet %d",
-  "工具": "Tools",
   "已交給系統開啟: ": "handed off to system to open: ",
   "已停止取代": "replace stopped",
   "已刪除": "deleted",
@@ -580,5 +578,11 @@
   "頁碼": "Page number",
   "頁碼清單": "Page number list",
   "預視窗格": "Preview pane",
-  "驗 SFV": "Verify SFV"
+  "驗 SFV": "Verify SFV",
+  "目錄/磁碟": "Dir/Drive",
+  "網路": "Network",
+  "轉檔/轉碼/其他": "Convert/Other",
+  "SPCFSUPP 有 %d 個字模,不是已知的 %d 或 %d 格排法,C6A1-C8FE 改用後備字型": "SPCFSUPP has %d glyphs, not one of the known %d- or %d-glyph layouts; C6A1-C8FE falls back to other fonts",
+  "SPCFSUPP 在 Big5 未定義的碼位上有字形,排法無法確認,C6A1-C8FE 改用後備字型": "SPCFSUPP has glyphs on code points Big5 leaves undefined, so its layout cannot be confirmed; C6A1-C8FE falls back to other fonts",
+  "找不到 %s,請放在程式旁": "cannot find %s; place it next to the program"
 }

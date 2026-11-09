@@ -393,6 +393,9 @@ func (a *App) handleKey(k keys.Key) bool {
 	if a.about {
 		return a.aboutKey(k)
 	}
+	if r := a.menuShortcut(k); r != nil {
+		return *r
+	}
 	if a.menu.active {
 		return a.menuKey(k)
 	}
