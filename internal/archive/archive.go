@@ -468,8 +468,13 @@ func (a *FS) loadTarBytes(data []byte) error {
 		if err != nil {
 			return err
 		}
-		off, size := int64(0), h.Size
-		_ = off
+		// PAX 全域標頭(`git archive` 產生的 tar 開頭就有一筆)是中繼資料,
+		// 不是檔案。GNU tar 解壓時不會產生它;列出來會多一個叫
+		// pax_global_header 的空檔。
+		if h.Typeflag == tar.TypeXGlobalHeader {
+			continue
+		}
+		size := h.Size
 		body := make([]byte, size)
 		if _, err := io.ReadFull(tr, body); err != nil && err != io.EOF {
 			return err
