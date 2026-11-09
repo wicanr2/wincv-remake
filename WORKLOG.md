@@ -24,3 +24,7 @@
 - #11 CJK 字型：`cjk24` 加倚天 2000 的檔名（`STDFONT.24`、`STDFONT.24K` 等）當候選；找不到時訊息列出要找的檔名，不再顯示 `original/eten/` 這個相對路徑。`SPCFSUPP` 認兩種排法：3.53 的 365 格，與一碼位一格的 408 格（43 個洞必須全空才接受，否則只放棄這一區，其餘照常載入）。408 格排法依回報者截圖的錯誤訊息推得，沒有倚天 2000 的實檔可對照。
 - 選單列功能鍵：使用者要求選單列右側的 F9／F1／F2 可以用滑鼠點。改成八類後 80 欄放不下原本的「F9 選單  F1 說明  F2 網路」，所以放不下時改畫「F9 F1 F2」；每一段都可點，等於按那顆鍵。
 - 驗證環境：`wincv-build:1` 映像裡只有 `xvfb-run` 腳本沒有 `Xvfb` 本體，`xvfb-run` 會一直等。cmd 測試與實際視窗驗證改用主機的 `xvfb-run -a -s "-ac …"`，容器以 `DISPLAY` 與 `/tmp/.X11-unix` 連過去。`tools/remake-shot.sh` 也受影響，尚未修。
+- 發布：來源提交 `3361667a43d78c385b9a2e89c3dce32da455571d` 與同名 tag 已推送；[v.0.53.3-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.3-20261109) 於 2026-11-09 16:32（Asia/Taipei）公開。三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip` 的 GitHub 大小與 SHA-256 均與本機一致；`tools/verify-dist.sh` 靜態驗收通過，Windows exe 有 `.rsrc`。
+- 打包：`tools/package.sh` 以 `go run tools/zipdir` 壓 ZIP，主機沒有 go，`release.sh` 在主機跑到打包會失敗。建置在主機跑 `build-all.sh`，打包改在 `wincv-build:1` 容器內跑 `release.sh <版本> --no-build`（帶 `WINCV_RELEASE_COMMIT`，因為未追蹤的 `AGENTS.md` 讓工作區不算乾淨）。
+- 固定入口：`tools/build-full.sh linux` 已原子替換 `dist-all/wincv-linux-amd64-full`（`~/.bashrc` 的 `wincv` alias 指向它），SHA-256 `6c0a9829b597eea610bf0397b8e371163581bb67d5546cf9cfb0287f203c2657`，與 `full-local/` 內相同。`BUILT-FROM-full` 帶 `-dirty`，來源是未追蹤的 `AGENTS.md`，產物內容與提交相同。
+- 實際視窗驗收：公開版與完整版在主機 Xvfb 下 `-version` 都回報 `v.0.53.3-20261109`；選單列右側顯示「F9 F1 F2」，點 F1 開說明、點 F9 開選單，`Alt-7` 打開設定。Windows 與 macOS 尚未實機啟動，Android APK 本次未建。
