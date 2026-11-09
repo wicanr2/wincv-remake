@@ -132,6 +132,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第二階段 1：`keys`、`textenc`、`i18n` | 完成（見下） | `tools/textenc-parity.sh` |
 | 第二階段 2：`vfs`、`browser`（目錄畫面） | 完成：5 個目錄場景與 Go 版逐像素相同（見下） | `tools/rust-parity.sh` |
 | 第二階段 3：`viewer`、`hexview`、`session` | 完成（見下） | `tools/rust-parity.sh` |
+| 第二階段 4：壓縮檔（`wincv-archive`） | 完成：12 種格式；737 個真實壓縮檔的 116,959 個檔案與 Go 版相同，另外多解出 2,839 個 Go 版解不開的檔（見下） | `tools/archive-parity.sh`、`tools/rust-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -274,6 +275,47 @@ Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模�
   6 個都與 Go 版逐像素相同（一開始有 2 個差在「包」字，原因是 Go 版的 bug，見下一節，已在 Go 版修正）。
 - `session` 的檔案格式與 Go 版相同：`testdata/go-session.json` 是 Go 版實際寫出的檔，Rust 讀得回來，寫出來逐字相同。
 - viewer 狀態列右側的位置，Go 版用位元組長度計算（有搜尋結果時含中文會偏），Rust 改用顯示格數。
+
+### 第二階段 4：壓縮檔（2026-11-09）
+
+`wincv-archive` 對應 Go 版 `internal/archive`：格式表、「壓縮檔路徑!內部路徑」的 vfs、解壓縮到目錄、打包成 ZIP。
+
+| 格式 | Rust 版用的實作 |
+|---|---|
+| ZIP | zip 9.5（deflate、deflate64、bzip2、lzma、xz，另開 `legacy-zip`：shrink、reduce、implode） |
+| TAR、GZIP、BZIP2 | tar 0.4、flate2 1.1（zlib-rs）、bzip2 0.6（libbz2-rs-sys） |
+| RAR | rars 0.12 |
+| 7z | sevenz-rust2 0.25（bzip2、ppmd、deflate、brotli、lz4） |
+| LHA | `wincv-lzh`（第一階段搬的） |
+| ARJ、ACE、CAB、ARC/PAK、.Z | 從 Go 版的自寫解碼器逐段搬過來，單元測試用同一批參考檔與期望值 |
+
+全部是純 Rust。7z 的 zstd 沒開，因為 sevenz-rust2 的 zstd 接的是 C 函式庫；Go 版的 bodgit 支援 zstd，這是目前唯一 Go 有、Rust 沒有的壓縮法。
+
+驗證：
+
+- `tools/archive-parity.sh` 走兩邊的 vfs 介面（打開、ReadDir 遞迴、逐檔讀出）比 sha256。語料是 `~/cht` 底下的真實壓縮檔：
+  7z、bz2、lha、lzh、rar、Z 全收，zip、gz、tar 依路徑等距抽樣，另加真實的 ARC、抽樣的 `.PAK`、125 個 Borland／Watcom 磁片的 ZIP、
+  acefile-testdata 與 repo 的測試檔，共 810 個。
+  - 有輸出的 737 個壓縮檔：116,959 個檔案兩邊相同。
+  - Go 獨有 13 個：`git archive` 產生的 tar 開頭的 PAX 全域標頭，Go 的 `archive/tar` 把它列成一個叫 `pax_global_header` 的空檔。
+    它是中繼資料，GNU tar 解壓時也不產生，Rust 版不列。
+  - Rust 獨有 2,839 個：2,824 個是 1991 年前後磁片上 implode／shrink 壓縮的 ZIP 成員（Go 的 `archive/zip` 不支援），
+    以 Info-ZIP UnZip 6.00 對過，2,974 個成員中 2,970 個逐位元組相同，其餘 4 個是同一種空的磁碟標籤項目，差在 unzip 顯示時去掉了點；
+    15 個是 Go 解不開的 7z（ARM64 BCJ、PPMd，以及讓 bodgit/sevenzip panic 的檔）。
+  - 兩邊都失敗的：加密的 RAR 與 7z、不是 ARC 格式的遊戲 `.PAK`、不是 compress 格式的 `.z`。
+- ACE 完整語料（acefile-testdata，`WINCV_ACE_CORPUS`）：269 個成員全部通過 CRC-32。
+- `tools/rust-parity.sh` 加 11 個壓縮檔場景（每種格式一個，ZIP 另有 Big5 原始位元組檔名、只存檔案不存目錄項的情況），
+  與既有的 12 個場景共 23 個，全部與 Go 版逐像素相同。
+
+速度（同一批檔、2 核容器、各跑一次，含打開與列目錄）：除 7z 以外每種格式都比 Go 版快，zip 約 1.9 倍、rar 約 2 倍、gz 約 2.2 倍，
+自寫的格式 1.1 到 5 倍。7z 一開始反而慢 4 倍：solid 壓縮檔一個區塊要從頭解，而成員依檔名排序後常在幾個區塊之間交錯，
+只快取最近一塊會整塊反覆重解。改成最多留 512 MB 已解好的區塊之後，2 個區塊、14,413 個檔的 7z 從 76 秒降到 3.2 秒（Go 版 10.3 秒）。
+
+比對時找到的 Go 版問題，已在 master 修正（2026-11-09）：
+
+- 成員路徑帶 `./`（`tar czf x.tgz .` 打包的就是這樣）時，最上層多一個「.」目錄，補出來的中間層目錄進去是空的；絕對路徑的成員看不到。
+  兩邊都改成讀進來時正規化路徑。
+- bodgit/sevenzip 在部分 7z 的標頭上 panic，整個程式結束。`archive.Open` 與 `FS.Open` 改成把 panic 轉成錯誤。
 
 ### 比對時找到的 Go 版 bug：Big5 編碼器的 HKSCS 碼
 

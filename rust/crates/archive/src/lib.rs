@@ -112,13 +112,22 @@ enum Backend {
 struct SevenZ {
     archive: sevenz_rust2::Archive,
     file: File,
-    /// 最近解過的那一個區塊。solid 壓縮檔一個區塊要從頭解,所以整塊留著,
-    /// 依序讀同一塊的成員時不必重解。
-    block: Option<usize>,
-    cache: Vec<(usize, Result<Arc<[u8]>, String>)>,
-    /// 那個區塊解到一半壞掉的原因。還沒解到的成員都報這個錯。
-    block_err: Option<String>,
+    /// 已經解好的區塊,最近用過的在後面。solid 壓縮檔一個區塊要從頭解,而成員
+    /// 依檔名排序後常在幾個區塊之間交錯,只留最近一塊會整塊反覆重解
+    /// (實測 2 個區塊、14,413 個檔的 7z,依序讀完要 76 秒,整份解一次只要 2.8 秒)。
+    blocks: Vec<Block>,
 }
+
+struct Block {
+    index: usize,
+    members: Vec<(usize, Result<Arc<[u8]>, String>)>,
+    /// 區塊解到一半壞掉的原因。還沒解到的成員都報這個錯。
+    err: Option<String>,
+    bytes: usize,
+}
+
+/// 已解好的 7z 區塊最多留多少位元組。至少留一塊,不論多大。
+const SEVENZ_CACHE: usize = 512 << 20;
 
 /// 把一個壓縮檔包成 [`vfs::Fs`]。
 pub struct ArchiveFs {
@@ -305,7 +314,7 @@ impl ArchiveFs {
                 body: Body::SevenZ(i),
             });
         }
-        self.backend = Backend::SevenZ(Box::new(Mutex::new(SevenZ { archive, file, block: None, cache: Vec::new(), block_err: None })));
+        self.backend = Backend::SevenZ(Box::new(Mutex::new(SevenZ { archive, file, blocks: Vec::new() })));
         Ok(())
     }
 
@@ -483,40 +492,59 @@ impl SevenZ {
         let Some(block) = self.archive.stream_map.file_block_index.get(i).copied().flatten() else {
             return Ok(Arc::from(&[][..]));
         };
-        if self.block != Some(block) {
-            self.block = None;
-            self.cache.clear();
-            let files = self.archive.files.as_ptr() as usize;
-            let size = std::mem::size_of::<sevenz_rust2::ArchiveEntry>();
-            let password = sevenz_rust2::Password::empty();
-            let mut cache = Vec::new();
-            let mut first_err: Option<String> = None;
-            let res = sevenz_rust2::BlockDecoder::new(1, block, &self.archive, &password, &mut self.file)
-                .for_each_entries(&mut |entry, reader| {
-                    let idx = (entry as *const _ as usize - files) / size;
-                    let mut data = Vec::with_capacity(entry.size.min(1 << 26) as usize);
-                    match reader.read_to_end(&mut data) {
-                        Ok(_) => cache.push((idx, Ok(Arc::from(data)))),
-                        Err(e) => {
-                            first_err.get_or_insert_with(|| e.to_string());
-                            cache.push((idx, Err(e.to_string())));
-                        }
-                    }
-                    Ok(true)
-                });
-            // 區塊解到一半壞掉:已經解好的成員照樣可讀,其餘的報這個錯。
-            self.block_err = res.err().map(|e| e.to_string()).or(first_err);
-            self.cache = cache;
-            self.block = Some(block);
-        }
-        match self.cache.iter().find(|(j, _)| *j == i) {
-            Some((_, Ok(b))) => Ok(b.clone()),
+        let pos = match self.blocks.iter().position(|b| b.index == block) {
+            Some(p) => {
+                let b = self.blocks.remove(p);
+                self.blocks.push(b);
+                self.blocks.len() - 1
+            }
+            None => {
+                let b = self.decode(block);
+                self.blocks.push(b);
+                let mut total: usize = self.blocks.iter().map(|b| b.bytes).sum();
+                while total > SEVENZ_CACHE && self.blocks.len() > 1 {
+                    total -= self.blocks.remove(0).bytes;
+                }
+                self.blocks.len() - 1
+            }
+        };
+        let b = &self.blocks[pos];
+        match b.members.iter().find(|(j, _)| *j == i) {
+            Some((_, Ok(d))) => Ok(d.clone()),
             Some((_, Err(m))) => Err(other(m.clone())),
-            None => Err(other(match &self.block_err {
+            None => Err(other(match &b.err {
                 Some(m) => m.clone(),
                 None => tr!("%s: 壓縮檔內找不到這個項目", i.to_string()),
             })),
         }
+    }
+
+    /// 整塊解開。解到一半壞掉時,已經解好的成員照樣可讀。
+    fn decode(&mut self, block: usize) -> Block {
+        let files = self.archive.files.as_ptr() as usize;
+        let size = std::mem::size_of::<sevenz_rust2::ArchiveEntry>();
+        let password = sevenz_rust2::Password::empty();
+        let mut members = Vec::new();
+        let mut first_err: Option<String> = None;
+        let mut bytes = 0;
+        let res = sevenz_rust2::BlockDecoder::new(1, block, &self.archive, &password, &mut self.file)
+            .for_each_entries(&mut |entry, reader| {
+                let idx = (entry as *const _ as usize - files) / size;
+                let mut data = Vec::with_capacity(entry.size.min(1 << 26) as usize);
+                match reader.read_to_end(&mut data) {
+                    Ok(_) => {
+                        bytes += data.len();
+                        members.push((idx, Ok(Arc::from(data))));
+                    }
+                    Err(e) => {
+                        first_err.get_or_insert_with(|| e.to_string());
+                        members.push((idx, Err(e.to_string())));
+                    }
+                }
+                Ok(true)
+            });
+        let err = res.err().map(|e| e.to_string()).or(first_err);
+        Block { index: block, members, err, bytes }
     }
 }
 
