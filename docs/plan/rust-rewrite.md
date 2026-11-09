@@ -68,7 +68,7 @@ Rust 重寫可行，現有程式的分層也適合逐塊搬移。建議分階段
 |---|---|---|---|---|
 | Ebiten | 視窗、輸入、貼圖、Android、wasm | winit + softbuffer，配合自己的 CPU 光柵器（`internal/render` 本來就不依賴 Ebiten） | 中：輸入法、按鍵重複、Android 生命週期要自己處理 | softbuffer 官方範例涵蓋 Android 與 wasm；Android 端 android-activity 建議用 cargo-ndk 搭 Gradle，cargo-apk 已標示棄用 |
 | `archive/zip`、`compress/*`、`archive/tar` | ZIP、GZ、TAR、BZ2 | zip、flate2、tar、bzip2 | 低 | bzip2 0.6 起預設用純 Rust 的 libbz2-rs-sys。zip 的 deflate 是否純 Rust：待驗 |
-| `nwaples/rardecode` | RAR | rar-stream、rars | 高：成熟度不明 | rar-stream 自述有 RAR4／RAR5 解碼器、核心沒有相依；rars 自述「kinda works」。兩者都要拿本專案語料比 sha256 |
+| `nwaples/rardecode` | RAR | rars（Apache-2.0） | 低：第一階段已對 28 個真實 RAR 驗過 | rar-stream 不在 crates.io 上（2026-11-09 查索引與 API 都是 404），只剩 rars。結果見「第一階段 3 的量測」 |
 | `bodgit/sevenzip` | 7z | sevenz-rust2 | 中 | 純 Rust；wasm 要用 `default_wasm` 功能組；是已停止維護的 sevenz-rust 的分支 |
 | `pdfcpu` + `rasterx` + `x/image/font/sfnt` | PDF 物件層、光柵、字形外框 | hayro（純 Rust 的 PDF 光柵器）、hayro-syntax | 高 | hayro 的 README 自述仍是實驗性、尚未完整；回歸測試約 1,000 份 PDF；`forbid(unsafe_code)` |
 | `x/text` 編碼 | Big5、GBK、Shift_JIS、EUC-KR | encoding_rs（WHATWG 編碼標準，Firefox 使用） | 中：與原版隨附對照表的差異要用 golden data 驗 | 已查證涵蓋這四種編碼 |
@@ -126,7 +126,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 |---|---|---|
 | 第一階段 1：`cell`、`fnt`、`eten`、`render` 與示範畫面 | 完成，與 Go 版逐像素相同（640×400，256,000 個像素） | `tools/rust-parity.sh` |
 | 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、wasm 完成（見下表）；macOS、Android 未做；wasm 尚未在瀏覽器執行 | `rust/crates/wincv` |
-| 第一階段 3：RAR 候選 crate 對語料 | 未開始 | |
+| 第一階段 3：RAR 候選 crate 對語料 | 完成：rars 0.12.4 在 28 個真實 RAR、1,496 個檔案上與 Go 版完全相同，速度約 2 倍（見下） | `tools/archive-parity.sh` |
 | 第一階段 4：PDF（hayro）對測試檔 | 未開始 | |
 | 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
 
@@ -156,6 +156,26 @@ Go 試作用現有的 `cell`、`fnt`、`eten`、`render` 加 Ebiten；Rust 試�
 
 - Windows 版是 GUI 子系統，只匯入系統 DLL（`x86_64-w64-mingw32-objdump -p`），在本機 Wine 下畫面正常。
 - Linux 版在主機 Xvfb 下畫面正常，倚天全形字正確。
+
+### 第一階段 3 的量測（2026-11-09）
+
+語料是本機 `~/cht` 底下的真實 RAR（遊戲與手冊的封存檔），排除三個超過 400 MB 的，共 28 個檔、
+約 0.5 GB：23 個 RAR4、5 個 RAR5。另有一個路徑在容器裡讀不到（`~/cht/dosgolem-rust` 連到掛載範圍外），
+它與 `mm3/` 下的同名檔大小相同。Go 端是現行的 rardecode，Rust 端是 rars 0.12.4，兩邊都在 2 核容器、
+每輪打開到解完全部檔案，重做 3 次取最快。
+
+- 1,496 個檔案的檔名、大小、sha256 兩邊完全相同。
+- rars 關掉預設功能（不用 rayon，循序解碼）後，4 個代表檔的時間：
+
+| 檔案 | Go（rardecode） | Rust（rars） |
+|---|---|---|
+| `第三波-殖民帝國.rar`（RAR4，86 個檔） | 1.08 s | 0.61 s |
+| `珍101-幽靈騎士.rar`（RAR4，80 個檔） | 0.86 s | 0.50 s |
+| `Civilization 2 (disk).rar`（RAR5，144 個檔） | 0.41 s | 0.20 s |
+| `#RICH2.rar`（RAR5，120 個檔） | 0.12 s | 0.06 s |
+
+rars 的 README 自述起源是「agentic development experiment」，也說還需要更多大量測試。
+本專案的語料都通過，但 SFX、分卷、加密、RAR 1.x 沒有涵蓋，正式採用前要補這幾類樣本。
 
 ### 第一階段 5 的量測（2026-11-09）
 
