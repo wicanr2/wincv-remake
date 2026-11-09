@@ -35,3 +35,5 @@
 - 發現方式：Rust 改寫的逐像素比對（`rust-rewrite` 分支的 `tools/rust-parity.sh`），`WinCV.txt` 與 `CLAUDE.md` 的「包」兩邊不同；Go 版畫缺字框，Rust 版（encoding_rs）畫對。
 - 修法：`internal/textenc/big5.go` 新增 `Big5Code` 與 `EncodeBig5`，照 WHATWG Encoding Standard 的 Big5 編碼規則建表（A140–F9FE 由解碼方向反查，重複的字取第一個，U+2550、U+255E、U+2561、U+256A、U+5341、U+5345 取最後一個，不含 HKSCS 區）。三個地方都改用它。
 - 驗證：`TestBig5CodeRoundTrip` 確認表裡每個碼都解回同一個字且不超出 F9；`TestHKSCSProneCharsHaveGlyphs` 以真實倚天字庫確認 14 個字都取得到字模；修正後 Go 版畫 `WinCV.txt` 與 Rust 版逐像素相同。
+- 發布：來源提交 `825bae2ede22d83e2c36b6cb9e3d06f1bfe5a67e` 與同名 tag 已推送；[v.0.53.4-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.4-20261109) 於 2026-11-09 18:42（Asia/Taipei）公開，三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip` 的 GitHub 大小與 SHA-256 均與本機一致；`tools/verify-dist.sh` 靜態驗收通過。
+- 固定入口：`dist-all/wincv-linux-amd64-full` 已換成這一版（SHA-256 `cbb19cdd56347a95ad4054be5fb974a9289ce5ea4b412434117e0b7e196eea08`），公開版與完整版 `-version` 都回報 `v.0.53.4-20261109`，完整版在主機 Xvfb 下開 `WinCV.txt` 畫面正常。
