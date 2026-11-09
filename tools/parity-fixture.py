@@ -14,6 +14,15 @@ touch("中文檔名.txt", 12345); touch("全形ＡＢＣ.dat", 1)
 touch(b"\xa4\xa4\xa4\xe5big5.txt", 42)       # Big5「中文」的原始位元組,不是合法 UTF-8
 touch(b"bad\xff\xfename.bin", 9)
 touch(".hidden", 2); touch("noext", 8); touch("x.y.z", 9)
+# ANSI 色碼:前景、背景、亮色(1 是亮色不是粗體)、重設、沒有結束字元的序列
+ansi = ("\x1b[1;31m紅色亮\x1b[0m 一般 \x1b[44;33m藍底黃字\x1b[0m\n"
+        "\x1b[32mgreen\x1b[1m bright\x1b[22m dim\x1b[39m default\n"
+        "\x1b[100m\x1b[97mbright bg\x1b[0m\r\n"
+        "crlf line\rcr line\n\n"
+        "tab\there\x1b[5m unterminated \x1b[31")
+p = os.path.join(root, "ansi.ans")
+with open(p, "wb") as f: f.write(ansi.encode())
+os.utime(p, (1_000_000_000, 1_000_000_000))
 for d in ["subdir", "Another Dir", "目錄"]:
     os.makedirs(os.path.join(root, d), exist_ok=True)
     os.utime(os.path.join(root, d), (1_200_000_000, 1_200_000_000))

@@ -21,7 +21,12 @@ if [ ! -d "$REPO/$OUT/fixture" ]; then
 fi
 FONTS=(-half /src/original/app/cvga.fon -eten-std /src/original/eten/STDFONT.15 -eten-spc /src/original/eten/SPCFONT.15)
 
-# 場景:名稱|celldump 的額外參數
+# 場景:名稱|celldump 的額外參數[|已知差異的格數]
+#
+# 已知差異:Go 版的倚天字形查表用 x/text 的 Big5 編碼器,它把「包」等 33 個字
+# 編成 HKSCS 的 FA–FE 碼(例如「包」→ FABD,而不是 A55D),倚天字庫沒有那一區,
+# Go 版畫成缺字框;Rust 版用 encoding_rs(WHATWG,編碼時排除 HKSCS)畫對了。
+# 見 docs/plan/rust-rewrite.md。
 SCENES=(
     "demo|"
     "dir-docs|-dir /src/docs"
@@ -29,18 +34,33 @@ SCENES=(
     "dir-root|-dir /src"
     "dir-fixture|-dir /src/$OUT/fixture"
     "dir-fixture-small|-dir /src/$OUT/fixture -cols 60 -rows 12"
+    "file-big5|-file /src/original/app/WinCV.txt|2"
+    "file-big5-whatsnew|-file /src/original/app/whatsnew.txt"
+    "file-utf8|-file /src/CLAUDE.md|2"
+    "file-ansi|-file /src/$OUT/fixture/ansi.ans"
+    "file-hex-fon|-file /src/original/app/cvga.fon"
+    "file-hex-dll|-file /src/original/app/unrar.dll"
 )
+# 不放 GBK 的檔案:文字解碼以 Rust 版(WHATWG)為準,與 Go 版不同是預期的。
 
 "$REPO/tools/cargo.sh" build -q --release -p wincv-celldump
 fail=0
 for sc in "${SCENES[@]}"; do
-    name=${sc%%|*}; args=${sc#*|}
+    IFS='|' read -r name args known <<< "$sc"
     # shellcheck disable=SC2086
     "$REPO/tools/go.sh" run ./cmd/celldump "${FONTS[@]}" -no-fallback $args -o "/src/$OUT/$name.go.png" >/dev/null
     # shellcheck disable=SC2086
     "$REPO/tools/cargo.sh" run -q --release -p wincv-celldump --bin celldump -- "${FONTS[@]}" $args -o "/src/$OUT/$name.rust.png" >/dev/null
-    printf '%-20s ' "$name"
-    "$REPO/tools/cargo.sh" run -q --release -p wincv-celldump --bin pngdiff -- \
-        "/src/$OUT/$name.go.png" "/src/$OUT/$name.rust.png" 8 16 | head -12 || fail=1
+    res=$("$REPO/tools/cargo.sh" run -q --release -p wincv-celldump --bin pngdiff -- \
+        "/src/$OUT/$name.go.png" "/src/$OUT/$name.rust.png" 8 16 || true)
+    cells=$(sed -n 's/^不同: .*,\([0-9]*\) 格$/\1/p' <<< "$res")
+    if [ -z "$cells" ]; then
+        printf '%-20s %s\n' "$name" "$(head -1 <<< "$res")"
+    elif [ "$cells" = "${known:-}" ]; then
+        printf '%-20s 已知差異 %s 格(Go 版 Big5 編碼器的 HKSCS 問題)\n' "$name" "$cells"
+    else
+        printf '%-20s %s\n' "$name" "$res" | head -12
+        fail=1
+    fi
 done
 exit $fail

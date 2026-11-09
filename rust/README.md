@@ -19,7 +19,7 @@ tools/pdf-parity.sh                  # PDF 渲染:LibreOffice、Go 版、hayro �
 | `wincv-fnt` | `internal/fnt` |
 | `wincv-eten` | `internal/eten` |
 | `wincv-render` | `internal/render` |
-| `wincv-celldump` | `cmd/celldump`(目前有示範畫面與 `-dir` 檔案列表) |
+| `wincv-celldump` | `cmd/celldump`(目前有示範畫面、`-dir` 檔案列表、`-file` 看檔) |
 | `wincv` | `cmd/wincv`(目前是 winit + softbuffer 的視窗試作) |
 | `wincv-lzh` | `internal/archive/lzh` |
 | `wincv-i18n` | `internal/i18n`(語系檔直接讀 Go 版的 `locales/*.json`) |
@@ -27,4 +27,7 @@ tools/pdf-parity.sh                  # PDF 渲染:LibreOffice、Go 版、hayro �
 | `wincv-textenc` | `internal/textenc` |
 | `wincv-vfs` | `internal/vfs`(含照搬的 Go 穩定排序) |
 | `wincv-browser` | `internal/browser` |
+| `wincv-viewer` | `internal/viewer` |
+| `wincv-hexview` | `internal/hexview` |
+| `wincv-session` | `internal/session`(檔案格式與 Go 版相同) |
 | `wincv-oracle` | 與 Go 版對照的工具(`archsum`,對應 `tools/archsum`) |

@@ -18,11 +18,15 @@ wincv-keys = { path = "crates/keys" }
 wincv-textenc = { path = "crates/textenc" }
 wincv-vfs = { path = "crates/vfs" }
 wincv-browser = { path = "crates/browser" }
+wincv-viewer = { path = "crates/viewer" }
+wincv-hexview = { path = "crates/hexview" }
+wincv-session = { path = "crates/session" }
 wincv-oracle = { path = "crates/oracle" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 libc = "0.2"
 

@@ -131,7 +131,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
 | 第二階段 1：`keys`、`textenc`、`i18n` | 完成（見下） | `tools/textenc-parity.sh` |
 | 第二階段 2：`vfs`、`browser`（目錄畫面） | 完成：5 個目錄場景與 Go 版逐像素相同（見下） | `tools/rust-parity.sh` |
-| 第二階段 3：`viewer`、`session` | 進行中 | |
+| 第二階段 3：`viewer`、`hexview`、`session` | 完成（見下） | `tools/rust-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -266,6 +266,24 @@ Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模�
     只差大小寫的同名項會被顛倒；Rust 的排序要求全序，結果不同。`testdata/go-sort.txt` 是 Go 版在 45 項、
     六種設定下的實際輸出，Rust 測試逐列比對。
 - 本地時間用 chrono（讀 `TZ` 與 `/etc/localtime`），格式「MM-DD-YY」「HH:MM」。
+
+### 第二階段 3：`viewer`、`hexview`、`session`（2026-11-09）
+
+- celldump 加上 `-file`（文字用 viewer，二進位用 hexview）。`tools/rust-parity.sh` 增加 6 個看檔場景：原版的兩個 Big5
+  文字檔、UTF-8 文件、帶 ANSI 色碼的檔（亮色、背景、重設、CR/CRLF、沒有結束字元的序列）、兩個二進位檔。
+  4 個逐像素相同，2 個差在同一個字「包」，原因是 Go 版的 bug（下一節）。
+- `session` 的檔案格式與 Go 版相同：`testdata/go-session.json` 是 Go 版實際寫出的檔，Rust 讀得回來，寫出來逐字相同。
+- viewer 狀態列右側的位置，Go 版用位元組長度計算（有搜尋結果時含中文會偏），Rust 改用顯示格數。
+
+### 比對時找到的 Go 版 bug：Big5 編碼器的 HKSCS 碼
+
+Go 版的倚天字形查表（`internal/eten` 的 `big5Bytes`）用 x/text 的 Big5 編碼器把字換成 Big5 碼。這個編碼器在
+33 個字上給的是香港增補字符集（HKSCS）的 FA–FE 碼，而不是標準 Big5 碼，例如「包」給 FABD（標準是 A55D）、
+「港」給 FDBB。倚天字庫只到 F9，所以 Go 版把這些字畫成缺字框。受影響的有不少常用字：包、港、晴、煮、偽、婷、
+倩、卿、撐、瑜、渝、杞，以及「十」「卅」等符號區的重複碼。
+
+Rust 版用 encoding_rs（WHATWG 規範：編碼時排除 HKSCS 區），這些字都畫對。比對腳本把這兩個場景標成已知差異。
+Go 版要修的話，`big5Bytes` 改成「從解碼方向建的反查表」即可（Big5 解碼是一對一的）。
 
 Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
 cargo 一律經 `tools/cargo.sh` 在容器裡跑。

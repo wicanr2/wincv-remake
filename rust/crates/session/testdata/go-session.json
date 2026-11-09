@@ -1,0 +1,29 @@
+{
+  "dir": "/home/u/docs",
+  "cursor": "a.txt",
+  "mode": "viewer",
+  "file": "a.txt",
+  "top": 12,
+  "cur": 15,
+  "cols": 100,
+  "rows": 30,
+  "zoom": 1,
+  "scale": 1.5,
+  "menuzoom": -1,
+  "menubar": true,
+  "positions": {
+    "/home/u/docs/a.txt": {
+      "top": 12,
+      "at": 1700000000
+    },
+    "/home/u/docs/b.c": {
+      "top": 3,
+      "line": 40,
+      "col": 7,
+      "at": 1700000100
+    }
+  },
+  "lang": "en",
+  "cjk24": "eten-m",
+  "namew": 12
+}

@@ -1,0 +1,10 @@
+[package]
+name = "wincv-hexview"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wincv-cell.workspace = true
+wincv-textenc.workspace = true

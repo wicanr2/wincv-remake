@@ -1,6 +1,6 @@
 //! 不開視窗,直接把畫面輸出成 PNG(對應 Go 版 `cmd/celldump`)。
 //!
-//! 目前有示範畫面與檔案列表(`-dir`),用來與 Go 版逐像素比對:
+//! 目前有示範畫面、檔案列表(`-dir`)與看檔(`-file`),用來與 Go 版逐像素比對:
 //!
 //! ```text
 //! celldump -half cvga.fon -eten-std STDFONT.15 -eten-spc SPCFONT.15 -o out.png
@@ -21,6 +21,7 @@ struct Args {
     cols: i32,
     rows: i32,
     dir: Option<PathBuf>,
+    file: Option<PathBuf>,
 }
 
 fn parse_args() -> Args {
@@ -32,6 +33,7 @@ fn parse_args() -> Args {
         cols: 80,
         rows: 25,
         dir: None,
+        file: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
@@ -44,6 +46,7 @@ fn parse_args() -> Args {
             "-cols" => a.cols = v().parse().unwrap_or_else(|_| die("-cols 要是整數")),
             "-rows" => a.rows = v().parse().unwrap_or_else(|_| die("-rows 要是整數")),
             "-dir" => a.dir = Some(v().into()),
+            "-file" => a.file = Some(v().into()),
             _ => die(&format!("不認得的參數 {k}")),
         }
     }
@@ -79,7 +82,9 @@ fn main() {
     r.missing_mark = true;
 
     let mut s = Screen::new(a.cols, a.rows);
-    match &a.dir {
+    if let Some(f) = &a.file {
+        draw_file(&mut s, f);
+    } else { match &a.dir {
         // 檔案列表:與 Go 版 celldump -dir 相同,不帶磁碟統計與註解。
         Some(dir) => {
             let mut m = wincv_browser::Model::new(Box::new(wincv_vfs::Os), dir);
@@ -87,7 +92,7 @@ fn main() {
             m.draw(&mut s);
         }
         None => demo(&mut s),
-    }
+    } }
     let (w, h) = r.size(s.cols, s.rows);
     let px = r.draw(&s);
 
@@ -101,6 +106,20 @@ fn main() {
         "{}  {w}x{h} px  ({}x{} 格,每格 {}x{})",
         a.out.display(), s.cols, s.rows, r.cell_w, r.cell_h
     );
+}
+
+/// 看檔(與 Go 版 celldump -file 相同):文字用文字檢視,二進位用 HEX。
+/// 圖檔還沒搬,先不處理。
+fn draw_file(s: &mut Screen, path: &std::path::Path) {
+    let data = std::fs::read(path).unwrap_or_else(|e| die(&format!("{}: {e}", path.display())));
+    let name = path.file_name().map(wincv_vfs::display_name).unwrap_or_default();
+    let v = wincv_viewer::Model::load(&name, &data, wincv_textenc::Enc::Unknown);
+    if v.enc == wincv_textenc::Enc::Binary {
+        wincv_hexview::Model::load(&name, data).draw(s);
+        return;
+    }
+    let mut v = v;
+    v.draw(s);
 }
 
 /// 一眼看出「半形、全形、配色、格點」都對的畫面。內容與 Go 版逐字相同。
