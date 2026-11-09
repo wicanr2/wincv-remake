@@ -119,7 +119,24 @@ func Open(name string) (*FS, error) {
 	}
 
 	a := &FS{name: name, dirs: map[string]bool{}}
-	var err error
+	if err := a.load(name, f); err != nil {
+		return nil, err
+	}
+	a.normalizePaths()
+	a.buildDirs()
+	return a, nil
+}
+
+// load 依格式讀進全部成員。
+//
+// 解碼器 panic 時(例如 bodgit/sevenzip 在某些 7z 的標頭上 index out of
+// range)轉成錯誤:壞掉或少見的壓縮檔不可以讓整個程式結束。
+func (a *FS) load(name string, f Format) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf(i18n.T("%s: 讀取 %s 時發生內部錯誤: %v"), path.Base(name), f.Name, r)
+		}
+	}()
 	switch f.Name {
 	case "ZIP":
 		err = a.loadZip(name)
@@ -154,11 +171,25 @@ func Open(name string) (*FS, error) {
 	default:
 		err = fmt.Errorf(i18n.T("%s 沒有對應的讀取器"), f.Name)
 	}
-	if err != nil {
-		return nil, err
+	return err
+}
+
+// normalizePaths 把成員路徑正規化:「./docs/a.txt」「/docs//a.txt」都變成
+// 「docs/a.txt」。
+//
+// `tar czf x.tgz .` 打包出來的路徑都帶 ./;不處理的話最上層會多一個叫「.」
+// 的目錄,而 buildDirs 用 path.Dir(會順便 Clean)補出來的中間層目錄與成員
+// 路徑對不上,進去是空的。絕對路徑的成員則整個看不到。「..」在根目錄就停住,
+// 與解壓時的規則相同。正規化後是空字串的(壓縮檔根目錄自己,例如「./」)不列。
+func (a *FS) normalizePaths() {
+	out := a.entries[:0]
+	for _, e := range a.entries {
+		e.path = strings.TrimPrefix(path.Clean("/"+e.path), "/")
+		if e.path != "" {
+			out = append(out, e)
+		}
 	}
-	a.buildDirs()
-	return a, nil
+	a.entries = out
 }
 
 func (a *FS) loadZip(name string) error {
@@ -532,8 +563,14 @@ func under(p, dir string) (string, bool) {
 	return p[len(dir)+1:], true
 }
 
-func (a *FS) Open(name string) (io.ReadCloser, error) {
+func (a *FS) Open(name string) (rc io.ReadCloser, err error) {
 	_, inner := split(name)
+	// 讀的時候才解的格式(ZIP、7z)在這裡才跑解碼器,panic 一樣轉成錯誤。
+	defer func() {
+		if r := recover(); r != nil {
+			rc, err = nil, fmt.Errorf(i18n.T("%s: 讀取 %s 時發生內部錯誤: %v"), inner, path.Base(a.name), r)
+		}
+	}()
 	for _, e := range a.entries {
 		if e.path == inner {
 			return e.open()
