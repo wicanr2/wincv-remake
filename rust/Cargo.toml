@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+license = "BSD-2-Clause"
+publish = false
+
+[workspace.dependencies]
+wincv-cell = { path = "crates/cell" }
+wincv-fnt = { path = "crates/fnt" }
+wincv-eten = { path = "crates/eten" }
+wincv-render = { path = "crates/render" }
+encoding_rs = "0.8"
+png = "0.17"
+
+# 發行版:量產物大小與效能用的設定(docs/plan/rust-rewrite.md 第一階段)。
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

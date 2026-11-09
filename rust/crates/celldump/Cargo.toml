@@ -1,0 +1,17 @@
+[package]
+name = "wincv-celldump"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "celldump"
+path = "src/main.rs"
+
+[dependencies]
+wincv-cell.workspace = true
+wincv-fnt.workspace = true
+wincv-eten.workspace = true
+wincv-render.workspace = true
+png.workspace = true

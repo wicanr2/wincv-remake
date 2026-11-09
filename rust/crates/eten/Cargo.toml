@@ -1,0 +1,10 @@
+[package]
+name = "wincv-eten"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wincv-fnt.workspace = true
+encoding_rs.workspace = true

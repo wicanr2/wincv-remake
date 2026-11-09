@@ -114,9 +114,27 @@ Rust 重寫可行，現有程式的分層也適合逐塊搬移。建議分階段
 
 Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `archive.Formats`、`imgfmt.Formats` 這類功能表，加上 `docs/ui/keymap.md` 的按鍵表逐項通過。
 
+## 發布方式
+
+使用者決定（2026-11-09）：第一個 Rust 版的 GitHub Release 標成 preview，因為整個程式是重寫的。
+發布時勾選 prerelease，版號加上 `-preview`。`tools/release.sh` 與 `tools/package.sh`
+目前的版號檢查只接受 `v.主.次.修-YYYYMMDD`，發布前要一起放寬。
+
+## 進度
+
+| 項目 | 狀態 | 證據 |
+|---|---|---|
+| 第一階段 1：`cell`、`fnt`、`eten`、`render` 與示範畫面 | 完成，與 Go 版逐像素相同（640×400，256,000 個像素） | `tools/rust-parity.sh` |
+| 第一階段 2：視窗與五個平台的建置量測 | 進行中 | |
+| 第一階段 3：RAR 候選 crate 對語料 | 未開始 | |
+| 第一階段 4：PDF（hayro）對測試檔 | 未開始 | |
+| 第一階段 5：LZH 搬移與解碼時間 | 未開始 | |
+
+Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
+cargo 一律經 `tools/cargo.sh` 在容器裡跑。
+
 ## 待決定事項
 
-- Rust 程式放在本 repo 的子目錄（例如 `rust/`，共用測試資料與工具），還是另開 repo。
 - 網頁版是否公開部署。公開部署就不能內含第三方字型，介面會改用可散布字型或由使用者提供。
 - Android 是否繼續支援，以及最低支援的 Android 版本。
 
