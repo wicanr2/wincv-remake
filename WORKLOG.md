@@ -65,3 +65,9 @@
 
 - `CaseTitle` 以前用 `low[:1]` 取第一個位元組轉大寫。首字是中文或 é 時只拿到半個 UTF-8 字，`strings.ToUpper` 把它換成 U+FFFD，檔名被弄壞（實測 `中文.TXT` → `"�\xb8\xad文.txt"`）。改成取第一個字元。
 - 目前 app 沒有用到 `RenameCase`（批次改名的大小寫還沒接上介面），使用者碰不到；先修好，免得接上時寫壞檔名。由 Rust 改寫 `convert` 時發現。
+
+## 2026-11-09：ICO 與 TGA 的半透明像素改用非預乘
+
+- `decodeICOBMP`（32bpp）與 `DecodeTGA`（32 位元）把檔案裡非預乘的 BGRA 存進 `image.RGBA`。Go 把 `image.RGBA` 當成預乘資料，所以半透明像素（圖示的反鋸齒邊緣）的顏色算錯：畫到畫面上偏亮，轉成 NRGBA 時則被放大。例：dosbox 的 `cfggui.ico` 一個 alpha 18 的像素，檔案裡是 (195,199,196)，以前解成 (213,14,227)。
+- 改成 `image.NRGBA` 與 `color.NRGBA`。不透明與全透明的像素不受影響。
+- 由 Rust 改寫的圖檔比對（`tools/img-parity.sh`）發現：ICO 有 13 張只差在半透明像素，alpha 相同、顏色不同。

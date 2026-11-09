@@ -94,7 +94,9 @@ func DecodeTGA(d []byte) (image.Image, error) {
 		pix = append(pix, 0)
 	}
 
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	// 非預乘:TGA 的 alpha 沒有乘進顏色,存進 image.RGBA(預乘)會把半透明的
+	// 像素算錯。
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
 		dy := y
 		if !topDown {
@@ -124,27 +126,27 @@ func DecodeTGA(d []byte) (image.Image, error) {
 }
 
 // readColor 讀一個 TGA 像素。TGA 的位元組順序是 BGR(A)。
-func readColor(b []byte, depth int) color.RGBA {
+func readColor(b []byte, depth int) color.NRGBA {
 	switch depth {
 	case 15, 16:
 		if len(b) < 2 {
-			return color.RGBA{}
+			return color.NRGBA{}
 		}
 		v := binary.LittleEndian.Uint16(b)
 		r := uint8((v>>10)&0x1F) << 3
 		g := uint8((v>>5)&0x1F) << 3
 		bl := uint8(v&0x1F) << 3
-		return color.RGBA{r, g, bl, 0xFF}
+		return color.NRGBA{r, g, bl, 0xFF}
 	case 24:
 		if len(b) < 3 {
-			return color.RGBA{}
+			return color.NRGBA{}
 		}
-		return color.RGBA{b[2], b[1], b[0], 0xFF}
+		return color.NRGBA{b[2], b[1], b[0], 0xFF}
 	case 32:
 		if len(b) < 4 {
-			return color.RGBA{}
+			return color.NRGBA{}
 		}
-		return color.RGBA{b[2], b[1], b[0], b[3]}
+		return color.NRGBA{b[2], b[1], b[0], b[3]}
 	}
-	return color.RGBA{}
+	return color.NRGBA{}
 }
