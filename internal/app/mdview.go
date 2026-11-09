@@ -179,7 +179,7 @@ func (a *App) drawMDStatus(s *cell.Screen) {
 	left := fmt.Sprintf(i18n.T("%s  %d 列  %d%%"), i18n.T(a.md.name), len(a.md.lines), pct)
 	s.Print(0, y, left, cell.LtGray2, cell.Blue)
 	right := i18n.T("Enter 看圖  Esc 離開")
-	if x := s.Cols - len(right); x > len(left) {
+	if x := s.Cols - cell.Width(right); x > cell.Width(left) {
 		s.Print(x, y, right, cell.Gray, cell.Blue)
 	}
 }

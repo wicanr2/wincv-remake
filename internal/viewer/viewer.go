@@ -528,7 +528,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 		right = strconv.Itoa(m.HitIdx+1) + "/" + strconv.Itoa(len(m.Hits)) +
 			i18n.T(" 命中  ") + right
 	}
-	x := s.Cols - len(right)
+	x := s.Cols - cell.Width(right)
 	if x >= 0 {
 		s.Print(x, y, right, t.StatusFG, t.StatusBG)
 	}

@@ -244,7 +244,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 	s.Print(0, y, left, t.StatusFG, t.StatusBG)
 
 	right := fmt.Sprintf(i18n.T("%d 行 %d 欄 / %d"), m.Cur.Line+1, m.Cur.Col+1, len(m.Lines))
-	if x := s.Cols - len(right); x >= 0 {
+	if x := s.Cols - cell.Width(right); x >= 0 {
 		s.Print(x, y, right, t.StatusFG, t.StatusBG)
 	}
 }

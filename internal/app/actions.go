@@ -254,7 +254,7 @@ func (a *App) drawFind(s *cell.Screen) int {
 	s.Fill(0, 0, s.Cols, 1, ' ', cell.LtCyan, cell.Blue)
 	s.Print(0, 0, fmt.Sprintf(i18n.T("尋找 %s: %q"), kindName, f.Pattern), cell.LtCyan, cell.Blue)
 	right := fmt.Sprintf("%d / %d", f.Cursor+1, len(f.Hits))
-	if x := s.Cols - len(right); x >= 0 {
+	if x := s.Cols - cell.Width(right); x >= 0 {
 		s.Print(x, 0, right, cell.LtCyan, cell.Blue)
 	}
 

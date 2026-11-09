@@ -168,7 +168,7 @@ func (m *Model) drawStatus(s *cell.Screen) {
 		pct = (m.Top + 1) * 100 / n
 	}
 	right := fmt.Sprintf("%08X  %d%%", m.Top*BytesPerLine, pct)
-	if x := s.Cols - len(right); x >= 0 {
+	if x := s.Cols - cell.Width(right); x >= 0 {
 		s.Print(x, y, right, t.StatusFG, t.StatusBG)
 	}
 }

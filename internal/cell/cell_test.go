@@ -59,3 +59,12 @@ func TestPrintOutOfRangeRowDoesNotPanic(t *testing.T) {
 		t.Fatalf("最後一列應該寫得進去,寫了 %d 格", n)
 	}
 }
+
+// 對齊用的寬度:中文字 3 個位元組、佔 2 格。
+func TestWidth(t *testing.T) {
+	for s, want := range map[string]int{"": 0, "abc": 3, "1 行 1 欄 / 10": 14, "中a": 3} {
+		if got := Width(s); got != want {
+			t.Errorf("Width(%q) = %d,應為 %d", s, got, want)
+		}
+	}
+}

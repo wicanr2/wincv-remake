@@ -192,6 +192,22 @@ func (s *Screen) Set(x, y int, ch rune, fg, bg Color) {
 	}
 }
 
+// Width 回傳字串在畫面上佔幾格(全形字算兩格)。
+//
+// 對齊用的位置一律用它算,不要用 len:len 是位元組數,一個中文字是 3 個
+// 位元組卻只佔 2 格,含中文的字串靠右對齊時會離右緣空出幾格。
+func Width(s string) int {
+	n := 0
+	for _, r := range s {
+		if IsWide(r) {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
+}
+
 // IsWide 判斷一個字要不要佔兩格。
 //
 // 判準對齊 Big5 的顯示行為:CJK 統一漢字、全形標點、注音符號、
