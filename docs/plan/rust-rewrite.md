@@ -125,7 +125,7 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 項目 | 狀態 | 證據 |
 |---|---|---|
 | 第一階段 1：`cell`、`fnt`、`eten`、`render` 與示範畫面 | 完成，與 Go 版逐像素相同（640×400，256,000 個像素） | `tools/rust-parity.sh` |
-| 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、wasm 完成（見下表）；macOS、Android 未做；wasm 尚未在瀏覽器執行 | `rust/crates/wincv` |
+| 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、wasm、macOS 完成（見下）；Android 未做；wasm 尚未在瀏覽器執行 | `rust/crates/wincv` |
 | 第一階段 3：RAR 候選 crate 對語料 | 完成：rars 0.12.4 在 28 個真實 RAR、1,496 個檔案上與 Go 版完全相同，速度約 2 倍（見下） | `tools/archive-parity.sh` |
 | 第一階段 4：PDF（hayro）對測試檔 | 完成：9 個測試檔上與 Go 版相當，一項較好（見下） | `tools/pdf-parity.sh` |
 | 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
@@ -151,6 +151,12 @@ Go 試作用現有的 `cell`、`fnt`、`eten`、`render` 加 Ebiten；Rust 試�
 
 - Ebiten 經 OpenGL 繪圖，容器裡沒有 GPU，由 Mesa 的軟體實作代勞；softbuffer 只做 CPU 貼圖。記憶體與啟動時間的差距有很大一部分來自繪圖路徑，不全是語言造成的。
 - Rust 的 Linux 版在執行時以 dlopen 載入 `libxkbcommon-x11.so`（winit 的 X11 鍵盤處理），Go 版沒有這個相依。一般桌面都有，精簡環境要裝 `libxkbcommon-x11-0`；容器內驗證用 `tools/docker/rust-run.Dockerfile`。
+
+macOS（2026-11-09，`tools/docker/osxcross-rust.Dockerfile` 建的 `wincv-osxcross-rust:1`，SDK 15.5）：
+
+- x86_64 與 arm64 各約 0.72 MB，`lipo` 合成的 universal binary 1.46 MB。
+- 兩個架構都只連到系統 framework 與 `/usr/lib` 的系統庫；arm64 有 `LC_CODE_SIGNATURE`（連結器加的 ad-hoc 簽章），`minos 11.0`。
+- 待驗：發行設定開了 `strip = true`，要在 Mac 上用 `codesign -v` 確認 strip 之後簽章仍有效；沒有實機啟動過。
 
 其他已驗證的事實：
 
