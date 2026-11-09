@@ -2697,13 +2697,25 @@ dependencies = [
  "wincv-archive",
  "wincv-browser",
  "wincv-cell",
+ "wincv-editor",
  "wincv-eten",
  "wincv-fnt",
  "wincv-hexview",
  "wincv-render",
+ "wincv-syntax",
  "wincv-textenc",
  "wincv-vfs",
  "wincv-viewer",
+]
+
+[[package]]
+name = "wincv-editor"
+version = "0.1.0"
+dependencies = [
+ "wincv-cell",
+ "wincv-i18n",
+ "wincv-syntax",
+ "wincv-textenc",
 ]
 
 [[package]]
@@ -2773,6 +2785,14 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "wincv-syntax"
+version = "0.1.0"
+dependencies = [
+ "wincv-cell",
+ "wincv-textenc",
 ]
 
 [[package]]

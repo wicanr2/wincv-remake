@@ -75,3 +75,27 @@ with open(tp, "wb") as f:
     f.write(gzip.compress(buf.getvalue(), mtime=0))
 os.utime(tp, (1_000_000_000, 1_000_000_000))
 os.utime(arch, (1_200_000_000, 1_200_000_000))
+
+# 編輯器場景(語法上色):跨行註解、字串、數字、Tab、全形字。
+ed = os.path.join(root, "edit")
+os.makedirs(ed, exist_ok=True)
+with open(os.path.join(ed, "sample.c"), "w", encoding="utf-8", newline="\n") as f:
+    f.write("""/* 跨行註解的第一行
+   第二行 int return 都不該上色 */
+#include <stdio.h>
+
+int main(void) {
+\tint n = 42, h = 0x1F;\t// 行註解:中文
+\tchar *s = "字串 \\"含跳脫\\" return";
+\tfor (n = 0; n < 10; n++) { /* 同一行開關 */ h += n; }
+\treturn 0;
+}
+""")
+with open(os.path.join(ed, "sample.pas"), "w", encoding="utf-8", newline="\r\n") as f:
+    f.write("""program Hello;
+{ Pascal 的註解 }
+VAR i : Integer;
+BEGIN
+  For i := 1 To 3 Do WriteLn('第 ', i, ' 次');
+END.
+""")

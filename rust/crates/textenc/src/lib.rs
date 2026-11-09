@@ -340,3 +340,29 @@ mod tests {
         }
     }
 }
+
+/// 把字串編成指定的編碼。有字放不進該編碼時回 None(呼叫端決定怎麼辦)。
+///
+/// CJK 編碼用 encoding_rs 的編碼器(WHATWG 規則:Big5 不產生 HKSCS 區的碼,
+/// 除非那個字只在 HKSCS 區)。UTF-16 加 BOM:判讀靠 BOM 認出 UTF-16,存回去
+/// 不帶 BOM 的話下次就認不得了。ASCII 與 UTF-8 原樣輸出,不加 BOM。
+pub fn encode(s: &str, e: Enc) -> Option<Vec<u8>> {
+    match e {
+        Enc::Utf16Le | Enc::Utf16Be => {
+            let le = e == Enc::Utf16Le;
+            let mut out = Vec::with_capacity(s.len() * 2 + 2);
+            out.extend_from_slice(if le { &[0xFF, 0xFE] } else { &[0xFE, 0xFF] });
+            for u in s.encode_utf16() {
+                out.extend_from_slice(&if le { u.to_le_bytes() } else { u.to_be_bytes() });
+            }
+            Some(out)
+        }
+        _ => match e.encoding() {
+            Some(enc) => {
+                let (b, _, bad) = enc.encode(s);
+                (!bad).then(|| b.into_owned())
+            }
+            None => Some(s.as_bytes().to_vec()),
+        },
+    }
+}

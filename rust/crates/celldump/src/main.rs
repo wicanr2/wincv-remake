@@ -1,6 +1,6 @@
 //! 不開視窗,直接把畫面輸出成 PNG(對應 Go 版 `cmd/celldump`)。
 //!
-//! 目前有示範畫面、檔案列表(`-dir`)與看檔(`-file`),用來與 Go 版逐像素比對:
+//! 目前有示範畫面、檔案列表(`-dir`)、看檔(`-file`)與編輯器(`-edit`),用來與 Go 版逐像素比對:
 //!
 //! ```text
 //! celldump -half cvga.fon -eten-std STDFONT.15 -eten-spc SPCFONT.15 -o out.png
@@ -22,6 +22,8 @@ struct Args {
     rows: i32,
     dir: Option<PathBuf>,
     file: Option<PathBuf>,
+    edit: Option<PathBuf>,
+    cfg: Option<PathBuf>,
 }
 
 fn parse_args() -> Args {
@@ -34,6 +36,8 @@ fn parse_args() -> Args {
         rows: 25,
         dir: None,
         file: None,
+        edit: None,
+        cfg: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
@@ -47,6 +51,8 @@ fn parse_args() -> Args {
             "-rows" => a.rows = v().parse().unwrap_or_else(|_| die("-rows 要是整數")),
             "-dir" => a.dir = Some(v().into()),
             "-file" => a.file = Some(v().into()),
+            "-edit" => a.edit = Some(v().into()),
+            "-cfg" => a.cfg = Some(v().into()),
             _ => die(&format!("不認得的參數 {k}")),
         }
     }
@@ -82,7 +88,14 @@ fn main() {
     r.missing_mark = true;
 
     let mut s = Screen::new(a.cols, a.rows);
-    if let Some(f) = &a.file {
+    if let Some(f) = &a.edit {
+        // 與 Go 版 celldump -edit 相同:語法設定目錄留空時跟著 -half 走。
+        let cfg_dir = a.cfg.clone().unwrap_or_else(|| a.half.parent().map(PathBuf::from).unwrap_or_default());
+        let data = std::fs::read(f).unwrap_or_else(|e| die(&format!("{}: {e}", f.display())));
+        let syn = wincv_syntax::Set::load(&cfg_dir).ok().and_then(|set| set.for_name(&f.to_string_lossy()));
+        let base = f.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        wincv_editor::Model::load(&base, &data, wincv_textenc::Enc::Unknown, syn).draw(&mut s);
+    } else if let Some(f) = &a.file {
         draw_file(&mut s, f);
     } else { match &a.dir {
         // 檔案列表:與 Go 版 celldump -dir 相同,不帶磁碟統計與註解。

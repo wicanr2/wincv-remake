@@ -23,6 +23,8 @@ wincv-hexview = { path = "crates/hexview" }
 wincv-session = { path = "crates/session" }
 wincv-oracle = { path = "crates/oracle" }
 wincv-archive = { path = "crates/archive" }
+wincv-syntax = { path = "crates/syntax" }
+wincv-editor = { path = "crates/editor" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"

@@ -49,6 +49,10 @@ SCENES=(
     "arch-ace|-dir /src/testdata/ace/blocked.ace!winappdbg-winappdbg_v1.6"
     "arch-arc|-dir /src/testdata/arc/t.arc!"
     "arch-z|-dir /src/testdata/z/real16.Z!"
+    "edit-c|-edit /src/$OUT/fixture/edit/sample.c"
+    "edit-pas|-edit /src/$OUT/fixture/edit/sample.pas"
+    "edit-big5|-edit /src/original/app/whatsnew.txt"
+    "edit-small|-edit /src/$OUT/fixture/edit/sample.c -cols 30 -rows 6"
 )
 # 不放 GBK 的檔案:文字解碼以 Rust 版(WHATWG)為準,與 Go 版不同是預期的。
 
