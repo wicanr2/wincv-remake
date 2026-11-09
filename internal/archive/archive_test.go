@@ -386,3 +386,25 @@ func TestMemberPathsNormalized(t *testing.T) {
 		t.Errorf("abs/c.txt = %q", b)
 	}
 }
+
+// PAX 全域標頭不是檔案,不列出來。
+func TestPaxGlobalHeaderIsNotAFile(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	if err := tw.WriteHeader(&tar.Header{Typeflag: tar.TypeXGlobalHeader, Name: "pax_global_header",
+		PAXRecords: map[string]string{"comment": "0123456789abcdef"}}); err != nil {
+		t.Fatal(err)
+	}
+	tw.WriteHeader(&tar.Header{Name: "a.txt", Size: 3, Mode: 0o644, Typeflag: tar.TypeReg})
+	io.WriteString(tw, "abc")
+	tw.Close()
+	p := filepath.Join(t.TempDir(), "g.tar")
+	os.WriteFile(p, buf.Bytes(), 0o644)
+	a, err := Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(namesOf(t, a, a.Root()), " "); got != "a.txt" {
+		t.Errorf("最上層 = %q,應為 a.txt", got)
+	}
+}
