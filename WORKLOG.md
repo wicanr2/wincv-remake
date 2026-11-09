@@ -37,3 +37,9 @@
 - 驗證：`TestBig5CodeRoundTrip` 確認表裡每個碼都解回同一個字且不超出 F9；`TestHKSCSProneCharsHaveGlyphs` 以真實倚天字庫確認 14 個字都取得到字模；修正後 Go 版畫 `WinCV.txt` 與 Rust 版逐像素相同。
 - 發布：來源提交 `825bae2ede22d83e2c36b6cb9e3d06f1bfe5a67e` 與同名 tag 已推送；[v.0.53.4-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.4-20261109) 於 2026-11-09 18:42（Asia/Taipei）公開，三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip` 的 GitHub 大小與 SHA-256 均與本機一致；`tools/verify-dist.sh` 靜態驗收通過。
 - 固定入口：`dist-all/wincv-linux-amd64-full` 已換成這一版（SHA-256 `cbb19cdd56347a95ad4054be5fb974a9289ce5ea4b412434117e0b7e196eea08`），公開版與完整版 `-version` 都回報 `v.0.53.4-20261109`，完整版在主機 Xvfb 下開 `WinCV.txt` 畫面正常。
+
+## 2026-11-09：Big5 對照表補回 HKSCS 區（v.0.53.4 之後）
+
+- v.0.53.4 的 `textenc.Big5Code` 只收 A1–F9 的碼，只在 HKSCS 區（FA–FE）的 764 個字（香港用字）因此編不出來：轉碼成 Big5、以 Big5 存檔時，v.0.53.3 會寫出 FA–FE 碼，v.0.53.4 改成失敗或換成替代字。倚天字形不受影響（字庫本來就沒有那一區）。
+- 發現方式：把 Go 的對照表與 Rust 改寫用的 encoding_rs 在全部 14,653 個字上逐一比對，前 13,889 個相同，差在這 764 個。
+- 修法：建表範圍擴到 A1–FE，照 WHATWG 依碼的順序「取第一個」：同時在標準區與 HKSCS 區的字（包、港…）拿到標準碼，只在 HKSCS 區的字編成 FA–FE 碼。修正後與 encoding_rs 在全部字上相同；`TestBig5CodeRoundTrip` 改成檢查「標準區有的字不可拿到 HKSCS 碼」與「HKSCS 字編得出來」。
