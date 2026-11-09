@@ -125,10 +125,11 @@ Go 版在 Rust 版達到功能對等之前持續發行。對等的判準是 `arc
 | 項目 | 狀態 | 證據 |
 |---|---|---|
 | 第一階段 1：`cell`、`fnt`、`eten`、`render` 與示範畫面 | 完成，與 Go 版逐像素相同（640×400，256,000 個像素） | `tools/rust-parity.sh` |
-| 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、macOS、wasm（含瀏覽器實跑）完成（見下）；Android 未做 | `rust/crates/wincv`、`tools/rust-web-smoke.sh` |
+| 第一階段 2：視窗與五個平台的建置量測 | Linux、Windows、macOS、wasm（含瀏覽器實跑）完成（見下）；Android 延後 | `rust/crates/wincv`、`tools/rust-web-smoke.sh` |
 | 第一階段 3：RAR 候選 crate 對語料 | 完成：rars 0.12.4 在 28 個真實 RAR、1,496 個檔案上與 Go 版完全相同，速度約 2 倍（見下） | `tools/archive-parity.sh` |
 | 第一階段 4：PDF（hayro）對測試檔 | 完成：9 個測試檔上與 Go 版相當，一項較好（見下） | `tools/pdf-parity.sh` |
 | 第一階段 5：LZH 搬移與解碼時間 | 完成：675 個成員與 Go 版逐位元組相同；速度相當（見下） | `tools/archive-parity.sh` |
+| 第二階段 1：`keys`、`textenc`、`i18n` | 完成（見下） | `tools/textenc-parity.sh` |
 
 ### 第一階段 2 的量測（2026-11-09）
 
@@ -229,6 +230,26 @@ rars 的 README 自述起源是「agentic development experiment」，也說還�
 
 輸出 674 列（每列一個檔案的大小與 sha256）兩邊完全相同。直接照搬的解碼器在 Rust 沒有明顯的速度優勢；
 要快，得針對熱迴圈另外最佳化（例如逐位元組 `push` 改成整段複製），那是功能對等之後的事。
+
+### 第一階段的結論（2026-11-09）
+
+五項都有數字，產物大小有實質改善，RAR 與 PDF 各有候選在語料上通過，進入第二階段。
+Android 延後（使用者決定）：要重建 NDK、SDK、JDK、Gradle 與模擬器，等功能夠多、值得在手機上試時再做。
+
+### 第二階段 1：`keys`、`textenc`、`i18n`（2026-11-09）
+
+- `wincv-i18n` 直接讀 Go 版的 `internal/i18n/locales/*.json`，兩邊共用同一份翻譯。key 裡的 Go 格式動詞由執行期格式器展開
+  （`%d %s %v %w %q %c %x %X %f %g %%`、寬度、補零、精度），14 個案例與 Go 1.22.12 的 `fmt.Sprintf` 實際輸出相同。
+- `wincv-keys`、`wincv-textenc` 照搬 Go 版的規則與測試。
+- `textenc` 與 Go 版對照：原版 `original/app/` 62 個檔、repo 的文件、300 個固定種子的隨機檔，共 388 個檔案。
+  - 判讀結果全部相同。
+  - 解碼器改用 encoding_rs（WHATWG）後有兩類差異，都接受：
+    - 多解出字：GBK 的使用者自訂區（對到 Unicode 私用區）、GB18030-2005 新增的字（直排標點 U+FE10–FE19、U+9FB4 起的漢字等）、
+      Shift_JIS 的部分擴充字，Go 的 x/text 解成 U+FFFD，Rust 解出字。原版 `original/app/` 被判成 GBK 的對照表就有這種字。
+    - 取代粒度不同：一段不合法位元組換成幾個 U+FFFD 的規則不同。只發生在用錯的編碼硬解（例如 UTF-8 文件強制用 Big5 看）或隨機資料。
+  - 沒有「兩邊把同一段位元組解成不同字」的情況。
+- Go 的字串可以裝不合法的 UTF-8，range 時每個壞位元組各算一個 U+FFFD；Rust 端的 `utf8_lossy_go` 照這個規則做，
+  不用 `from_utf8_lossy`（後者把一段壞位元組併成一個）。
 
 Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
 cargo 一律經 `tools/cargo.sh` 在容器裡跑。

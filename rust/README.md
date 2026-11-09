@@ -9,6 +9,8 @@ WINCV_NET=1 tools/cargo.sh fetch     # 第一次:抓相依套件
 tools/cargo.sh test                  # 單元測試
 tools/rust-parity.sh                 # 與 Go 版的 celldump 逐像素比對
 tools/archive-parity.sh <語料目錄> <壓縮檔>...   # 與 Go 版逐檔比 sha256 並計時
+tools/textenc-parity.sh              # 編碼判讀與解碼與 Go 版對照
+tools/pdf-parity.sh                  # PDF 渲染:LibreOffice、Go 版、hayro 三方對照
 ```
 
 | crate | 對應 Go 套件 |
@@ -20,4 +22,7 @@ tools/archive-parity.sh <語料目錄> <壓縮檔>...   # 與 Go 版逐檔比 sh
 | `wincv-celldump` | `cmd/celldump`(目前只有示範畫面) |
 | `wincv` | `cmd/wincv`(目前是 winit + softbuffer 的視窗試作) |
 | `wincv-lzh` | `internal/archive/lzh` |
+| `wincv-i18n` | `internal/i18n`(語系檔直接讀 Go 版的 `locales/*.json`) |
+| `wincv-keys` | `internal/keys` |
+| `wincv-textenc` | `internal/textenc` |
 | `wincv-oracle` | 與 Go 版對照的工具(`archsum`,對應 `tools/archsum`) |
