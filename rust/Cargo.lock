@@ -2532,7 +2532,6 @@ dependencies = [
 name = "wincv-oracle"
 version = "0.1.0"
 dependencies = [
- "encoding_rs",
  "hayro",
  "png 0.17.16",
  "rars",
