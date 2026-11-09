@@ -86,10 +86,10 @@ func decodeICOBMP(b []byte) (image.Image, error) {
 		nColors = 1 << uint(bpp)
 	}
 	palOff := hdr
-	var pal color.Palette
+	var pal []color.NRGBA
 	for i := 0; i < nColors && palOff+i*4+3 < len(b); i++ {
 		p := b[palOff+i*4:]
-		pal = append(pal, color.RGBA{p[2], p[1], p[0], 0xFF})
+		pal = append(pal, color.NRGBA{p[2], p[1], p[0], 0xFF})
 	}
 	dataOff := palOff + nColors*4
 
@@ -98,27 +98,29 @@ func decodeICOBMP(b []byte) (image.Image, error) {
 	maskRowBytes := (w + 31) / 32 * 4
 	maskOff := dataOff + rowBytes*h
 
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	// 非預乘:32bpp 的 BGRA 沒有把 alpha 乘進顏色,存進 image.RGBA(預乘)
+	// 會把半透明的邊緣算錯。
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
 		sy := h - 1 - y // BMP 由下往上
 		row := dataOff + sy*rowBytes
 		for x := 0; x < w; x++ {
-			var c color.RGBA
+			var c color.NRGBA
 			switch bpp {
 			case 32:
 				o := row + x*4
 				if o+3 < len(b) {
-					c = color.RGBA{b[o+2], b[o+1], b[o], b[o+3]}
+					c = color.NRGBA{b[o+2], b[o+1], b[o], b[o+3]}
 				}
 			case 24:
 				o := row + x*3
 				if o+2 < len(b) {
-					c = color.RGBA{b[o+2], b[o+1], b[o], 0xFF}
+					c = color.NRGBA{b[o+2], b[o+1], b[o], 0xFF}
 				}
 			case 8:
 				o := row + x
 				if o < len(b) && int(b[o]) < len(pal) {
-					c = pal[b[o]].(color.RGBA)
+					c = pal[b[o]]
 				}
 			case 4:
 				o := row + x/2
@@ -128,7 +130,7 @@ func decodeICOBMP(b []byte) (image.Image, error) {
 						v = b[o] & 0x0F
 					}
 					if int(v) < len(pal) {
-						c = pal[v].(color.RGBA)
+						c = pal[v]
 					}
 				}
 			case 1:
@@ -139,7 +141,7 @@ func decodeICOBMP(b []byte) (image.Image, error) {
 						v = 1
 					}
 					if int(v) < len(pal) {
-						c = pal[v].(color.RGBA)
+						c = pal[v]
 					}
 				}
 			default:
@@ -153,7 +155,7 @@ func decodeICOBMP(b []byte) (image.Image, error) {
 					c.A = 0
 				}
 			}
-			img.SetRGBA(x, y, c)
+			img.SetNRGBA(x, y, c)
 		}
 	}
 	return img, nil
