@@ -688,7 +688,8 @@ func (a *App) drawMenu(s *cell.Screen) {
 			s.Fill(0, y, w, 1, ' ', fg, bg)
 		}
 		s.Print(2, y, it.label, fg, bg)
-		if it.run == nil {
+		// 子選單項目沒有按鍵:它的 key 是零值,印出來是 U+0000 的缺字框。
+		if it.run == nil && it.sub == nil {
 			ks := it.key.String()
 			if px := w - 2 - len(ks); px > 2 {
 				s.Print(px, y, ks, kfg, bg)

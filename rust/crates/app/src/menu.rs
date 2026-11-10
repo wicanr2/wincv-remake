@@ -643,7 +643,8 @@ impl App {
                 s.fill(0, y, w, 1, ' ', fg, bg);
             }
             s.print(2, y, &it.label, fg, bg);
-            if it.run.is_none() {
+            // 子選單項目沒有按鍵:它的 key 是零值,印出來是 U+0000 的缺字框。
+            if it.run.is_none() && it.sub.is_none() {
                 let ks = it.key.to_string();
                 let px = w - 2 - ks.len() as i32;
                 if px > 2 {

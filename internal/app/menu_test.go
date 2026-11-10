@@ -273,3 +273,28 @@ func TestMenuNoOpItemStillRedraws(t *testing.T) {
 		t.Fatal("滑鼠點「放大字體」(已到頂)應該回報畫面有變")
 	}
 }
+
+// 有子選單的項目(視窗大小、語言…)右邊不該出現按鍵欄。它們的 key 是零值,
+// 印出來是 U+0000,畫面上是一個缺字框。
+func TestSubmenuItemsHaveNoKeyColumn(t *testing.T) {
+	a := New(vfs.OS{}, t.TempDir())
+	a.Draw(cell.New(80, 25))
+	a.HandleKey(keys.Named(keys.F9))
+	for i := 0; i < 6; i++ {
+		a.HandleKey(keys.Named(keys.Right))
+	}
+	l := a.MenuLayer(80, 25)
+	if l.Drop == nil {
+		t.Fatal("設定選單沒展開")
+	}
+	if !strings.Contains(screenText(l.Drop), "語言") {
+		t.Fatalf("展開的不是設定選單:\n%s", screenText(l.Drop))
+	}
+	for y := 0; y < l.Drop.Rows; y++ {
+		for x := 0; x < l.Drop.Cols; x++ {
+			if c := l.Drop.At(x, y); c != nil && !c.Cont && c.Ch == 0 {
+				t.Fatalf("第 %d 列第 %d 欄畫了 U+0000", y, x)
+			}
+		}
+	}
+}

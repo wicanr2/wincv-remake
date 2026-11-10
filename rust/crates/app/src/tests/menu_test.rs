@@ -212,3 +212,26 @@ fn menu_no_op_item_still_redraws() {
     let row = a.menu.cursor - a.menu.top;
     assert!(a.menu_drop_click(row), "滑鼠點「放大字體」(已到頂)應該回報畫面有變");
 }
+
+/// 有子選單的項目(視窗大小、語言…)右邊不該出現按鍵欄。它們的 key 是零值,印出來是
+/// U+0000,畫面上是一個缺字框。
+#[test]
+fn submenu_items_have_no_key_column() {
+    let td = TempDir::new();
+    let mut a = new_at(td.path());
+    a.draw(&mut Screen::new(80, 25));
+    a.handle_key(Key::named(Code::F9));
+    for _ in 0..6 {
+        a.handle_key(Key::named(Code::Right));
+    }
+    let l = a.menu_layer(80, 25);
+    let d = l.drop.as_ref().expect("設定選單沒展開");
+    assert!(screen_text(d).contains("語言"), "展開的不是設定選單:\n{}", screen_text(d));
+    for y in 0..d.rows {
+        for x in 0..d.cols {
+            if let Some(c) = d.at(x, y) {
+                assert!(c.cont || c.ch != '\0', "第 {y} 列第 {x} 欄畫了 U+0000");
+            }
+        }
+    }
+}
