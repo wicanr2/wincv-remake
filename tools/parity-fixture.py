@@ -174,3 +174,41 @@ with open(os.path.join(md, "doc.md"), "w", encoding="utf-8", newline="\n") as f:
     f.write(doc)
 for p in ("img/grad.tga", "img/gray.pgm", "doc.md", "img", "."):
     os.utime(os.path.join(md, p), (1_000_000_000, 1_000_000_000))
+
+# EPUB:目錄、兩個章節,第二章有一張書內的圖(與 img/ 同一份 PGM)。zip 成員的時間固定,
+# 檔案逐位元組可重現。
+import zipfile
+bk = os.path.join(root, "book")
+os.makedirs(bk, exist_ok=True)
+with open(os.path.join(im, "gray.pgm"), "rb") as src:
+    gray = src.read()
+book_files = [
+    ("mimetype", b"application/epub+zip"),
+    ("META-INF/container.xml", b'<?xml version="1.0"?>\n<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">\n<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'),
+    ("OEBPS/content.opf", """<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <metadata><dc:title>測試之書</dc:title><dc:creator>作者甲</dc:creator></metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="a" href="a.xhtml" media-type="application/xhtml+xml"/>
+    <item id="b" href="b.xhtml" media-type="application/xhtml+xml"/>
+    <item id="p" href="img/gray.pgm" media-type="image/x-portable-graymap"/>
+  </manifest>
+  <spine toc="ncx"><itemref idref="a"/><itemref idref="b"/></spine>
+</package>""".encode()),
+    ("OEBPS/toc.ncx", """<?xml version="1.0"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><navMap>
+<navPoint><navLabel><text>楔子</text></navLabel><content src="a.xhtml"/></navPoint>
+<navPoint><navLabel><text>正文</text></navLabel><content src="b.xhtml"/></navPoint>
+</navMap></ncx>""".encode()),
+    ("OEBPS/a.xhtml", "<html><body><h1>楔子</h1><p>這是楔子的內文，夠長才會折行：一本書就是一份目錄加上一堆用連結串起來的章節。</p><ul><li>第一項</li><li>第二項</li></ul></body></html>".encode()),
+    ("OEBPS/b.xhtml", '<html><body><h1>正文</h1><p>這是正文的內文。</p><p><img src="img/gray.pgm" alt="灰階"/></p><p>圖後的文字。</p></body></html>'.encode()),
+    ("OEBPS/img/gray.pgm", gray),
+]
+with zipfile.ZipFile(os.path.join(bk, "book.epub"), "w") as zf:
+    for name, data in book_files:
+        zi = zipfile.ZipInfo(name, date_time=(2001, 9, 9, 0, 0, 0))
+        zi.compress_type = zipfile.ZIP_STORED if name == "mimetype" else zipfile.ZIP_DEFLATED
+        zf.writestr(zi, data)
+for p in ("book.epub", "."):
+    os.utime(os.path.join(bk, p), (1_000_000_000, 1_000_000_000))

@@ -51,10 +51,19 @@ impl App {
         }
         match self.mode {
             Mode::Browser => self.click_browser(col, row, double),
+            Mode::Browse => self.click_browse(row),
             Mode::Thumbs => self.click_thumbs(col, row, double),
             Mode::Edit => self.click_editor(col, row),
             _ => false,
         }
+    }
+
+    /// 點到哪一列,就看那一列屬於哪個連結。點在文字上什麼都不做。
+    fn click_browse(&mut self, row: i32) -> bool {
+        let line = self.bv.top + row;
+        let Some(i) = self.bv.links.iter().position(|l| line >= l.line && line < l.line + l.rows) else { return false };
+        self.bv.cur = i as i32;
+        self.browse_follow()
     }
 
     /// 第 0 列是路徑列,清單從第 1 列起;左邊可能有磁碟窗格。

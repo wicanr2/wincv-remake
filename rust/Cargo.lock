@@ -3283,8 +3283,10 @@ dependencies = [
  "wincv-convert",
  "wincv-dict",
  "wincv-editor",
+ "wincv-epub",
  "wincv-eten",
  "wincv-fileop",
+ "wincv-gopher",
  "wincv-hexview",
  "wincv-i18n",
  "wincv-imgfmt",
@@ -3301,6 +3303,8 @@ dependencies = [
  "wincv-thumbs",
  "wincv-vfs",
  "wincv-viewer",
+ "wincv-web",
+ "zip",
 ]
 
 [[package]]

@@ -43,6 +43,11 @@ impl App {
             Mode::Edit => self.editor.as_ref().map(|e| ("edit", e.name.clone(), e.top as i32, 0)),
             Mode::Image => self.image.as_ref().map(|m| ("image", m.name.clone(), 0, 0)),
             Mode::Markdown => Some(("markdown", self.md.name.clone(), self.md.top, 0)),
+            Mode::Browse => {
+                st.mode = "browse".into();
+                st.url = self.bv.url.clone();
+                return st;
+            }
             _ => None,
         }
         .unwrap_or(("", String::new(), 0, 0));
@@ -90,6 +95,16 @@ impl App {
         }
         if !st.cursor.is_empty() {
             self.focus_on(&st.cursor);
+        }
+        if st.mode == "browse" {
+            // 書與 Office 文件都是本機檔案,直接開回去。網頁不行:上次停在哪一頁不值得讓
+            // 程式一啟動就對外發出請求,位址留著等使用者按 Enter。
+            if ["epub:", "pdf:", "doc:"].iter().any(|p| st.url.starts_with(p)) {
+                self.open_url(&st.url);
+                return;
+            }
+            self.bv.url = st.url.clone();
+            return;
         }
         if st.mode.is_empty() || st.file.is_empty() {
             return;

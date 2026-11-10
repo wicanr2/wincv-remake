@@ -1,14 +1,21 @@
-//! 還沒搬到 Rust 版的模式:EPUB、PDF、Office 文件、網路瀏覽(gopher / http)。
+//! 還沒搬到 Rust 版的文件模式:PDF 與 Office 文件。
 //!
-//! 第三階段 3d–3f 會把它們搬過來(見 docs/plan/rust-rewrite.md)。在那之前,這幾種檔案
-//! 照 Go 版的判斷先攔下來(它們多半是 zip,不攔的話按 Enter 會走進去看到一堆 xml),
-//! 只給一行訊息。
+//! 它們會借瀏覽模式的殼(與 EPUB 相同),位址分別以 `pdf:`、`doc:` 開頭。在搬過來之前,
+//! 這幾種檔案照 Go 版的判斷先攔下來(Office 文件多半是 zip,不攔的話按 Enter 會走進去
+//! 看到一堆 xml),只給一行訊息。
 
 use std::path::Path;
 
-use wincv_i18n::tr;
+use wincv_i18n::{t, tr};
+use wincv_render::Image;
 
+use crate::bookview::is_book;
 use crate::App;
+
+/// PDF 內位址的前綴。
+pub(crate) const PDF_SCHEME: &str = "pdf:";
+/// Office 文件內位址的前綴。
+pub(crate) const DOC_SCHEME: &str = "doc:";
 
 /// Go 版 officedoc.Formats 的副檔名。
 const OFFICE: &[&str] = &[
@@ -23,18 +30,39 @@ fn ext(name: &str) -> String {
 /// 以文件模式開的格式(EPUB、PDF、Office)。
 pub(crate) fn is_document(name: &str) -> bool {
     let e = ext(name);
-    e == ".epub" || e == ".pdf" || OFFICE.contains(&e.as_str())
+    is_book(name) || e == ".pdf" || OFFICE.contains(&e.as_str())
 }
 
 impl App {
     pub(crate) fn open_document(&mut self, name: &str) -> bool {
+        if is_book(name) {
+            return self.open_book(name);
+        }
         self.message = tr!("%s:這種文件的檢視還沒搬到 Rust 版", name);
         true
     }
 
-    /// F2 / Alt-G 網路瀏覽。
-    pub(crate) fn browse_ask(&mut self) -> bool {
-        self.message = tr!("%s:這種文件的檢視還沒搬到 Rust 版", "gopher / http");
-        true
+    pub(crate) fn show_pdf(&mut self, raw: &str) {
+        self.bv.status = tr!("%s:這種文件的檢視還沒搬到 Rust 版", raw);
     }
+
+    pub(crate) fn show_office(&mut self, raw: &str) {
+        self.bv.status = tr!("%s:這種文件的檢視還沒搬到 Rust 版", raw);
+    }
+
+    pub(crate) fn pdf_image(&self, _src: &str) -> Result<Image, String> {
+        Err(t("找不到"))
+    }
+
+    pub(crate) fn office_image(&self, _src: &str) -> Result<Image, String> {
+        Err(t("找不到"))
+    }
+
+    pub(crate) fn show_pdf_page_image(&mut self) -> bool {
+        false
+    }
+
+    pub(crate) fn close_pdf(&mut self) {}
+
+    pub(crate) fn close_office(&mut self) {}
 }

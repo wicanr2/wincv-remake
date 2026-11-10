@@ -13,12 +13,13 @@ use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
+use std::time::Duration;
 
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, StartCause, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{Fullscreen, Window, WindowId};
 
 use wincv_app::{App, Mode, MAX_SCALE, MIN_SCALE};
@@ -661,6 +662,22 @@ fn blit(canvas: &mut [u32], cw: u32, ch: u32, img: &[u8], iw: i32, ih: i32, x: i
 }
 
 impl ApplicationHandler<Wake> for Shell {
+    /// 網路取回(瀏覽模式)回來的時間點:等到了就重畫一次,draw 會順便收結果。
+    fn new_events(&mut self, _el: &ActiveEventLoop, cause: StartCause) {
+        if matches!(cause, StartCause::ResumeTimeReached { .. }) {
+            if let Some(w) = &self.window {
+                w.request_redraw();
+            }
+        }
+    }
+
+    /// 有還沒完成的網路取回時,每隔一小段時間醒來重畫。app 那一層不會自己叫重繪,而結果
+    /// 是非同步回來的:不這樣做的話畫面會永遠停在「連線中」。不直接在這裡要求重畫:
+    /// 那會讓事件迴圈不停地空轉,CPU 一直滿載。
+    fn about_to_wait(&mut self, el: &ActiveEventLoop) {
+        el.set_control_flow(if self.app.busy() { ControlFlow::wait_duration(Duration::from_millis(50)) } else { ControlFlow::Wait });
+    }
+
     fn user_event(&mut self, _el: &ActiveEventLoop, _: Wake) {
         let mut any = false;
         while let Ok((generation, i, it)) = self.thumb_rx.try_recv() {

@@ -16,8 +16,10 @@ wincv-checksum.workspace = true
 wincv-convert.workspace = true
 wincv-dict.workspace = true
 wincv-editor.workspace = true
+wincv-epub.workspace = true
 wincv-eten.workspace = true
 wincv-fileop.workspace = true
+wincv-gopher.workspace = true
 wincv-hexview.workspace = true
 wincv-i18n.workspace = true
 wincv-imgfmt.workspace = true
@@ -34,3 +36,7 @@ wincv-textenc.workspace = true
 wincv-thumbs.workspace = true
 wincv-vfs.workspace = true
 wincv-viewer.workspace = true
+wincv-web.workspace = true
+
+[dev-dependencies]
+zip = { version = "9.5", default-features = false, features = ["deflate-flate2"] }

@@ -5,6 +5,8 @@
 
 mod about;
 mod actions;
+mod bookview;
+mod browse;
 mod drivepane;
 mod editfind;
 mod filecolor;
@@ -161,6 +163,18 @@ pub struct App {
     /// markdown 檢視模式,見 mdview.rs。
     md: mdview::MdView,
 
+    /// gopher 與 http 兩個協定的客戶端。None 表示用預設設定。網頁的行內圖片只在設了
+    /// web 時才去取(Go 版的視窗程式沒有設,所以實際上不取;這裡照做)。
+    pub gopher: Option<wincv_gopher::Client>,
+    pub web: Option<wincv_web::Client>,
+    /// 網路瀏覽模式,見 browse.rs。
+    bv: browse::BrowseView,
+    /// 還沒回來的網路取回。
+    pending: Option<std::sync::mpsc::Receiver<(String, browse::Fetched)>>,
+    /// 瀏覽模式正開著的一本 EPUB,與它的路徑。
+    book: Option<wincv_epub::Book>,
+    book_path: String,
+
     /// 看圖是從瀏覽模式進來的,Esc 要退回去。
     g_return: bool,
     /// 看圖是從 markdown 進來的,Esc 要退回 markdown 而不是退回檔案清單。
@@ -250,6 +264,12 @@ impl App {
             menu: Default::default(),
             about: false,
             md: Default::default(),
+            gopher: None,
+            web: None,
+            bv: Default::default(),
+            pending: None,
+            book: None,
+            book_path: String::new(),
             g_return: false,
             md_return: false,
             edit_find: Default::default(),
@@ -289,14 +309,16 @@ impl App {
     }
 
     fn draw_modes(&mut self, s: &mut Screen) -> Vec<Overlay> {
+        // 每一幀收一次網路結果。放在這裡是因為 app 這一層沒有自己的迴圈,而外殼會在
+        // busy() 為真時持續重繪。
+        self.browse_poll();
+        if self.mode == Mode::Browse {
+            self.browse_images();
+        }
         let mut ov = Vec::new();
         match self.mode {
+            Mode::Browse => ov = self.draw_browse(s),
             Mode::Markdown => ov = self.draw_markdown(s),
-            Mode::Browse => {
-                // 這個模式的程式還沒搬(見 pending.rs),進不來;保險起見退回列表。
-                self.mode = Mode::Browser;
-                self.rows = self.browser.draw(s);
-            }
             Mode::Viewer => self.rows = self.viewer.as_mut().map_or(0, |v| v.draw(s)),
             Mode::Hex => self.rows = self.hex.as_mut().map_or(0, |h| h.draw(s)),
             Mode::Image => {
@@ -478,6 +500,7 @@ impl App {
             _ => {}
         }
         match self.mode {
+            Mode::Browse => self.browse_key(k),
             Mode::Markdown => self.markdown_key(k),
             Mode::Viewer => self.viewer_key(k),
             Mode::Hex => self.hex_key(k),

@@ -450,9 +450,10 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
   不出來,也沒有呼叫端這樣用,不改。修正後 md-parity 仍逐位元相同。Go 的修正在 rust-rewrite 上,發 Go 版時
   要挑到 master。
 - 3b 進行中:`wincv-app` 的瀏覽、檢視、16 進位、看圖、縮圖、編輯、尋找、轉換、解壓、打包、MD5/SFV、選單、輸入列、
-  磁碟窗格、預視、session、markdown 檢視與 F1 說明、滑鼠、觸控列已搬;Go 版 10 個測試檔的 97 條測試照搬並通過。
-  `tools/rust-parity.sh` 加 19 個 `celldump -app -keys` 場景(含 markdown 內嵌圖),除了「關於」畫面寫的實作
-  語言以外逐像素相同。網路瀏覽、EPUB、PDF、Office 還沒接。
+  磁碟窗格、預視、session、markdown 檢視與 F1 說明、滑鼠、觸控列、網路瀏覽(gopher、http)與 EPUB 已搬;Go 版
+  12 個測試檔的 115 條測試照搬並通過(網路的測試在本機起 gopher 與 http 伺服器)。`tools/rust-parity.sh` 有 24 個
+  `celldump -app -keys` 場景(含 markdown 內嵌圖與 EPUB 的目錄、章節、書內圖),除了「關於」畫面寫的實作語言以外
+  逐像素相同。PDF 與 Office 文件還沒接,開檔時回一行「還沒搬到 Rust 版」。
 - 3c 大致完成:`rust/crates/wincv` 改成真正的程式(字級與倍率挑選、選單層合成、按鍵轉換含輸入法、session、全螢幕、
   視窗大小請求、滑鼠的點擊、雙擊、拖曳與滾輪),在 Xvfb 裡實際開過、用鍵盤與滑鼠操作過。Xvfb 裡 xdotool
   滾一格時游標移了 6 列(預期 3 列),疑似測試裝置同時送出兩種捲動事件,待實機確認。程式圖示(`wincv-appicon`,各尺寸與 Go 版逐像素相同)與縮圖的背景解碼已接上;Windows(GUI 子系統,只匯入系統 DLL)、macOS arm64 與 x86_64(osxcross)都建得出來,Windows 版 8.5 MB、
@@ -472,6 +473,9 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
   - 不加引號的屬性值以 `/` 結尾後緊接 `>`(例:`href=https://translate.google.com/>`):Go 當成自閉合標籤,
     WHATWG 規格與 html5ever 把 `/` 當成值的一部分。這是合法 HTML,Rust 較接近規格,列為允許差異。
   - `&#x;` 沒有數字、`</>`:只出現在畸形 HTML,兩邊依各自 tokenizer 處理,Rust 的結果符合規格。
+- 接進 app(`browse.rs`、`bookview.rs`):取回在背景執行緒做,結果經 channel 回來,`App::busy()` 為真時視窗每 50 ms
+  醒來重畫一次,`celldump` 送完每個按鍵後等到取回結束(與 Go 版相同,另有 `-gopher` 參數)。網頁的行內圖片只在
+  設了 web 客戶端時才去取;Go 版的視窗程式沒有設,實際上不取,Rust 版照做。
 
 ## 待決定事項
 

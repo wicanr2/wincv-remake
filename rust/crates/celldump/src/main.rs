@@ -32,6 +32,7 @@ struct Args {
     bitmap_cjk: bool,
     app: Option<PathBuf>,
     keys: String,
+    gopher: String,
 }
 
 fn parse_args() -> Args {
@@ -54,6 +55,7 @@ fn parse_args() -> Args {
         bitmap_cjk: false,
         app: None,
         keys: String::new(),
+        gopher: String::new(),
     };
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
@@ -77,6 +79,7 @@ fn parse_args() -> Args {
             "-bitmap-cjk" => a.bitmap_cjk = true,
             "-app" => a.app = Some(v().into()),
             "-keys" => a.keys = v(),
+            "-gopher" => a.gopher = v(),
             _ => die(&format!("不認得的參數 {k}")),
         }
     }
@@ -173,7 +176,7 @@ fn main() {
     // 語法上色設定與字典的目錄:留空時跟著 -half 走(與 Go 版相同)。
     let cfg_dir = a.cfg.clone().unwrap_or_else(|| a.half.parent().map(PathBuf::from).unwrap_or_default());
     if let Some(dir) = &a.app {
-        let (ov, app) = draw_app(&mut s, dir, &cfg_dir, &a.keys, r.cell_w, r.cell_h);
+        let (ov, app) = draw_app(&mut s, dir, &cfg_dir, &a.keys, &a.gopher, r.cell_w, r.cell_h);
         overlays = ov;
         the_app = Some(app);
     } else if let Some(f) = &a.edit {
@@ -226,7 +229,7 @@ fn main() {
 }
 
 /// 跑完整的 app 並送一串按鍵(與 Go 版 celldump -app -keys 相同)。
-fn draw_app(s: &mut Screen, dir: &std::path::Path, cfg_dir: &std::path::Path, keys: &str, cw: i32, ch: i32) -> (Vec<wincv_render::Overlay>, wincv_app::App) {
+fn draw_app(s: &mut Screen, dir: &std::path::Path, cfg_dir: &std::path::Path, keys: &str, gopher_url: &str, cw: i32, ch: i32) -> (Vec<wincv_render::Overlay>, wincv_app::App) {
     let abs = std::path::absolute(dir).unwrap_or_else(|e| die(&format!("{}: {e}", dir.display())));
     let mut app = wincv_app::App::new(Box::new(wincv_vfs::Os), &abs);
     app.cell_w = cw;
@@ -239,9 +242,26 @@ fn draw_app(s: &mut Screen, dir: &std::path::Path, cfg_dir: &std::path::Path, ke
     let ks = wincv_keys::parse_all(keys).unwrap_or_else(|e| die(&e));
     // 先畫一次,讓 app 知道畫面有幾列(翻頁與選單定位要用)。
     app.draw(s);
+    // 一直畫到沒有未完成的網路取回為止。不等的話,任何會觸發網路取回的按鍵之後截到的
+    // 都是「連線中」,而那看起來像功能壞了,不像截圖截太早。
+    let settle = |app: &mut wincv_app::App, s: &mut Screen| {
+        for _ in 0..600 {
+            if !app.busy() {
+                break;
+            }
+            app.draw(s);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    };
+    // -gopher 開一個位址(會真的連外)。
+    if !gopher_url.is_empty() {
+        app.open_url(gopher_url);
+        settle(&mut app, s);
+    }
     for k in ks {
         app.handle_key(k);
         app.draw(s);
+        settle(&mut app, s);
     }
     (app.draw(s), app)
 }
