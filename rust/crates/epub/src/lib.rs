@@ -455,7 +455,7 @@ impl Book {
                 // nav.xhtml 是 HTML 不是 XML:借 web 的解析器,
                 // 連結的位址與文字正好就是目錄要的兩欄。
                 if let Ok(data) = self.read(f) {
-                    let (_, blocks) = wincv_web::parse_html(None, &data);
+                    let (_, blocks) = wincv_web::parse_html(None, &wincv_web::decode_markup(&data));
                     let base = gopath::dir(&self.resolve(nav_href));
                     for blk in &blocks {
                         for sp in &blk.spans {
@@ -485,9 +485,12 @@ impl Book {
             return Err(tr!("讀不到 %s", ch.href.as_str()));
         };
         let data = self.read(f)?;
+        // 章節沒有 Content-Type 可依,編碼照 BOM、XML 宣告、meta、內容判讀的順序決定。
+        // 不先解碼的話,Big5 的章節是亂碼,開頭的 BOM 也會變成一段空段落。
+        //
         // base 傳 None:章節裡的連結是 zip 內的相對路徑,不是網址。
         // 圖片的路徑在 image 那邊接,連結目前不跨章跳(見 app 那一層)。
-        let (_, mut blocks) = wincv_web::parse_html(None, &data);
+        let (_, mut blocks) = wincv_web::parse_html(None, &wincv_web::decode_markup(&data));
         // 圖片的 src 接成 zip 內的絕對路徑,image 才找得到。
         let dir = gopath::dir(&ch.href);
         for b in &mut blocks {
@@ -537,7 +540,7 @@ impl Book {
     }
 
     fn unmarshal<T: Target>(&self, i: usize, v: &mut T) -> Result<(), String> {
-        let data = self.read(i)?;
+        let data = xml_text(self.read(i)?);
         // 先照規格解。OPF 與 NCX 都是正規的 XML,嚴格模式解得出來就不必冒險。
         //
         // [雷] 寬鬆模式會把一本正常的 OPF **整份解成空的而且不回報任何錯誤**:
@@ -547,12 +550,60 @@ impl Book {
         // 一路關掉,manifest 與 spine 從此讀不到。EPUB 3 的 OPF 幾乎都有
         // `<meta property="dcterms:modified">…</meta>`。(Go 版的註解把原因寫成
         // 「宣告了多個 xmlns」;實測只宣告 xmlns 不會觸發,有內容的 meta 才會。)
-        if goxml::decode(&data, v, true).is_ok() {
+        let cr = data.charset();
+        if goxml::decode_with(&data.bytes, v, true, cr).is_ok() {
             return Ok(());
         }
         // 真的壞掉的檔案(未閉合的標籤、HTML 實體)再用寬鬆模式試一次。
         // 注意是解進**同一個** v:嚴格模式已經填進去的部分不會清掉(與 Go 相同)。
-        goxml::decode(&data, v, false).map_err(|e| e.to_string())
+        goxml::decode_with(&data.bytes, v, false, cr).map_err(|e| e.to_string())
+    }
+}
+
+/// 交給 goxml 的 XML 檔:位元組,加上有沒有 BOM。
+struct XmlText {
+    bytes: Vec<u8>,
+    bom: bool,
+}
+
+/// UTF-16 的檔案先整份轉成 UTF-8:goxml(與 Go 的 encoding/xml)一個位元組
+/// 一個位元組讀,連 `<?xml` 都認不出來。BOM 比宣告確定,有 BOM 的檔案就不再理會 encoding。
+fn xml_text(data: Vec<u8>) -> XmlText {
+    use wincv_textenc::{Enc, decode};
+    if data.starts_with(&[0xFF, 0xFE]) {
+        return XmlText {
+            bytes: decode(&data, Enc::Utf16Le).into_bytes(),
+            bom: true,
+        };
+    }
+    if data.starts_with(&[0xFE, 0xFF]) {
+        return XmlText {
+            bytes: decode(&data, Enc::Utf16Be).into_bytes(),
+            bom: true,
+        };
+    }
+    let bom = data.starts_with(&[0xEF, 0xBB, 0xBF]);
+    XmlText { bytes: data, bom }
+}
+
+/// 宣告 UTF-8 以外的編碼(舊的中文書常寫 encoding="big5")時,Go 的 encoding/xml
+/// 沒有 CharsetReader 就整份拒絕。宣告後面的內容交給 web 的同一套規則解:
+/// 認得的編碼照宣告解,宣告看起來是錯的或認不得,改用內容判讀。
+fn charset_reader(label: &str, rest: &[u8]) -> Vec<u8> {
+    wincv_web::decode_charset(rest, label)
+}
+
+fn passthrough(_: &str, rest: &[u8]) -> Vec<u8> {
+    rest.to_vec()
+}
+
+impl XmlText {
+    fn charset(&self) -> Option<goxml::CharsetReader<'static>> {
+        Some(if self.bom {
+            &passthrough
+        } else {
+            &charset_reader
+        })
     }
 }
 

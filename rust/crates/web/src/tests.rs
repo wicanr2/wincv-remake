@@ -403,15 +403,85 @@ fn is_http_cases() {
 
 #[test]
 fn charset_and_mojibake_like_go() {
-    assert_eq!(charset_of(b"text/html; charset=\"Big5\""), Enc::Big5);
-    assert_eq!(charset_of(b"<meta charset = utf-8>"), Enc::Utf8);
-    assert_eq!(charset_of(b"charset=; charset=gbk"), Enc::Gbk);
+    assert_eq!(charset_of(b"text/html; charset=\"Big5\"").enc, Enc::Big5);
+    assert_eq!(charset_of(b"<meta charset = utf-8>").enc, Enc::Utf8);
+    assert_eq!(charset_of(b"charset=; charset=gbk").enc, Enc::Gbk);
     assert_eq!(
-        charset_of("CHAR\u{017F}ET=big5-h\u{212A}scs".as_bytes()),
+        charset_of("CHAR\u{017F}ET=big5-h\u{212A}scs".as_bytes()).enc,
         Enc::Big5
     );
-    // 宣告 UTF-8 卻是 Big5:Go 版數的是真的 U+FFFD,壞位元組不算,所以不會退回判讀。
+    // mojibake 數的是真的 U+FFFD,壞位元組不算(與 Go 相同);
+    // 宣告 UTF-8 的情形由 declared 先把壞位元組換成 U+FFFD 再數。
     let raw = [0xa4u8, 0xe5, 0xa6, 0x72].repeat(20);
     assert!(!mojibake(&raw));
     assert!(mojibake("\u{FFFD}".repeat(9).as_bytes()));
+}
+
+// 宣告的編碼會錯:宣告 utf-8 而內容不是合法 UTF-8 時要退回判讀;
+// ISO-8859-1 一族照 WHATWG 用 windows-1252 解(0x80–0x9F 是彎引號與歐元符號),
+// 但內容明明是合法的 UTF-8 時,宣告是錯的(伺服器預設送 ISO-8859-1 很常見)。
+#[test]
+fn fetch_declared_charset() {
+    let big5 = wincv_textenc::encode(&"中文的段落".repeat(4), Enc::Big5).unwrap();
+    let wrap = |pre: &[u8], mid: &[u8]| [pre, mid, b"</p>"].concat();
+    let latin: &[u8] = b"\x93caf\xe9\x94 \x80";
+    let cases: Vec<(&str, &str, Vec<u8>, &str)> = vec![
+        (
+            "header 宣告 utf-8 卻是 Big5",
+            "text/html; charset=utf-8",
+            wrap(b"<p>", &big5),
+            "中文的段落",
+        ),
+        (
+            "meta 宣告 utf-8 卻是 Big5",
+            "text/html",
+            wrap(br#"<meta charset="utf-8"><p>"#, &big5),
+            "中文的段落",
+        ),
+        (
+            "header 宣告 ISO-8859-1",
+            "text/html; charset=ISO-8859-1",
+            wrap(b"<p>", latin),
+            "“café” €",
+        ),
+        (
+            "meta 宣告 latin1",
+            "text/html",
+            wrap(br#"<meta charset="latin1"><p>"#, latin),
+            "“café” €",
+        ),
+        (
+            "meta 宣告 windows-1252",
+            "text/html",
+            wrap(br#"<meta charset="windows-1252"><p>"#, latin),
+            "“café” €",
+        ),
+        (
+            "宣告 ISO-8859-1 卻是 UTF-8",
+            "text/html; charset=iso-8859-1",
+            wrap(b"<p>", "café 中文".as_bytes()),
+            "café 中文",
+        ),
+    ];
+    for (name, ctype, body, want) in cases {
+        let ctype = ctype.to_string();
+        let base = serve(Arc::new(move |_| reply("200 OK", &ctype, &body)));
+        let d = client(0).fetch(&base).unwrap();
+        let got = blocks(&d.blocks).join("|");
+        assert!(
+            got.contains(want),
+            "{name}:解出來是 {got:?},想要含 {want:?}"
+        );
+    }
+}
+
+// windows-1252 的表照 WHATWG 的 index-windows-1252(沒有定義的五個位元組是同值的 C1 控制字元)。
+#[test]
+fn cp1252_table() {
+    let got = decode_cp1252(&(0x80..=0xFFu8).collect::<Vec<_>>());
+    let want: String = "€\u{81}‚ƒ„…†‡ˆ‰Š‹Œ\u{8D}Ž\u{8F}\u{90}‘’“”•–—˜™š›œ\u{9D}žŸ"
+        .chars()
+        .chain((0xA0..=0xFFu32).filter_map(char::from_u32))
+        .collect();
+    assert_eq!(got, want);
 }

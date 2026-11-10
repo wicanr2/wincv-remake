@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/wicanr2/wincv-remake/internal/markdown"
+	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/web"
 )
 
@@ -362,5 +363,39 @@ func TestIsHTTP(t *testing.T) {
 		if web.IsHTTP(s) {
 			t.Errorf("%q 不該算 http", s)
 		}
+	}
+}
+
+// 宣告的編碼會錯:宣告 utf-8 而內容不是合法 UTF-8 時要退回判讀;
+// ISO-8859-1 一族照 WHATWG 用 windows-1252 解(0x80–0x9F 是彎引號與歐元符號),
+// 但內容明明是合法的 UTF-8 時,宣告是錯的(伺服器預設送 ISO-8859-1 很常見)。
+func TestFetchDeclaredCharset(t *testing.T) {
+	big5, err := textenc.EncodeBig5(strings.Repeat("中文的段落", 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	latin := "<p>\x93caf\xe9\x94 \x80</p>"
+	for _, tc := range []struct{ name, ctype, body, want string }{
+		{"header 宣告 utf-8 卻是 Big5", "text/html; charset=utf-8", "<p>" + string(big5) + "</p>", "中文的段落"},
+		{"meta 宣告 utf-8 卻是 Big5", "text/html", `<meta charset="utf-8"><p>` + string(big5) + "</p>", "中文的段落"},
+		{"header 宣告 ISO-8859-1", "text/html; charset=ISO-8859-1", latin, "“café” €"},
+		{"meta 宣告 latin1", "text/html", `<meta charset="latin1">` + latin, "“café” €"},
+		{"meta 宣告 windows-1252", "text/html", `<meta charset="windows-1252">` + latin, "“café” €"},
+		{"宣告 ISO-8859-1 卻是 UTF-8", "text/html; charset=iso-8859-1", "<p>café 中文</p>", "café 中文"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := serve(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tc.ctype)
+				w.Write([]byte(tc.body))
+			})
+			c := &web.Client{Timeout: 5 * time.Second}
+			d, err := c.Fetch(context.Background(), base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Join(blocks(d.Blocks), "|"); !strings.Contains(got, tc.want) {
+				t.Fatalf("解出來是 %q,想要含 %q", got, tc.want)
+			}
+		})
 	}
 }

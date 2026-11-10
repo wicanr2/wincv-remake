@@ -122,6 +122,58 @@ func TestParseMenuStopsAtTerminator(t *testing.T) {
 	}
 }
 
+// Big5 的選單:顯示文字要解碼,selector 留原始位元組。
+// 連結點下去要原封送回伺服器,換過編碼的 selector 對方認不得。
+func TestParseMenuDecodesBig5(t *testing.T) {
+	// selector 是「/目錄」的 Big5。
+	sel := "/\xa5\xd8\xbf\xfd"
+
+	menu := "i\xbb\xa1\xa9\xfa\t\terror.host\t1\r\n" + // 「說明」
+		"1\xa4\xa4\xa4\xe5\xa5\xd8\xbf\xfd\t" + sel + "\texample.org\t70\r\n" + // 「中文目錄」
+		".\r\n"
+	items := gopher.ParseMenu([]byte(menu))
+	if len(items) != 2 {
+		t.Fatalf("解出 %d 列,期望 2", len(items))
+	}
+	if items[0].Display != "說明" || items[1].Display != "中文目錄" {
+		t.Fatalf("顯示文字沒有解碼: %q %q", items[0].Display, items[1].Display)
+	}
+	if items[1].Sel != sel {
+		t.Fatalf("selector 被改動了: %q", items[1].Sel)
+	}
+	href := gopher.MenuBlocks(items)[1].Spans[0].Href
+	u, err := gopher.ParseURL(href)
+	if err != nil || u.Sel != sel {
+		t.Fatalf("連結 %q 解回來的 selector 是 %q(%v)", href, u.Sel, err)
+	}
+}
+
+// 編碼要整份選單一起判讀。「目录」(GBK)單看那一列,Big5 與 GBK 都解得開,
+// 平手時判成 Big5;同一份選單的另一列有「中」「的」,整份看就是 GBK。
+func TestParseMenuDetectsWholeMenu(t *testing.T) {
+	menu := "i\xbc\xf2\xcc\xe5\xd6\xd0\xce\xc4\xb5\xc4\xcb\xb5\xc3\xf7\t\terror.host\t1\r\n" + // 「简体中文的说明」
+		"1\xc4\xbf\xc2\xbc\t/dir\texample.org\t70\r\n.\r\n" // 「目录」
+	items := gopher.ParseMenu([]byte(menu))
+	if len(items) != 2 {
+		t.Fatalf("解出 %d 列,期望 2", len(items))
+	}
+	if items[0].Display != "简体中文的说明" || items[1].Display != "目录" {
+		t.Fatalf("解出 %q %q", items[0].Display, items[1].Display)
+	}
+}
+
+// UTF-8 的選單不能被判成別的編碼。有一列的型別字元不是 ASCII(漏寫型別的
+// 說明列)時,只拿顯示文字判讀會從中間切斷一個 UTF-8 字,整份被誤判成 GBK。
+func TestParseMenuKeepsUTF8(t *testing.T) {
+	menu := "1目錄\t/dir\texample.org\t70\r\n" +
+		"中文說明沒有寫型別\r\n" +
+		".\r\n"
+	items := gopher.ParseMenu([]byte(menu))
+	if len(items) != 2 || items[0].Display != "目錄" {
+		t.Fatalf("解出 %+v", items)
+	}
+}
+
 func TestMenuBlocks(t *testing.T) {
 	blocks := gopher.MenuBlocks(gopher.ParseMenu([]byte(sampleMenu)))
 	if len(blocks) != 7 {

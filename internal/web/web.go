@@ -10,6 +10,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/wicanr2/wincv-remake/internal/markdown"
 	"github.com/wicanr2/wincv-remake/internal/textenc"
@@ -255,47 +257,191 @@ var charsetRe = regexp.MustCompile(`(?i)charset\s*=\s*"?([a-z0-9_\-]+)`)
 // decode 把位元組變成字串。
 //
 // 優先順序:Content-Type 的 charset → HTML 裡的 <meta charset> →
-// 內容判讀。前兩者是網站自己宣告的,但**宣告會錯**,所以宣告的編碼
-// 解出來全是替代字元時,還是要退回內容判讀。
+// 內容判讀。前兩者是網站自己宣告的,但**宣告會錯**,所以宣告看起來
+// 是錯的時候(見 declared),還是要退回內容判讀。
 func decode(b []byte, ctype string) string {
-	if e := charsetOf(ctype); e != textenc.Unknown {
-		if s := textenc.Decode(b, e); !mojibake(s) {
-			return s
-		}
+	if s, ok := declared(b, charsetOf(ctype)); ok {
+		return s
 	}
 	head := b
 	if len(head) > 4096 {
 		head = head[:4096]
 	}
-	if e := charsetOf(string(head)); e != textenc.Unknown {
-		if s := textenc.Decode(b, e); !mojibake(s) {
-			return s
-		}
+	if s, ok := declared(b, charsetOf(string(head))); ok {
+		return s
 	}
 	return textenc.Decode(b, textenc.Detect(b))
 }
 
+// DecodeCharset 用一個編碼名稱(例如 XML 宣告裡的 encoding)解碼。
+// 名稱認不得,或解出來看得出宣告是錯的,就改用內容判讀。
+func DecodeCharset(b []byte, name string) string {
+	if s, ok := declared(b, label(strings.ToLower(name))); ok {
+		return s
+	}
+	return textenc.Decode(b, textenc.Detect(b))
+}
+
+// DecodeMarkup 把一份沒有 Content-Type 可依的 HTML 或 XHTML(EPUB 的章節)
+// 變成字串。
+//
+// 優先順序:BOM → XML 宣告的 encoding → <meta charset> → 內容判讀。
+// BOM 最確定,有就照它;XML 宣告與 meta 是作者寫的,一樣會錯,
+// 錯的時候往下一個依據退。
+func DecodeMarkup(b []byte) string {
+	switch {
+	case bytes.HasPrefix(b, []byte{0xEF, 0xBB, 0xBF}):
+		return textenc.Decode(b, textenc.UTF8)
+	case bytes.HasPrefix(b, []byte{0xFF, 0xFE}):
+		return textenc.Decode(b, textenc.UTF16LE)
+	case bytes.HasPrefix(b, []byte{0xFE, 0xFF}):
+		return textenc.Decode(b, textenc.UTF16BE)
+	}
+	if name := xmlEncoding(b); name != "" {
+		if s, ok := declared(b, label(strings.ToLower(name))); ok {
+			return s
+		}
+	}
+	return decode(b, "")
+}
+
+// xmlEncoding 取開頭那個 XML 宣告(<?xml ... ?>)裡的 encoding。沒有就回空字串。
+func xmlEncoding(b []byte) string {
+	b = bytes.TrimLeft(b, " \t\r\n")
+	if !bytes.HasPrefix(b, []byte("<?xml")) || len(b) < 6 || !isXMLSpace(b[5]) {
+		return ""
+	}
+	end := bytes.Index(b, []byte("?>"))
+	if end < 0 {
+		return ""
+	}
+	d := b[5:end]
+	i := bytes.Index(d, []byte("encoding"))
+	if i < 0 {
+		return ""
+	}
+	d = bytes.TrimLeft(d[i+len("encoding"):], " \t\r\n")
+	if len(d) == 0 || d[0] != '=' {
+		return ""
+	}
+	d = bytes.TrimLeft(d[1:], " \t\r\n")
+	if len(d) == 0 || (d[0] != '"' && d[0] != '\'') {
+		return ""
+	}
+	j := bytes.IndexByte(d[1:], d[0])
+	if j < 0 {
+		return ""
+	}
+	return string(d[1 : 1+j])
+}
+
+func isXMLSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
+}
+
+// charset 是一個編碼宣告對到的解碼方式。
+//
+// windows-1252 不在 textenc 裡:內容判讀不會猜它(西歐文字的位元組
+// 落在 Big5 的範圍裡,判讀分不出來),它只會從宣告來,所以在這裡另外標。
+type charset struct {
+	enc    textenc.Enc
+	cp1252 bool
+}
+
 // charsetOf 從一段文字裡找 charset= 的宣告。
-func charsetOf(s string) textenc.Enc {
+func charsetOf(s string) charset {
 	m := charsetRe.FindStringSubmatch(s)
 	if m == nil {
-		return textenc.Unknown
+		return charset{}
 	}
-	switch strings.ToLower(m[1]) {
+	return label(strings.ToLower(m[1]))
+}
+
+// label 把(小寫的)編碼名稱對到解碼方式。認不得的回零值。
+func label(name string) charset {
+	switch name {
 	case "utf-8", "utf8":
-		return textenc.UTF8
+		return charset{enc: textenc.UTF8}
 	case "big5", "big-5", "big5-hkscs", "cp950", "ms950":
-		return textenc.Big5
+		return charset{enc: textenc.Big5}
 	case "gbk", "gb2312", "gb18030", "cp936":
-		return textenc.GBK
+		return charset{enc: textenc.GBK}
 	case "shift_jis", "shift-jis", "sjis", "cp932", "ms932", "windows-31j":
-		return textenc.ShiftJIS
+		return charset{enc: textenc.ShiftJIS}
 	case "euc-kr", "euckr", "cp949":
-		return textenc.EUCKR
-	case "us-ascii", "ascii", "iso-8859-1", "latin1", "windows-1252":
-		return textenc.ASCII
+		return charset{enc: textenc.EUCKR}
+	case "us-ascii", "ascii":
+		return charset{enc: textenc.ASCII}
+	case "iso-8859-1", "iso8859-1", "iso_8859-1", "latin1", "l1", "cp819", "ibm819",
+		"windows-1252", "cp1252", "x-cp1252":
+		// WHATWG 的 Encoding 規格把 ISO-8859-1 這一族都對到 windows-1252:
+		// 自稱 Latin-1 的頁面實際上幾乎都用到 0x80–0x9F 的彎引號與破折號。
+		return charset{cp1252: true}
 	}
-	return textenc.Unknown
+	return charset{}
+}
+
+// declared 照宣告的編碼解碼。宣告看起來是錯的就回 false,由呼叫端退回下一個依據。
+//
+// 「看起來是錯的」有兩種:
+//   - 宣告了 UTF-8 以外的編碼,內容卻是含非 ASCII 字元的合法 UTF-8。
+//     真正的 Big5 或 windows-1252 文字幾乎不可能整份剛好是合法的 UTF-8;
+//     反過來,伺服器預設送 ISO-8859-1、內容其實是 UTF-8 的頁面很常見。
+//   - 解出來滿是替代字元(見 mojibake)。宣告 UTF-8 或 ASCII 時沒有解碼器,
+//     字串裡留著原始位元組,所以先把每個不合法的位元組算成一個替代字元再數。
+func declared(b []byte, cs charset) (string, bool) {
+	if cs == (charset{}) {
+		return "", false
+	}
+	if cs.enc != textenc.UTF8 && cs.enc != textenc.ASCII && utf8.Valid(b) && hasMultibyte(b) {
+		return textenc.Decode(b, textenc.UTF8), true
+	}
+	if cs.cp1252 {
+		return decodeCP1252(b), true
+	}
+	s := textenc.Decode(b, cs.enc)
+	if cs.enc == textenc.UTF8 || cs.enc == textenc.ASCII {
+		return s, !mojibake(string([]rune(s)))
+	}
+	return s, !mojibake(s)
+}
+
+func hasMultibyte(b []byte) bool {
+	for _, c := range b {
+		if c >= 0x80 {
+			return true
+		}
+	}
+	return false
+}
+
+// cp1252High 是 windows-1252 的 0x80–0x9F。其餘位元組與 Unicode 的
+// U+0000–U+00FF 相同。
+//
+// 表照 WHATWG 的 index-windows-1252:沒有定義的 0x81、0x8D、0x8F、0x90、0x9D
+// 對到同值的 C1 控制字元。x/text 的 charmap 把這五個換成 U+FFFD,
+// encoding_rs 照 WHATWG,所以兩邊都用這張表,不用各自的函式庫。
+var cp1252High = [32]rune{
+	0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+	0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F,
+	0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+	0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
+}
+
+func decodeCP1252(b []byte) string {
+	var sb strings.Builder
+	sb.Grow(len(b))
+	for _, c := range b {
+		switch {
+		case c < 0x80:
+			sb.WriteByte(c)
+		case c < 0xA0:
+			sb.WriteRune(cp1252High[c-0x80])
+		default:
+			sb.WriteRune(rune(c))
+		}
+	}
+	return sb.String()
 }
 
 // mojibake 說明一段解出來的字是不是壞的。

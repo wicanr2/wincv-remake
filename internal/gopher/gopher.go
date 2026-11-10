@@ -19,6 +19,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/wicanr2/wincv-remake/internal/textenc"
 )
 
 // DefaultPort 是 gopher 的預設埠。
@@ -149,6 +151,9 @@ func (u URL) addr() string {
 }
 
 // Item 是選單裡的一列。
+//
+// Display 是解碼過的文字(給人看的);Sel 是原始位元組,不解碼 ——
+// 點下去時要原封送回伺服器,換過編碼的 selector 對方認不得。
 type Item struct {
 	Type    byte
 	Display string
@@ -197,7 +202,39 @@ func (it Item) URL() URL {
 // [雷] 欄位不足的列不能直接丟掉。實務上很多站台的資訊列只寫
 // "i說明文字" 就換行,連 tab 都沒有 —— 丟掉的話整段說明會消失,
 // 而畫面上看起來只是「這個站沒寫什麼」。
+//
+// 顯示文字的編碼交給 textenc 判讀,而且**整份選單一起判讀**:gopher 沒有
+// charset 欄位,而一列的顯示文字常常只有幾個字,單看一列 Big5 與 GBK
+// 分不出來,同一份選單的各列卻可能被判成不同的編碼。
+//
+// 判讀的樣本是每一列第一個 tab 之前的部分,**連型別字元一起**:型別字元
+// 不是 ASCII 的列(不合規格的選單、被當成選單解的文字檔)拿掉第一個位元組
+// 會把 UTF-8 字切斷,整份 UTF-8 就被誤判成 GBK。selector 不放進樣本,
+// 它不是給人看的,編碼也可能和顯示文字不同。
 func ParseMenu(b []byte) []Item {
+	out := parseMenuRaw(b)
+	var sample []byte
+	for _, ln := range strings.Split(string(b), "\n") {
+		ln = strings.TrimSuffix(ln, "\r")
+		if ln == "." {
+			break
+		}
+		head, _, _ := strings.Cut(ln, "\t")
+		sample = append(sample, head...)
+		sample = append(sample, '\n')
+	}
+	switch e := textenc.Detect(sample); e {
+	case textenc.Big5, textenc.GBK, textenc.ShiftJIS, textenc.EUCKR:
+		// 這幾種的第二個位元組都不會是 tab 或換行,所以先切欄位再解碼是安全的。
+		for i := range out {
+			out[i].Display = textenc.Decode([]byte(out[i].Display), e)
+		}
+	}
+	// 其他結果(ASCII、UTF-8,以及判讀不出來的)保留原樣。
+	return out
+}
+
+func parseMenuRaw(b []byte) []Item {
 	var out []Item
 	for _, ln := range strings.Split(string(b), "\n") {
 		ln = strings.TrimSuffix(ln, "\r")

@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 
 use wincv_i18n::{t, tr};
 use wincv_markdown::{Block, Kind};
-use wincv_textenc::{Enc, detect};
+use wincv_textenc::{Enc, detect, utf8_lossy_go};
 
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(20);
 /// 一頁 HTML 的上限。
@@ -382,44 +382,176 @@ fn go_decode(b: &[u8], e: Enc) -> Vec<u8> {
 /// 把位元組變成(Go 的)字串。
 ///
 /// 優先順序:Content-Type 的 charset → HTML 裡的 `<meta charset>` →
-/// 內容判讀。前兩者是網站自己宣告的,但**宣告會錯**,所以宣告的編碼
-/// 解出來全是替代字元時,還是要退回內容判讀。
+/// 內容判讀。前兩者是網站自己宣告的,但**宣告會錯**,所以宣告看起來
+/// 是錯的時候(見 [`declared`]),還是要退回內容判讀。
 fn decode(b: &[u8], ctype: &str) -> Vec<u8> {
-    let e = charset_of(ctype.as_bytes());
-    if e != Enc::Unknown {
-        let s = go_decode(b, e);
-        if !mojibake(&s) {
-            return s;
-        }
+    if let Some(s) = declared(b, charset_of(ctype.as_bytes())) {
+        return s;
     }
     let head = &b[..b.len().min(4096)];
-    let e = charset_of(head);
-    if e != Enc::Unknown {
-        let s = go_decode(b, e);
-        if !mojibake(&s) {
-            return s;
-        }
+    if let Some(s) = declared(b, charset_of(head)) {
+        return s;
     }
     go_decode(b, detect(b))
 }
+
+/// 用一個編碼名稱(例如 XML 宣告裡的 encoding)解碼,結果是 Go 字串的位元組。
+/// 名稱認不得,或解出來看得出宣告是錯的,就改用內容判讀。
+pub fn decode_charset(b: &[u8], name: &str) -> Vec<u8> {
+    if let Some(s) = declared(b, label(&go_lower(name))) {
+        return s;
+    }
+    go_decode(b, detect(b))
+}
+
+/// 把一份沒有 Content-Type 可依的 HTML 或 XHTML(EPUB 的章節)變成
+/// Go 字串的位元組,可以直接交給 [`parse_html`]。
+///
+/// 優先順序:BOM → XML 宣告的 encoding → `<meta charset>` → 內容判讀。
+/// BOM 最確定,有就照它;XML 宣告與 meta 是作者寫的,一樣會錯,
+/// 錯的時候往下一個依據退。
+pub fn decode_markup(b: &[u8]) -> Vec<u8> {
+    if b.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        return go_decode(b, Enc::Utf8);
+    }
+    if b.starts_with(&[0xFF, 0xFE]) {
+        return go_decode(b, Enc::Utf16Le);
+    }
+    if b.starts_with(&[0xFE, 0xFF]) {
+        return go_decode(b, Enc::Utf16Be);
+    }
+    if let Some(name) = xml_encoding(b)
+        && let Some(s) = declared(b, label(&go_lower(&utf8_lossy_go(name))))
+    {
+        return s;
+    }
+    decode(b, "")
+}
+
+/// 開頭那個 XML 宣告(`<?xml ... ?>`)裡的 encoding。沒有就回 `None`。
+fn xml_encoding(b: &[u8]) -> Option<&[u8]> {
+    let ws = |c: &u8| matches!(c, b' ' | b'\t' | b'\r' | b'\n');
+    let trim = |d: &[u8]| -> usize { d.iter().position(|c| !ws(c)).unwrap_or(d.len()) };
+    let b = &b[trim(b)..];
+    if !b.starts_with(b"<?xml") || b.len() < 6 || !ws(&b[5]) {
+        return None;
+    }
+    let end = find(b, b"?>")?;
+    let d = &b[5..end];
+    let i = find(d, b"encoding")?;
+    let d = &d[i + b"encoding".len()..];
+    let d = &d[trim(d)..];
+    let d = d.strip_prefix(b"=")?;
+    let d = &d[trim(d)..];
+    let q = *d.first().filter(|&&c| c == b'"' || c == b'\'')?;
+    let j = d[1..].iter().position(|&c| c == q)?;
+    let name = &d[1..1 + j];
+    if name.is_empty() { None } else { Some(name) }
+}
+
+fn find(s: &[u8], sub: &[u8]) -> Option<usize> {
+    s.windows(sub.len()).position(|w| w == sub)
+}
+
+/// 一個編碼宣告對到的解碼方式。
+///
+/// windows-1252 不在 textenc 裡:內容判讀不會猜它(西歐文字的位元組
+/// 落在 Big5 的範圍裡,判讀分不出來),它只會從宣告來,所以在這裡另外標。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Charset {
+    enc: Enc,
+    cp1252: bool,
+}
+
+const NO_CHARSET: Charset = Charset {
+    enc: Enc::Unknown,
+    cp1252: false,
+};
 
 /// 從一段文字裡找 charset= 的宣告。
 ///
 /// 照 Go 版的正規式 `(?i)charset\s*=\s*"?([a-z0-9_\-]+)` 逐位置比對。
 /// `(?i)` 在 Go 是 Unicode 的大小寫摺疊,所以 s 也吃 ſ(U+017F)、k 也吃 K(U+212A)。
-fn charset_of(s: &[u8]) -> Enc {
-    let Some(name) = charset_match(s) else {
-        return Enc::Unknown;
-    };
-    match name.as_str() {
+fn charset_of(s: &[u8]) -> Charset {
+    match charset_match(s) {
+        Some(name) => label(&name),
+        None => NO_CHARSET,
+    }
+}
+
+/// 把(小寫的)編碼名稱對到解碼方式。認不得的回 [`NO_CHARSET`]。
+fn label(name: &str) -> Charset {
+    let enc = match name {
         "utf-8" | "utf8" => Enc::Utf8,
         "big5" | "big-5" | "big5-hkscs" | "cp950" | "ms950" => Enc::Big5,
         "gbk" | "gb2312" | "gb18030" | "cp936" => Enc::Gbk,
         "shift_jis" | "shift-jis" | "sjis" | "cp932" | "ms932" | "windows-31j" => Enc::ShiftJis,
         "euc-kr" | "euckr" | "cp949" => Enc::EucKr,
-        "us-ascii" | "ascii" | "iso-8859-1" | "latin1" | "windows-1252" => Enc::Ascii,
+        "us-ascii" | "ascii" => Enc::Ascii,
+        // WHATWG 的 Encoding 規格把 ISO-8859-1 這一族都對到 windows-1252:
+        // 自稱 Latin-1 的頁面實際上幾乎都用到 0x80–0x9F 的彎引號與破折號。
+        "iso-8859-1" | "iso8859-1" | "iso_8859-1" | "latin1" | "l1" | "cp819" | "ibm819"
+        | "windows-1252" | "cp1252" | "x-cp1252" => {
+            return Charset {
+                enc: Enc::Unknown,
+                cp1252: true,
+            };
+        }
         _ => Enc::Unknown,
+    };
+    Charset { enc, cp1252: false }
+}
+
+/// 照宣告的編碼解碼。宣告看起來是錯的就回 `None`,由呼叫端退回下一個依據。
+///
+/// 「看起來是錯的」有兩種:
+/// - 宣告了 UTF-8 以外的編碼,內容卻是含非 ASCII 字元的合法 UTF-8。
+///   真正的 Big5 或 windows-1252 文字幾乎不可能整份剛好是合法的 UTF-8;
+///   反過來,伺服器預設送 ISO-8859-1、內容其實是 UTF-8 的頁面很常見。
+/// - 解出來滿是替代字元(見 [`mojibake`])。宣告 UTF-8 或 ASCII 時沒有解碼器,
+///   字串裡留著原始位元組,所以先把每個不合法的位元組算成一個替代字元再數。
+fn declared(b: &[u8], cs: Charset) -> Option<Vec<u8>> {
+    if cs == NO_CHARSET {
+        return None;
     }
+    if cs.enc != Enc::Utf8
+        && cs.enc != Enc::Ascii
+        && !b.is_ascii()
+        && std::str::from_utf8(b).is_ok()
+    {
+        return Some(go_decode(b, Enc::Utf8));
+    }
+    if cs.cp1252 {
+        return Some(decode_cp1252(b).into_bytes());
+    }
+    let s = go_decode(b, cs.enc);
+    let bad = if matches!(cs.enc, Enc::Utf8 | Enc::Ascii) {
+        mojibake(utf8_lossy_go(&s).as_bytes())
+    } else {
+        mojibake(&s)
+    };
+    if bad { None } else { Some(s) }
+}
+
+/// windows-1252 的 0x80–0x9F。其餘位元組與 Unicode 的 U+0000–U+00FF 相同。
+///
+/// 表照 WHATWG 的 index-windows-1252:沒有定義的 0x81、0x8D、0x8F、0x90、0x9D
+/// 對到同值的 C1 控制字元。Go 版的 x/text 把這五個換成 U+FFFD,
+/// 所以兩邊都用這張表,不用各自的函式庫。
+const CP1252_HIGH: [char; 32] = [
+    '\u{20AC}', '\u{0081}', '\u{201A}', '\u{0192}', '\u{201E}', '\u{2026}', '\u{2020}', '\u{2021}',
+    '\u{02C6}', '\u{2030}', '\u{0160}', '\u{2039}', '\u{0152}', '\u{008D}', '\u{017D}', '\u{008F}',
+    '\u{0090}', '\u{2018}', '\u{2019}', '\u{201C}', '\u{201D}', '\u{2022}', '\u{2013}', '\u{2014}',
+    '\u{02DC}', '\u{2122}', '\u{0161}', '\u{203A}', '\u{0153}', '\u{009D}', '\u{017E}', '\u{0178}',
+];
+
+fn decode_cp1252(b: &[u8]) -> String {
+    b.iter()
+        .map(|&c| match c {
+            0x80..=0x9F => CP1252_HIGH[(c - 0x80) as usize],
+            _ => c as char,
+        })
+        .collect()
 }
 
 const LONG_S: &[u8] = "\u{017F}".as_bytes();

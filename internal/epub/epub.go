@@ -11,6 +11,7 @@ package epub
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"github.com/wicanr2/wincv-remake/internal/i18n"
@@ -19,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/wicanr2/wincv-remake/internal/markdown"
+	"github.com/wicanr2/wincv-remake/internal/textenc"
 	"github.com/wicanr2/wincv-remake/internal/web"
 )
 
@@ -249,7 +251,7 @@ func (b *Book) readTOC(navHref, ncxHref string) map[string]string {
 			// 連結的位址與文字正好就是目錄要的兩欄。
 			data, err := b.read(f)
 			if err == nil {
-				_, blocks := web.ParseHTML(nil, strings.NewReader(string(data)))
+				_, blocks := web.ParseHTML(nil, strings.NewReader(web.DecodeMarkup(data)))
 				base := path.Dir(b.resolve(navHref))
 				for _, blk := range blocks {
 					for _, sp := range blk.Spans {
@@ -285,9 +287,12 @@ func (b *Book) Blocks(i int) ([]markdown.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 章節沒有 Content-Type 可依,編碼照 BOM、XML 宣告、meta、內容判讀的順序決定。
+	// 不先解碼的話,Big5 的章節是亂碼,開頭的 BOM 也會變成一段空段落。
+	//
 	// base 傳 nil:章節裡的連結是 zip 內的相對路徑,不是網址。
 	// 圖片的路徑在 Image 那邊接,連結目前不跨章跳(見 app 那一層)。
-	_, blocks := web.ParseHTML(nil, strings.NewReader(string(data)))
+	_, blocks := web.ParseHTML(nil, strings.NewReader(web.DecodeMarkup(data)))
 	// 圖片的 Src 接成 zip 內的絕對路徑,Image 才找得到。
 	dir := path.Dir(b.Chapters[i].Href)
 	for j := range blocks {
@@ -350,7 +355,31 @@ func (b *Book) unmarshal(f *zip.File, v any) error {
 }
 
 func decodeXML(data []byte, v any, strict bool) error {
+	// UTF-16 的檔案先整份轉成 UTF-8:encoding/xml 一個位元組一個位元組讀,
+	// 連 <?xml 都認不出來。BOM 比宣告確定,有 BOM 的檔案就不再理會 encoding。
+	bom := false
+	switch {
+	case bytes.HasPrefix(data, []byte{0xFF, 0xFE}):
+		data, bom = []byte(textenc.Decode(data, textenc.UTF16LE)), true
+	case bytes.HasPrefix(data, []byte{0xFE, 0xFF}):
+		data, bom = []byte(textenc.Decode(data, textenc.UTF16BE)), true
+	case bytes.HasPrefix(data, []byte{0xEF, 0xBB, 0xBF}):
+		bom = true
+	}
 	dec := xml.NewDecoder(strings.NewReader(string(data)))
+	// 宣告 UTF-8 以外的編碼(舊的中文書常寫 encoding="big5")時,encoding/xml
+	// 沒有 CharsetReader 就整份拒絕。宣告後面的內容交給 web 的同一套規則解:
+	// 認得的編碼照宣告解,宣告看起來是錯的或認不得,改用內容判讀。
+	dec.CharsetReader = func(label string, r io.Reader) (io.Reader, error) {
+		if bom {
+			return r, nil
+		}
+		rest, err := io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+		return strings.NewReader(web.DecodeCharset(rest, label)), nil
+	}
 	dec.Strict = strict
 	if !strict {
 		dec.AutoClose = xml.HTMLAutoClose

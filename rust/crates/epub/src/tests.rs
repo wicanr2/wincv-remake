@@ -267,3 +267,95 @@ fn untitled_chapters_are_numbered() {
     let b = open(p.to_str().unwrap()).unwrap();
     assert_eq!(b.chapters[1].title, "第 2 節");
 }
+
+fn big5(s: &str) -> Vec<u8> {
+    wincv_textenc::encode(s, wincv_textenc::Enc::Big5).unwrap()
+}
+
+fn utf16le(s: &str) -> Vec<u8> {
+    wincv_textenc::encode(s, wincv_textenc::Enc::Utf16Le).unwrap()
+}
+
+// 舊的中文電子書常把 OPF 與 NCX 寫成 Big5,並在 XML 宣告裡寫 encoding="big5"。
+// encoding/xml 沒有 CharsetReader 時整份拒絕,書就打不開。
+// UTF-16(有 BOM)是 EPUB 規格允許的另一種編碼,也要打得開。
+#[test]
+fn open_non_utf8_opf() {
+    let decl = r#"<?xml version="1.0" encoding="big5"?>"#;
+    let plain = r#"<?xml version="1.0"?>"#;
+    let cases: [(&str, Vec<u8>, Vec<u8>); 2] = [
+        (
+            "big5",
+            big5(&CONTENT_OPF.replacen(plain, decl, 1)),
+            big5(&TOC_NCX.replacen(plain, decl, 1)),
+        ),
+        (
+            "utf-16",
+            utf16le(&CONTENT_OPF.replacen(plain, r#"<?xml version="1.0" encoding="UTF-16"?>"#, 1)),
+            TOC_NCX.as_bytes().to_vec(),
+        ),
+    ];
+    for (name, opf, ncx) in cases {
+        let data = build(&[
+            ("META-INF/container.xml", CONTAINER_XML.as_bytes()),
+            ("OEBPS/content.opf", &opf),
+            ("OEBPS/toc.ncx", &ncx),
+            ("OEBPS/ch1.xhtml", "<p>一</p>".as_bytes()),
+            ("OEBPS/ch2.xhtml", "<p>二</p>".as_bytes()),
+        ]);
+        let b = open_bytes(data).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(
+            (b.title.as_str(), b.author.as_str()),
+            ("測試書", "某某"),
+            "{name}"
+        );
+        assert_eq!(b.chapters.len(), 2, "{name}");
+        assert_eq!(b.chapters[0].title, "第一章 開始", "{name}");
+    }
+}
+
+// 章節 XHTML 的編碼照 BOM、XML 宣告、meta charset 的順序決定,都沒有就判讀。
+// BOM 不能留在內文裡:留著的話會多出一段只有 U+FEFF 的空段落。
+#[test]
+fn chapter_encoding() {
+    let body = "<html><body><h1>開始</h1><p>第一章的內文。</p></body></html>";
+    let mut bom = b"\xef\xbb\xbf".to_vec();
+    bom.extend_from_slice(body.as_bytes());
+    let cases: Vec<(&str, Vec<u8>)> = vec![
+        ("utf-8 BOM", bom),
+        ("utf-16 BOM", utf16le(body)),
+        (
+            "XML 宣告",
+            big5(&format!(r#"<?xml version="1.0" encoding="Big5"?>{body}"#)),
+        ),
+        (
+            "meta",
+            big5(&format!(
+                r#"<html><head><meta http-equiv="Content-Type" content="text/html; charset=big5"/></head>{body}"#
+            )),
+        ),
+        ("判讀", big5(body)),
+        // 宣告寫錯(內容其實是 UTF-8)時不能照宣告解成亂碼。
+        (
+            "宣告錯",
+            format!(r#"<?xml version="1.0" encoding="big5"?>{body}"#).into_bytes(),
+        ),
+    ];
+    for (name, ch) in cases {
+        let data = build(&[
+            ("META-INF/container.xml", CONTAINER_XML.as_bytes()),
+            ("OEBPS/content.opf", CONTENT_OPF.as_bytes()),
+            ("OEBPS/toc.ncx", TOC_NCX.as_bytes()),
+            ("OEBPS/ch1.xhtml", &ch),
+            ("OEBPS/ch2.xhtml", "<p>二</p>".as_bytes()),
+        ]);
+        let b = open_bytes(data).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let got: Vec<String> = b
+            .blocks(0)
+            .unwrap()
+            .iter()
+            .map(|blk| blk.spans.iter().map(|s| s.text.as_str()).collect())
+            .collect();
+        assert_eq!(got, ["開始", "第一章的內文。"], "{name}");
+    }
+}

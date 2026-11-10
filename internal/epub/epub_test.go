@@ -7,9 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf16"
 
 	"github.com/wicanr2/wincv-remake/internal/epub"
 	"github.com/wicanr2/wincv-remake/internal/markdown"
+	"github.com/wicanr2/wincv-remake/internal/textenc"
 )
 
 // build 產生一本 EPUB。files 的鍵是 zip 內的路徑。
@@ -242,5 +244,103 @@ func TestRejectsNonEPUB(t *testing.T) {
 	os.WriteFile(bad, []byte("根本不是 zip"), 0o644)
 	if _, err := epub.Open(bad); err == nil {
 		t.Fatal("壞檔不該打得開")
+	}
+}
+
+func big5(t *testing.T, s string) string {
+	t.Helper()
+	b, err := textenc.EncodeBig5(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func utf16le(s string) string {
+	out := []byte{0xFF, 0xFE}
+	for _, u := range utf16.Encode([]rune(s)) {
+		out = append(out, byte(u), byte(u>>8))
+	}
+	return string(out)
+}
+
+// 舊的中文電子書常把 OPF 與 NCX 寫成 Big5,並在 XML 宣告裡寫 encoding="big5"。
+// encoding/xml 沒有 CharsetReader 時整份拒絕,書就打不開。
+// UTF-16(有 BOM)是 EPUB 規格允許的另一種編碼,也要打得開。
+func TestOpenNonUTF8OPF(t *testing.T) {
+	decl := `<?xml version="1.0" encoding="big5"?>`
+	for _, tc := range []struct{ name, opf, ncx string }{
+		{"big5",
+			big5(t, strings.Replace(contentOPF, `<?xml version="1.0"?>`, decl, 1)),
+			big5(t, strings.Replace(tocNCX, `<?xml version="1.0"?>`, decl, 1))},
+		{"utf-16",
+			utf16le(strings.Replace(contentOPF, `<?xml version="1.0"?>`, `<?xml version="1.0" encoding="UTF-16"?>`, 1)),
+			tocNCX},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := build(t, map[string]string{
+				"META-INF/container.xml": containerXML,
+				"OEBPS/content.opf":      tc.opf,
+				"OEBPS/toc.ncx":          tc.ncx,
+				"OEBPS/ch1.xhtml":        "<p>一</p>",
+				"OEBPS/ch2.xhtml":        "<p>二</p>",
+			})
+			b, err := epub.Open(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer b.Close()
+			if b.Title != "測試書" || b.Author != "某某" {
+				t.Fatalf("書名 %q 作者 %q", b.Title, b.Author)
+			}
+			if len(b.Chapters) != 2 || b.Chapters[0].Title != "第一章 開始" {
+				t.Fatalf("章節 %+v", b.Chapters)
+			}
+		})
+	}
+}
+
+// 章節 XHTML 的編碼照 BOM、XML 宣告、meta charset 的順序決定,都沒有就判讀。
+// BOM 不能留在內文裡:留著的話會多出一段只有 U+FEFF 的空段落。
+func TestChapterEncoding(t *testing.T) {
+	body := "<html><body><h1>開始</h1><p>第一章的內文。</p></body></html>"
+	for _, tc := range []struct{ name, ch string }{
+		{"utf-8 BOM", "\xef\xbb\xbf" + body},
+		{"utf-16 BOM", utf16le(body)},
+		{"XML 宣告", big5(t, `<?xml version="1.0" encoding="Big5"?>`+body)},
+		{"meta", big5(t, `<html><head><meta http-equiv="Content-Type" content="text/html; charset=big5"/></head>`+body)},
+		{"判讀", big5(t, body)},
+		// 宣告寫錯(內容其實是 UTF-8)時不能照宣告解成亂碼。
+		{"宣告錯", `<?xml version="1.0" encoding="big5"?>` + body},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := build(t, map[string]string{
+				"META-INF/container.xml": containerXML,
+				"OEBPS/content.opf":      contentOPF,
+				"OEBPS/toc.ncx":          tocNCX,
+				"OEBPS/ch1.xhtml":        tc.ch,
+				"OEBPS/ch2.xhtml":        "<p>二</p>",
+			})
+			b, err := epub.Open(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer b.Close()
+			blocks, err := b.Blocks(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, blk := range blocks {
+				var s strings.Builder
+				for _, sp := range blk.Spans {
+					s.WriteString(sp.Text)
+				}
+				got = append(got, s.String())
+			}
+			if len(got) != 2 || got[0] != "開始" || got[1] != "第一章的內文。" {
+				t.Fatalf("解出 %q", got)
+			}
+		})
 	}
 }

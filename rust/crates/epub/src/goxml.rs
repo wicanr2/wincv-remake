@@ -76,9 +76,15 @@ const HTML_AUTO_CLOSE: &[&str] = &[
     "base", "meta",
 ];
 
+/// Go 的 `Decoder.CharsetReader`:收宣告的編碼名稱與宣告之後的位元組,
+/// 回解碼成 UTF-8 的位元組。
+pub(crate) type CharsetReader<'a> = &'a dyn Fn(&str, &[u8]) -> Vec<u8>;
+
 struct Decoder<'a> {
-    data: &'a [u8],
+    /// 還沒讀的位元組從 `pos` 起。CharsetReader 換掉讀取來源時,換成解碼過的那一份。
+    data: std::borrow::Cow<'a, [u8]>,
     pos: usize,
+    charset: Option<CharsetReader<'a>>,
     strict: bool,
     err: Option<XmlError>,
     next_byte: Option<u8>,
@@ -91,10 +97,11 @@ struct Decoder<'a> {
 }
 
 impl<'a> Decoder<'a> {
-    fn new(data: &'a [u8], strict: bool) -> Decoder<'a> {
+    fn new(data: &'a [u8], strict: bool, charset: Option<CharsetReader<'a>>) -> Decoder<'a> {
         Decoder {
-            data,
+            data: std::borrow::Cow::Borrowed(data),
             pos: 0,
+            charset,
             strict,
             err: None,
             next_byte: None,
@@ -342,12 +349,18 @@ impl<'a> Decoder<'a> {
                     }
                     let enc = proc_inst("encoding", &data);
                     if !enc.is_empty() && !go_equal_fold(&String::from_utf8_lossy(&enc), "utf-8") {
-                        // Go 版沒有給 CharsetReader,宣告其他編碼一律失敗。
-                        let e = XmlError::Other(format!(
-                            "xml: encoding {} declared but Decoder.CharsetReader is nil",
-                            go_quote(&enc)
-                        ));
-                        return self.fail(e);
+                        let Some(cr) = self.charset else {
+                            let e = XmlError::Other(format!(
+                                "xml: encoding {} declared but Decoder.CharsetReader is nil",
+                                go_quote(&enc)
+                            ));
+                            return self.fail(e);
+                        };
+                        // Go 的 switchToReader:宣告之後的位元組改從 CharsetReader 讀。
+                        // 這時 next_byte 一定是空的(上面讀到 ?> 就停,沒有退回位元組)。
+                        let rest = cr(&String::from_utf8_lossy(&enc), &self.data[self.pos..]);
+                        self.data = std::borrow::Cow::Owned(rest);
+                        self.pos = 0;
                     }
                 }
                 return Ok(Tok::Other);
@@ -1009,8 +1022,20 @@ fn unmarshal_path<T: Target>(
 }
 
 /// Go 的 `xml.NewDecoder(data).Decode(v)`(嚴格或寬鬆模式),解進既有的 `v`。
+/// 沒有 CharsetReader 的 Unmarshal:宣告 UTF-8 以外的編碼一律失敗(Go 的預設)。
+#[cfg(test)]
 pub(crate) fn decode<T: Target>(data: &[u8], v: &mut T, strict: bool) -> Res<()> {
-    let mut d = Decoder::new(data, strict);
+    decode_with(data, v, strict, None)
+}
+
+/// Unmarshal,宣告 UTF-8 以外的編碼時交給 `charset` 解碼(Go 的 `Decoder.CharsetReader`)。
+pub(crate) fn decode_with<T: Target>(
+    data: &[u8],
+    v: &mut T,
+    strict: bool,
+    charset: Option<CharsetReader<'_>>,
+) -> Res<()> {
+    let mut d = Decoder::new(data, strict, charset);
     let start = loop {
         if let Tok::Start(s) = d.token()? {
             break s;
