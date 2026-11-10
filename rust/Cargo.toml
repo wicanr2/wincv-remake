@@ -40,6 +40,7 @@ wincv-vecfont = { path = "crates/vecfont" }
 wincv-fontset = { path = "crates/fontset" }
 wincv-datadir = { path = "crates/datadir" }
 wincv-launch = { path = "crates/launch" }
+wincv-appicon = { path = "crates/appicon" }
 wincv-app = { path = "crates/app" }
 wincv-markdown = { path = "crates/markdown" }
 encoding_rs = "0.8"

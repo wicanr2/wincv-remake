@@ -13,6 +13,7 @@ fonts = ["wincv-bundled/fonts"]
 
 [dependencies]
 wincv-app.workspace = true
+wincv-appicon.workspace = true
 wincv-bundled.workspace = true
 wincv-cell.workspace = true
 wincv-datadir.workspace = true
@@ -22,6 +23,7 @@ wincv-i18n.workspace = true
 wincv-keys.workspace = true
 wincv-render.workspace = true
 wincv-session.workspace = true
+wincv-thumbs.workspace = true
 wincv-ttf.workspace = true
 wincv-vfs.workspace = true
 winit = "0.30"

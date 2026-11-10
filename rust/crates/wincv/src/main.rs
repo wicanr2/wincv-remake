@@ -18,7 +18,7 @@ use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
 use winit::window::{Fullscreen, Window, WindowId};
 
 use wincv_app::{App, Mode, MAX_SCALE, MIN_SCALE};
@@ -153,6 +153,13 @@ fn new_rast(l: &fontset::Level) -> Rasterizer {
     r
 }
 
+/// 背景工作做完了,喚醒事件迴圈。
+#[derive(Debug)]
+struct Wake;
+
+/// 一張解好的縮圖:代次、索引、結果。
+type ThumbDone = (u64, usize, wincv_thumbs::Item);
+
 /// 視窗那一層的狀態(對應 Go 版的 game)。
 struct Shell {
     app: App,
@@ -182,6 +189,10 @@ struct Shell {
     last_st: State,
     keys: input::Keys,
     mouse: mouse::Mouse,
+    /// 縮圖在工作執行緒解碼,解好從這裡送回來,再用 proxy 叫醒事件迴圈。
+    thumb_tx: std::sync::mpsc::Sender<ThumbDone>,
+    thumb_rx: std::sync::mpsc::Receiver<ThumbDone>,
+    proxy: Option<EventLoopProxy<Wake>>,
     /// 最近一次畫出來的下拉框佔的像素。點擊要知道下拉貼在哪,而那只有 paint 知道。
     drop_rect: Option<mouse::Rect>,
     window: Option<Rc<Window>>,
@@ -442,9 +453,9 @@ impl Shell {
     /// 是分開的,而且點陣字必須整格複製像素。
     fn paint(&mut self, w: u32, h: u32) -> Vec<u32> {
         let mut canvas = vec![0u32; (w * h) as usize];
-        // 縮圖要先解好才畫得出來。一個目錄幾十張 JPEG 解起來要幾秒,之後改到背景做。
+        // 縮圖在背景解:一個目錄幾十張 JPEG 解起來要好幾秒,卡著等會像當掉。
         if self.app.mode == Mode::Thumbs {
-            self.app.decode_thumbs(self.cols, self.rows);
+            self.start_thumbs();
         }
         let top = self.menu_bar_px();
         self.drop_rect = None;
@@ -476,6 +487,27 @@ impl Shell {
             }
         }
         canvas
+    }
+
+    /// 把畫面上看得到、還沒解的縮圖送去工作執行緒。
+    fn start_thumbs(&mut self) {
+        let jobs = self.app.thumb_jobs(self.cols, self.rows);
+        if jobs.is_empty() {
+            return;
+        }
+        let (tx, proxy) = (self.thumb_tx.clone(), self.proxy.clone());
+        std::thread::spawn(move || {
+            for (generation, i, name, data) in jobs {
+                let it = wincv_thumbs::decode_item(&name, &|_| data.clone());
+                if tx.send((generation, i, it)).is_err() {
+                    return;
+                }
+                // 每解好一張就叫醒一次,畫面逐張出現,不必等整頁。
+                if let Some(p) = &proxy {
+                    let _ = p.send_event(Wake);
+                }
+            }
+        });
     }
 
     fn redraw(&mut self) {
@@ -595,13 +627,30 @@ fn blit(canvas: &mut [u32], cw: u32, ch: u32, img: &[u8], iw: i32, ih: i32, x: i
     }
 }
 
-impl ApplicationHandler for Shell {
+impl ApplicationHandler<Wake> for Shell {
+    fn user_event(&mut self, _el: &ActiveEventLoop, _: Wake) {
+        let mut any = false;
+        while let Ok((generation, i, it)) = self.thumb_rx.try_recv() {
+            self.app.thumb_done(generation, i, it);
+            any = true;
+        }
+        if any {
+            if let Some(w) = &self.window {
+                w.request_redraw();
+            }
+        }
+    }
+
     fn resumed(&mut self, el: &ActiveEventLoop) {
         if self.window.is_some() {
             return;
         }
+        // 標題列與工作列的圖示。macOS 不吃這個(那邊的圖示屬於 .app 封包)。
+        let icon = wincv_appicon::image(64);
+        let icon = winit::window::Icon::from_rgba(icon.pix, icon.w, icon.h).ok();
         let attrs = Window::default_attributes()
             .with_title("WinCV")
+            .with_window_icon(icon)
             .with_inner_size(PhysicalSize::new(self.want_px.0.max(1), self.want_px.1.max(1)))
             .with_resizable(true);
         // 網頁上視窗就是一個 canvas,要自己掛進頁面。
@@ -764,6 +813,7 @@ fn main() {
     if st.cols >= 20 && st.rows >= 5 && !a.cols_given {
         (cols, rows) = (st.cols, st.rows);
     }
+    let (thumb_tx, thumb_rx) = std::sync::mpsc::channel();
     let mut sh = Shell {
         app,
         levels,
@@ -787,6 +837,9 @@ fn main() {
         last_st: State::default(),
         keys: input::Keys::default(),
         mouse: mouse::Mouse::default(),
+        thumb_tx,
+        thumb_rx,
+        proxy: None,
         drop_rect: None,
         window: None,
         surface: None,
@@ -807,7 +860,8 @@ fn main() {
     }
     sh.last_st = sh.app.snapshot();
 
-    let el = EventLoop::new().unwrap_or_else(|e| die(&e.to_string()));
+    let el = EventLoop::<Wake>::with_user_event().build().unwrap_or_else(|e| die(&e.to_string()));
+    sh.proxy = Some(el.create_proxy());
     let res = el.run_app(&mut sh);
     // 關掉時再存一次:這一次連捲動位置都記下來(sync 那邊只在「人換了地方」時寫)。
     if sh.resume {

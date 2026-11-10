@@ -2968,6 +2968,7 @@ version = "0.1.0"
 dependencies = [
  "softbuffer",
  "wincv-app",
+ "wincv-appicon",
  "wincv-bundled",
  "wincv-cell",
  "wincv-datadir",
@@ -2977,6 +2978,7 @@ dependencies = [
  "wincv-keys",
  "wincv-render",
  "wincv-session",
+ "wincv-thumbs",
  "wincv-ttf",
  "wincv-vfs",
  "winit",
@@ -3011,6 +3013,14 @@ dependencies = [
  "wincv-thumbs",
  "wincv-vfs",
  "wincv-viewer",
+]
+
+[[package]]
+name = "wincv-appicon"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.10.9",
+ "wincv-render",
 ]
 
 [[package]]

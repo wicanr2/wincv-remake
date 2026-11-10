@@ -86,6 +86,9 @@ pub struct App {
     pub image: Option<wincv_imgview::Model>,
     pub editor: Option<wincv_editor::Model>,
     pub thumbs: Option<wincv_thumbs::Model>,
+    /// 縮圖列表的代次。每開一次縮圖列表加一:背景解好的縮圖回來時,列表可能已經換成別的
+    /// 目錄,代次對不上的就丟掉。
+    thumbs_gen: u64,
     pub find: Option<FindResult>,
     pub mode: Mode,
 
@@ -209,6 +212,7 @@ impl App {
             image: None,
             editor: None,
             thumbs: None,
+            thumbs_gen: 0,
             find: None,
             mode: Mode::Browser,
             syntax: None,
@@ -1079,8 +1083,39 @@ impl App {
             return true;
         }
         self.thumbs = Some(wincv_thumbs::Model::new(&names));
+        self.thumbs_gen += 1;
         self.mode = Mode::Thumbs;
         true
+    }
+
+    /// 背景解縮圖的工作:畫面上看得到、還沒送出的那些,連同檔案內容與代次。
+    ///
+    /// 讀檔在呼叫端的執行緒做(檔案系統不一定能跨執行緒,壓縮檔裡的檔案要經過它),
+    /// 解碼才是慢的那一段,交給別的執行緒。解好用 thumb_done 放回來。
+    pub fn thumb_jobs(&mut self, cols: i32, rows: i32) -> Vec<(u64, usize, String, Result<Vec<u8>, String>)> {
+        let generation = self.thumbs_gen;
+        let Some(mut t) = self.thumbs.take() else { return Vec::new() };
+        let jobs = t
+            .take_visible(cols, rows)
+            .into_iter()
+            .map(|i| {
+                let name = t.items[i].name.clone();
+                let data = self.read_current(&name);
+                (generation, i, name, data)
+            })
+            .collect();
+        self.thumbs = Some(t);
+        jobs
+    }
+
+    /// 放回背景解好的一張縮圖。代次對不上(列表已經換了)就丟掉。
+    pub fn thumb_done(&mut self, generation: u64, i: usize, it: wincv_thumbs::Item) {
+        if generation != self.thumbs_gen {
+            return;
+        }
+        if let Some(t) = self.thumbs.as_mut() {
+            t.set_decoded(i, it);
+        }
     }
 
     /// 解目前看得到的縮圖。呼叫端應該在背景做:一個目錄幾十張 JPEG 解起來要好幾秒,
