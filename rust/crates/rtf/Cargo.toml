@@ -1,0 +1,16 @@
+[package]
+name = "wincv-rtf"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Rich Text Format(對應 Go 版 internal/rtf)。
+#
+# 字碼頁:單位元組的那十幾種用 x/text 產生的表(src/cp_tables.rs),與 Go 版逐碼位相同;
+# Big5 / GBK / Shift_JIS / EUC-KR 用 encoding_rs(與 wincv-textenc 相同的取捨,差異見報告)。
+
+[dependencies]
+wincv-i18n.workspace = true
+wincv-markdown.workspace = true
+encoding_rs.workspace = true

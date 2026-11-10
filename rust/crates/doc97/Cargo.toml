@@ -1,0 +1,13 @@
+[package]
+name = "wincv-doc97"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Word 97–2003 的 .doc(對應 Go 版 internal/doc97)。
+
+[dependencies]
+wincv-cfb = { path = "../cfb" }
+wincv-i18n.workspace = true
+wincv-markdown.workspace = true

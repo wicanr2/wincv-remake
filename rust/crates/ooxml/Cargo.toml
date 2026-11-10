@@ -1,0 +1,21 @@
+[package]
+name = "wincv-ooxml"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Office Open XML 的封裝格式(OPC)與 XML 走訪工具(對應 Go 版 internal/ooxml)。
+#
+# XML 解碼器是 Go encoding/xml 的移植(src/xml.rs),不用現成的 crate,理由寫在那個檔案的開頭。
+# zip 用與 wincv-archive 相同的版本;只開 deflate,因為 Go 的 archive/zip 只認得儲存與 deflate
+# (同一個 workspace 合併功能後仍可能多認得幾種,所以 Package::bytes 另外擋)。
+
+[dependencies]
+wincv-i18n.workspace = true
+wincv-textenc.workspace = true
+zip = { version = "9.5", default-features = false, features = ["deflate-flate2"] }
+# zip 的 deflate-flate2 不選後端;與 wincv-archive 一樣用 zlib-rs。
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
+
+[dev-dependencies]

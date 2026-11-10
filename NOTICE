@@ -100,6 +100,24 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## Go 標準函式庫與 x/text:`rust/crates` 的幾個檔案
+
+Rust 版要與 Go 版得到逐位元組相同的結果,下列檔案**逐段移植自 Go 1.22 的標準函式庫**,
+或由 [golang.org/x/text](https://pkg.go.dev/golang.org/x/text) v0.18.0 產生:
+
+| 檔案 | 來源 |
+|---|---|
+| `rust/crates/ooxml/src/xml.rs`、`xml_tables.rs` | `encoding/xml` 的 Decoder(非嚴格模式、`HTMLAutoClose`、`HTMLEntity` 表) |
+| `rust/crates/epub/src/goxml.rs` | `encoding/xml` 的 Decoder 與 Unmarshal 中用得到的部分 |
+| `rust/crates/web/src/gourl.rs` | `net/url` 的 Parse、String、ResolveReference、RequestURI |
+| `rust/crates/ooxml/src/gopath.rs` | `path` 的 Clean、Dir、Base、Join、Ext |
+| `rust/crates/doc97/src/gosort.rs` | `sort.Slice`(pdqsort)與 `sort.Search` |
+| `rust/crates/xlsx/src/gonum.rs` | `strconv.ParseFloat` 的文法 |
+| `rust/crates/rtf/src/cp_tables.rs`、`rust/crates/doc97/src/cp1252.rs` | x/text `charmap` 逐位元組解碼產生的表 |
+
+授權條款與上一節 golang.org/x/image 相同(`Copyright 2009 The Go Authors.` 的 BSD 3-Clause),
+全文見上一節。
+
 ## 字型:隨產物散布
 
 公開 Release **不內嵌**下面這些字型；使用者必須自行合法取得並提供。只有

@@ -3589,6 +3589,7 @@ dependencies = [
  "wincv-i18n",
  "wincv-imgfmt",
  "wincv-markdown",
+ "wincv-ooxml",
  "wincv-pptx",
  "wincv-rtf",
  "wincv-textenc",
