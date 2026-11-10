@@ -55,6 +55,8 @@ struct Args {
     bitmap_cjk: bool,
     no_resume: bool,
     menu_scale: f64,
+    menu_font: Option<PathBuf>,
+    menu_size: i32,
     /// 原版的啟動語法:一個路徑,或 /p、/e 加一個路徑。
     target: Option<PathBuf>,
     start_dir_only: bool,
@@ -79,6 +81,8 @@ fn parse_args() -> Args {
         bitmap_cjk: false,
         no_resume: false,
         menu_scale: 0.0,
+        menu_font: None,
+        menu_size: 0,
         target: None,
         start_dir_only: false,
         start_edit: false,
@@ -116,6 +120,8 @@ fn parse_args() -> Args {
             "-bitmap-cjk" => a.bitmap_cjk = true,
             "-no-resume" => a.no_resume = true,
             "-menu-scale" => a.menu_scale = num(v(), "-menu-scale"),
+            "-menu-font" => a.menu_font = Some(v().into()),
+            "-menu-size" => a.menu_size = num(v(), "-menu-size") as i32,
             _ if flag.starts_with('-') && flag.len() > 1 => die(&format!("不認得的參數 {k}")),
             _ => rest.push(k),
         }
@@ -153,6 +159,23 @@ fn new_rast(l: &fontset::Level) -> Rasterizer {
     r
 }
 
+/// 選單層用 -menu-font 那份字型時,menu() 回傳的「字級」。
+const MENU_FONT: usize = usize::MAX;
+
+/// 選單專用的光柵器:一份 TrueType 字型,半形寬取字高的一半(等寬字型的常見比例,而選單
+/// 是靠格點排的)。選單的字也可能缺(中文標籤),同一條後備鏈接上去。
+fn menu_font_rast(path: &Path, size: i32) -> Result<Rasterizer, String> {
+    let half = (size / 2).max(4);
+    let f = std::sync::Arc::new(wincv_ttf::Font::load(path, half, half * 2, size)?);
+    let mut r = Rasterizer::new(Box::new(wincv_ttf::HalfFont::new(f.clone(), half, size)), Some(Box::new(f)));
+    r.missing_mark = true;
+    let (chain, _, _) = wincv_ttf::load_chain(half, half * 2, size);
+    if !chain.0.is_empty() {
+        r.fallback = Some(Box::new(chain));
+    }
+    Ok(r)
+}
+
 /// 背景工作做完了,喚醒事件迴圈。
 #[derive(Debug)]
 struct Wake;
@@ -178,6 +201,9 @@ struct Shell {
     /// 選單層目前用第幾級點陣字,-1 表示跟內容一樣;menu_scale 是那時的倍率。
     menu_zoom: i32,
     menu_scale: f64,
+    /// -menu-font 指定的選單字型。選單與內容分開:內容要的是「與原版逐像素對齊的點陣字」,
+    /// 選單只是介面,在高解析度螢幕上用一份清楚的向量字型反而好認。
+    menu_font: Option<Rasterizer>,
     /// 目前已成功套用的 24 點字形來源。app.cjk24 不同時,代表選單剛要求換字形。
     cjk24: String,
     font_dir: PathBuf,
@@ -284,8 +310,14 @@ impl Shell {
         ((cw as f64 * self.eff_scale).ceil() as i32, (ch as f64 * self.eff_scale).ceil() as i32)
     }
 
-    /// 選單層用哪個字級、倍率,以及一格的螢幕像素。倍率只在這裡算一次。
+    /// 選單層用哪個字級、倍率,以及一格的螢幕像素。倍率只在這裡算一次。指定了
+    /// -menu-font 時用那份字型,選單字級的設定不去蓋它(那是使用者明講要用某個字型檔)。
     fn menu(&mut self) -> (usize, f64, i32, i32) {
+        if let Some(r) = &self.menu_font {
+            let sc = if self.menu_scale > 0.0 { self.menu_scale } else { 1.0 };
+            let (cw, ch) = (r.cell_w, r.cell_h);
+            return (MENU_FONT, sc, (cw as f64 * sc).ceil() as i32, (ch as f64 * sc).ceil() as i32);
+        }
         let (idx, mut sc) = if self.menu_zoom >= 0 && (self.menu_zoom as usize) < self.levels.len() {
             (self.menu_zoom as usize, self.menu_scale)
         } else {
@@ -472,7 +504,8 @@ impl Shell {
         if top > 0 {
             let (mi, msc, mcw, mch) = self.menu();
             let layer = self.app.menu_layer(w as i32 / mcw.max(1), h as i32 / mch.max(1));
-            if let Some(r) = self.rast(mi) {
+            let r = if mi == MENU_FONT { self.menu_font.as_mut() } else { self.rast(mi) };
+            if let Some(r) = r {
                 if let Some(bar) = &layer.bar {
                     let (bw, bh) = r.size(bar.cols, bar.rows);
                     blit(&mut canvas, w, h, r.draw(bar), bw, bh, 0, 0, msc);
@@ -827,6 +860,7 @@ fn main() {
         screen: Screen::new(cols, rows),
         menu_zoom: -1,
         menu_scale: a.menu_scale,
+        menu_font: None,
         cjk24: String::new(),
         font_dir: cfg_dir,
         eten_std: std,
@@ -848,6 +882,13 @@ fn main() {
     };
     sh.cjk24 = sh.app.cjk24.clone();
     sh.set_zoom(zoom);
+    if let Some(p) = &a.menu_font {
+        let size = if a.menu_size > 0 { a.menu_size } else { sh.cell_of(sh.eff_idx).1 };
+        match menu_font_rast(p, size) {
+            Ok(r) => sh.menu_font = Some(r),
+            Err(e) => eprintln!("{} {e}", t("警告:選單字型用不了,沿用內容的字型 —")),
+        }
+    }
     // -cols / -rows 與選單「視窗大小」、session 記住的格數是同一個意思:內容區的格數,
     // 選單列另外加在上面。resize 會把選單列的像素扣掉,所以這裡要先加回去。
     sh.apply_size(cols, rows);

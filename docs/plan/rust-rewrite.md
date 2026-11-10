@@ -452,7 +452,8 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
 - 3c 大致完成:`rust/crates/wincv` 改成真正的程式(字級與倍率挑選、選單層合成、按鍵轉換含輸入法、session、全螢幕、
   視窗大小請求、滑鼠的點擊、雙擊、拖曳與滾輪),在 Xvfb 裡實際開過、用鍵盤與滑鼠操作過。Xvfb 裡 xdotool
   滾一格時游標移了 6 列(預期 3 列),疑似測試裝置同時送出兩種捲動事件,待實機確認。程式圖示(`wincv-appicon`,各尺寸與 Go 版逐像素相同)與縮圖的背景解碼已接上;Windows(GUI 子系統,只匯入系統 DLL)、macOS arm64 與 x86_64(osxcross)都建得出來,Windows 版 8.5 MB、
-  macOS 7.1 / 8.1 MB。還沒有 `-menu-font`;網頁版的冒煙測試
+  macOS 7.1 / 8.1 MB。`-menu-font` / `-menu-size` 已接上(有子選單的項目右側會畫出 `\0` 的缺字框,Go 版
+  用 TrueType 選單字型時也是如此);網頁版的冒煙測試
   (`tools/rust-web-smoke.sh`)還用舊的 `WINCV_FONT_DIR`,要改成 `wincv-bundled` 的內嵌方式。
 
 ## 待決定事項
