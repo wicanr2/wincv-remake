@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# 產生放進 zip 的「讀我」。用法:readme-for.sh <平台代號> <執行檔名>
+# 產生放進 zip 的「讀我」。用法:readme-for.sh <平台代號> <執行檔名> [go|rust]
 set -euo pipefail
 PLAT=$1
 EXE=$2
+ENGINE=${3:-go}
 
 case "$PLAT" in
 linux-amd64)   RUN="chmod +x $EXE   # 如果解壓工具沒保住權限
@@ -15,12 +16,18 @@ android)       RUN="adb install $EXE
 (或把 $EXE 傳到手機上點開,要允許安裝未知來源)" ;;
 esac
 
+if [ "$ENGINE" = rust ]; then
+    LANG_LINE="的重製版,用 Rust 重寫(preview)。原始碼:https://github.com/wicanr2/wincv-remake"
+else
+    LANG_LINE="的重製版,用 Go 重寫。原始碼:https://github.com/wicanr2/wincv-remake"
+fi
+
 cat <<EOF
 WinCV Remake
 ============
 
 1999–2011 年台灣共享軟體 WinCV 0.52(CView for Windows,原作者 Lcc Wizard)
-的重製版,用 Go 重寫。原始碼:https://github.com/wicanr2/wincv-remake
+$LANG_LINE
 
 怎麼跑
 ------
@@ -58,3 +65,22 @@ Arch: noto-fonts-cjk)。Windows 與 macOS 內建的通常夠用。
 逐項的著作權與出處見 NOTICE。其中 internal/archive/ace 有一段是從
 BSD 授權的 droe/acefile 逐行移植的,它的著作權聲明也在那份裡面。
 EOF
+
+if [ "$ENGINE" = rust ]; then
+cat <<EOF
+
+Rust 版(preview)
+-----------------
+
+這是 Rust 改寫的預覽版。功能與 Go 版相同,畫面與 Go 版逐像素對照過
+(見原始碼的 README「Rust 改寫」一節),但實際使用的時間還短。遇到與
+Go 版不同的地方,請開 issue。
+
+Linux 版執行時會載入 libxkbcommon-x11(視窗的鍵盤處理)。一般桌面都有;
+精簡環境請先裝 libxkbcommon-x11-0(Debian/Ubuntu)或 libxkbcommon-x11
+(Fedora、Arch)。
+
+Rust 版連結的第三方套件(含 PDF 用的 Foxit 字型與 Adobe CMap 資料)的
+授權全文在同目錄的 THIRD-PARTY-LICENSES.txt。
+EOF
+fi
