@@ -70,16 +70,15 @@ impl Doc {
         while i < cstd && p + 2 <= st.len() {
             let cb_std = le16(st, p) as usize;
             p += 2;
-            if cb_std == 0 || p + cb_std > st.len() {
+            // cbStd 小於 2 的 STD 連識別碼都放不下:不論在表中間還是表尾,
+            // 都當成不知道,不去讀下一筆的長度欄位或表外。
+            if cb_std < 2 || p + cb_std > st.len() {
                 p += cb_std;
                 i += 1;
                 continue;
             }
             // STD 的第一個 16 位元裡,低 12 位是樣式識別碼。
-            // cbStd 是 1 而且剛好在表尾時 Go 版會讀出界而 panic(見報告);這裡不讀。
-            if p + 2 <= st.len() {
-                self.stis[i] = (le16(st, p) & 0x0FFF) as i64;
-            }
+            self.stis[i] = (le16(st, p) & 0x0FFF) as i64;
             p += cb_std;
             i += 1;
         }

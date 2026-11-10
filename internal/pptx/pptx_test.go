@@ -258,3 +258,21 @@ func TestTitleGuessWithoutPlaceholders(t *testing.T) {
 		t.Errorf("沒被當成標題就要留在內文裡:%q", got)
 	}
 }
+
+// PowerPoint 的換行寫成 <a:br><a:rPr/></a:br>,底下帶著字元屬性。
+// 解碼器若把 br 當成 HTML 的空元素一打開就關掉,後面的 </a:br> 會把
+// 外層一路關掉,換行之後的字與後面的圖形全部遺失。
+func TestLineBreakWithRunProps(t *testing.T) {
+	body := `<a:p><a:r><a:t>換行前</a:t></a:r><a:br><a:rPr lang="zh-TW"/></a:br>` +
+		`<a:r><a:t>換行後</a:t></a:r></a:p>`
+	d := open(t, oneSlide(slide(
+		sp(`type="body" idx="1"`, "", body)+
+			sp(`type="body" idx="2"`, "", para("", "下一個圖形")),
+	), nil))
+	got := text(d.Slides[0].Blocks)
+	for _, w := range []string{"換行前\n", "換行後\n", "下一個圖形\n"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("少了 %q:%q", w, got)
+		}
+	}
+}

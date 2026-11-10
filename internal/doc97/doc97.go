@@ -222,6 +222,11 @@ func parseCLX(clx []byte) ([]piece, error) {
 				return nil, fmt.Errorf(i18n.T("piece table 被截斷"))
 			}
 			cb := int(int16(binary.LittleEndian.Uint16(clx[i+1:])))
+			// cb 是有號數。3+cb 不是正數時位置不會往前走(-3 原地打轉,
+			// 更小的往回走到負的索引),只可能是壞檔。
+			if 3+cb <= 0 {
+				return nil, fmt.Errorf(i18n.T("piece table 被截斷"))
+			}
 			i += 3 + cb
 		case 2: // Pcdt
 			if i+5 > len(clx) {

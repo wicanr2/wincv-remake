@@ -217,7 +217,9 @@ func (p *parser) unicode(n int) {
 
 // binary 跳過 \binN 後面那一段原始位元組。
 func (p *parser) binary(n int) {
-	if n <= 0 || p.i+n > len(p.src) {
+	// 長度大到超過 int 時 Atoi 給 MaxInt,p.i+n 會溢位成負數;
+	// 用剩下的長度比,不做加法。
+	if n <= 0 || n > len(p.src)-p.i {
 		return
 	}
 	data := p.src[p.i : p.i+n]

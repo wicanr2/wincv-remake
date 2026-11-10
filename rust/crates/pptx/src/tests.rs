@@ -245,3 +245,19 @@ fn title_guess_without_placeholders() {
     assert_eq!(multi.slides[0].title, "", "太長的段落不該被當成標題");
     assert!(text(&multi.slides[0].blocks).contains(&long), "沒被當成標題就要留在內文裡");
 }
+
+/// PowerPoint 的換行寫成 `<a:br><a:rPr/></a:br>`,底下帶著字元屬性。
+/// 解碼器若把 br 當成 HTML 的空元素一打開就關掉,後面的 `</a:br>` 會把
+/// 外層一路關掉,換行之後的字與後面的圖形全部遺失。
+#[test]
+fn line_break_with_run_props() {
+    let body = r#"<a:p><a:r><a:t>換行前</a:t></a:r><a:br><a:rPr lang="zh-TW"/></a:br><a:r><a:t>換行後</a:t></a:r></a:p>"#;
+    let d = open(one_slide(
+        slide(&(sp(r#"type="body" idx="1""#, "", body) + &sp(r#"type="body" idx="2""#, "", &para("", "下一個圖形")))),
+        &[],
+    ));
+    let got = text(&d.slides[0].blocks);
+    for w in ["換行前\n", "換行後\n", "下一個圖形\n"] {
+        assert!(got.contains(w), "少了 {w:?}:{got:?}");
+    }
+}

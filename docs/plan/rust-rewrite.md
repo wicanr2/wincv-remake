@@ -481,14 +481,16 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
 
 - `cfb`、`doc97`、`rtf`、`ooxml`、`docx`、`pptx`、`xlsx`、`officedoc` 八個 crate 搬完,Go 版 54 條測試照搬並通過
   (另補 8 條)。
-- XML 用 `ooxml/src/xml.rs` 逐行移植 Go 1.22.12 `encoding/xml` 的 Decoder:Go 版開非嚴格模式與 `HTMLAutoClose`,
-  這兩個設定改變解出來的結構(`br` 這類名字一打開就關閉、錯配的結束標籤往外關),換解析器會得到另一種結構。
+- XML 用 `ooxml/src/xml.rs` 逐行移植 Go 1.22.12 `encoding/xml` 的 Decoder:兩邊都開非嚴格模式與 HTML 實體,錯配的
+  結束標籤往外關,換解析器會得到另一種結構。不開 `HTMLAutoClose`:那張表只看 local name,會把 pptx 的
+  `<a:br>…</a:br>` 一打開就關掉,換行之後的內容全部遺失(`go-suspects.md` D1)。
 - 單位元組字碼頁用 x/text v0.18.0 逐位元組產生的表;Big5、GBK、Shift_JIS、EUC-KR 用 encoding_rs,與 `textenc` 相同。
   雙位元組空間逐對比過,沒有任何一對位元組被兩邊解成不同的字,差異只有「Rust 多解出字」(GBK 與 Shift_JIS 的
   自訂區)與「一段不合法位元組換成幾個 U+FFFD」兩類。
 - `tools/office-parity.sh`(約 4 分 20 秒):430 份文件(`~/cht` 的真實文件、testdata、產生的邊角案例、LibreOffice
-  轉出的檔案)427 份與 Go 逐位元組相同;另對 2,096 個 XML 組件、166 萬個 token 逐 token 對照。不同的 3 份:
-  Go 在 RTF `\bin` 長度溢位時當掉、上面的 CJK 取捨、xlsx 的 NaN 套日期格式(Go 的結果依平台而異,Rust 顯示 `NaN`)。
+  轉出的檔案)428 份與 Go 逐位元組相同;另對 2,096 個 XML 組件、166 萬個 token 逐 token 對照,不同的幾列都是壞掉
+  的 ZIP 成員,兩邊在同一處失敗,只差 zip/flate 的錯誤訊息。不同的 2 份:上面的 CJK 取捨、xlsx 的 NaN 套日期格式
+  (Go 的結果依平台而異,Rust 顯示 `NaN`)。
 - 接進 app(`docview.rs`):`tools/rust-parity.sh` 加 7 個場景(docx、doc、rtf、pptx、xlsx),與 Go 版逐像素相同。
 
 ### 3f:PDF(2026-11-10)

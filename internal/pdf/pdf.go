@@ -186,7 +186,12 @@ type Bookmark struct {
 //
 // 這是 PDF 自己帶的目錄,比「一排頁碼」有用得多 —— 一份三百頁的
 // 技術文件,書籤就是它的章節結構。
-func (d *Doc) Outline() []Bookmark {
+//
+// 損壞的檔案讓 pdfcpu 在走訪途中 panic 時,交出已經讀到的那幾筆:
+// 書籤只是導覽用的附加資訊,不該讓整份文件打不開。
+func (d *Doc) Outline() (out []Bookmark) {
+	// walkOutline 透過 &out 逐筆加進來,recover 之後 out 就是讀到的部分。
+	defer func() { _ = recover() }()
 	x := d.ctx.XRefTable
 	cat, err := x.Catalog()
 	if err != nil {
@@ -197,7 +202,6 @@ func (d *Doc) Outline() []Bookmark {
 		return nil
 	}
 	d.buildPageRefs()
-	var out []Bookmark
 	d.walkOutline(deref(x, root["First"]), 0, &out)
 	return out
 }
@@ -241,13 +245,11 @@ func (d *Doc) destPage(node types.Dict) int {
 	case types.Array:
 		return d.pageOfDest(v)
 	case types.Name:
-		return d.namedDest(v.Value())
-	case types.StringLiteral:
-		s, _ := types.StringLiteralToString(v)
-		return d.namedDest(s)
-	case types.HexLiteral:
-		s, _ := types.HexLiteralToString(v)
-		return d.namedDest(s)
+		return d.namedDest(v.Value(), true)
+	case types.StringLiteral, types.HexLiteral:
+		if b, ok := stringBytes(v); ok {
+			return d.namedDest(string(b), false)
+		}
 	}
 	return 0
 }
@@ -266,13 +268,110 @@ func (d *Doc) pageOfDest(arr types.Array) int {
 	return 0
 }
 
-func (d *Doc) namedDest(name string) int {
+// maxNameTreeDepth 是名稱樹最多往下走幾層,擋住損壞檔案裡的迴圈。
+const maxNameTreeDepth = 32
+
+// namedDest 查具名目的地。名稱(PDF 1.1 的寫法)查目錄的 /Dests 字典,
+// 字串查 /Names 底下的 /Dests 名稱樹;查不到時兩邊都再試一次(有些
+// 產生器混著寫)。查到的值是陣列,或是帶 /D 的字典。
+//
+// [雷] 不用 pdfcpu 的 DereferenceDestArray:它查的是 XRefTable.Names,
+// 那張表只有在另外建過名稱樹之後才有內容。只讀檔案的時候它是 nil,
+// 一查就 nil pointer panic,整個程式跟著結束。所以自己走目錄。
+func (d *Doc) namedDest(key string, isName bool) int {
 	x := d.ctx.XRefTable
-	o, err := x.DereferenceDestArray(name)
-	if err != nil || o == nil {
+	cat, err := x.Catalog()
+	if err != nil {
 		return 0
 	}
-	return d.pageOfDest(o)
+	fromDict := func() types.Object {
+		if m, ok := deref(x, cat["Dests"]).(types.Dict); ok {
+			return deref(x, m[key])
+		}
+		return nil
+	}
+	fromTree := func() types.Object {
+		names, ok := deref(x, cat["Names"]).(types.Dict)
+		if !ok {
+			return nil
+		}
+		t, ok := deref(x, names["Dests"]).(types.Dict)
+		if !ok {
+			return nil
+		}
+		return d.nameTreeLookup(t, key, 0)
+	}
+	var found types.Object
+	if isName {
+		if found = fromDict(); found == nil {
+			found = fromTree()
+		}
+	} else if found = fromTree(); found == nil {
+		found = fromDict()
+	}
+	switch v := found.(type) {
+	case types.Array:
+		return d.pageOfDest(v)
+	case types.Dict:
+		if a, ok := deref(x, v["D"]).(types.Array); ok {
+			return d.pageOfDest(a)
+		}
+	}
+	return 0
+}
+
+// nameTreeLookup 在名稱樹裡找一個鍵。葉節點的 /Names 是
+// [鍵 值 鍵 值 ...],中間節點的 /Kids 靠 /Limits 決定要不要往下走。
+func (d *Doc) nameTreeLookup(node types.Dict, key string, depth int) types.Object {
+	if depth > maxNameTreeDepth {
+		return nil
+	}
+	x := d.ctx.XRefTable
+	if names, ok := deref(x, node["Names"]).(types.Array); ok {
+		for i := 0; i < len(names); i += 2 {
+			if i+1 >= len(names) {
+				return nil // 鍵沒有配到值:這個節點壞了
+			}
+			if k, ok := stringBytes(deref(x, names[i])); ok && string(k) == key {
+				return deref(x, names[i+1])
+			}
+		}
+	}
+	kids, ok := deref(x, node["Kids"]).(types.Array)
+	if !ok {
+		return nil
+	}
+	for _, k := range kids {
+		kid, ok := deref(x, k).(types.Dict)
+		if !ok {
+			continue
+		}
+		if lim, ok := deref(x, kid["Limits"]).(types.Array); ok && len(lim) >= 2 {
+			lo, ok1 := stringBytes(deref(x, lim[0]))
+			hi, ok2 := stringBytes(deref(x, lim[1]))
+			if ok1 && ok2 && (key < string(lo) || key > string(hi)) {
+				continue
+			}
+		}
+		if v := d.nameTreeLookup(kid, key, depth+1); v != nil {
+			return v
+		}
+	}
+	return nil
+}
+
+// stringBytes 取 PDF 字串物件的原始位元組(跳脫序列與 hex 已還原,
+// 不做文字編碼的轉換)。名稱樹的鍵是位元組比對,不是文字比對。
+func stringBytes(o types.Object) ([]byte, bool) {
+	switch v := o.(type) {
+	case types.StringLiteral:
+		b, err := types.Unescape(v.Value())
+		return b, err == nil
+	case types.HexLiteral:
+		b, err := v.Bytes()
+		return b, err == nil
+	}
+	return nil, false
 }
 
 // buildPageRefs 建「物件編號 → 頁碼」的對照。

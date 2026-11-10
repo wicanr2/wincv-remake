@@ -144,3 +144,53 @@ fn list_without_format_still_lists() {
     }
     assert_eq!(n, 2, "認出 {n} 段清單,預期 2");
 }
+
+/// Prc 的 cb 是有號數。cb 小於等於 -3 時位置不會往前走,要當成 piece table 截斷。
+/// 對應 Go 版 `TestCLXNegativePrcSize`。
+#[test]
+fn clx_negative_prc_size() {
+    for clx in [&[1u8, 0xFD, 0xFF][..], &[1, 0xFC, 0xFF], &[1, 0x00, 0x80, 2, 0]] {
+        assert!(parse_clx(clx).is_err(), "{clx:02X?}:應該回報截斷");
+    }
+}
+
+/// 組一份只有樣式表的 FIB 與 table 串流。
+fn style_table(stds: &[u8], cstd: u16) -> (Vec<u8>, Vec<u8>) {
+    let mut st = vec![4, 0, cstd as u8, (cstd >> 8) as u8, 0, 0];
+    st.extend_from_slice(stds);
+    let mut wd = vec![0u8; 0x9A + 2 * 8];
+    let off = 0x9A + FIB_STSHF * 8;
+    wd[off + 4..off + 8].copy_from_slice(&(st.len() as u32).to_le_bytes());
+    (wd, st)
+}
+
+fn empty_doc() -> Doc {
+    Doc {
+        chars: Vec::new(),
+        fcs: Vec::new(),
+        ccp_text: 0,
+        ccp_ftn: 0,
+        paras: Vec::new(),
+        runs: Vec::new(),
+        stis: Vec::new(),
+        lists: HashMap::new(),
+        lfo: Vec::new(),
+    }
+}
+
+/// cbStd 小於 2 的 STD 連樣式識別碼都放不下,不論在表中間還是表尾,
+/// 都當成不知道(-1),也不讀到下一筆的長度欄位或表外。
+/// 對應 Go 版 `TestStyleTooShortForSti`。
+#[test]
+fn style_too_short_for_sti() {
+    let cases: [(&str, &[u8], u16, &[i64]); 2] = [
+        ("表尾", &[2, 0, 1, 0, 1, 0, 5], 2, &[1, -1]),
+        ("表中間", &[2, 0, 1, 0, 1, 0, 5, 2, 0, 2, 0], 3, &[1, -1, 2]),
+    ];
+    for (name, stds, cstd, want) in cases {
+        let (wd, tbl) = style_table(stds, cstd);
+        let mut d = empty_doc();
+        d.read_styles(&wd, &tbl);
+        assert_eq!(d.stis, want, "{name}");
+    }
+}

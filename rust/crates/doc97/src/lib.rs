@@ -227,8 +227,8 @@ fn parse_clx(clx: &[u8]) -> Result<Vec<Piece>, String> {
                     return Err(tr!("piece table 被截斷"));
                 }
                 let cb = le16(clx, i as usize + 1) as i16 as i64;
-                // Go 版在 cb <= -3 時會原地打轉或讀到負的索引(見報告);
-                // 這裡當成截斷,不跟著卡住。
+                // cb 是有號數。3+cb 不是正數時位置不會往前走(-3 原地打轉,
+                // 更小的往回走到負的索引),只可能是壞檔。
                 if 3 + cb <= 0 {
                     return Err(tr!("piece table 被截斷"));
                 }

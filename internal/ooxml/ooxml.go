@@ -168,11 +168,17 @@ func (p *Package) Decoder(name string) (*xml.Decoder, error) {
 // NewDecoder 建一個容忍度高一點的 XML 解碼器。
 //
 // Office 產生的檔案本身是合規的,但經過各種工具轉手之後不一定 ——
-// 而一個沒宣告的實體參照不該讓整份文件打不開。
+// 而一個沒宣告的實體參照不該讓整份文件打不開。非嚴格模式收下這類
+// 實體與錯配的結束標記。
+//
+// [雷] 不設 AutoClose。HTMLAutoClose 是給 HTML 的空元素用的,只看
+// local name、不分命名空間,而 OOXML 裡也有叫 br、col 的元素:
+// PowerPoint 的換行寫成 <a:br><a:rPr/></a:br>,br 一打開就被關掉,
+// 後面的 </a:br> 對不上,非嚴格模式把它改成關閉外層並一路往上關,
+// 換行之後的內容全部遺失。OOXML 是 XML,沒有省略結束標記的寫法。
 func NewDecoder(b []byte) *xml.Decoder {
 	d := xml.NewDecoder(bytes.NewReader(b))
 	d.Strict = false
-	d.AutoClose = xml.HTMLAutoClose
 	d.Entity = xml.HTMLEntity
 	return d
 }

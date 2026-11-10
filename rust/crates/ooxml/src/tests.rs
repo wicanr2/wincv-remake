@@ -76,16 +76,23 @@ fn tokens(src: &str) -> Vec<String> {
     out
 }
 
-/// HTMLAutoClose 把 local name 叫 br 的元素一打開就關掉。底下有子元素時,
-/// 後面那個 `</a:br>` 對不上,非嚴格模式把它改成關閉外層,並一路往上關。
-/// 這是 Go 版實際的行為(移植時照抄,見 xml 模組的說明)。
+/// `new_decoder` 不自動關閉 br:PowerPoint 的 `<a:br>` 底下帶著 `<a:rPr/>`,
+/// 結構要照檔案原樣解出來,`</a:br>` 之後的內容留在原本的段落裡。
 #[test]
-fn auto_close_cascade_like_go() {
+fn br_with_children_keeps_structure() {
     let got = tokens(r#"<r xmlns:a="u"><a:p><a:br><a:rPr/></a:br><a:t>x</a:t></a:p></r>"#);
     let want = [
-        "<:r>", "<u:p>", "<u:br>", "</u:br>", "<u:rPr>", "</u:rPr>", "</a:p>", "</:r>",
-        "ERR XML syntax error on line 1: unexpected end element </br>",
+        "<:r>", "<u:p>", "<u:br>", "<u:rPr>", "</u:rPr>", "</u:br>", "<u:t>", "\"x\"", "</u:t>", "</u:p>", "</:r>",
+        "ERR EOF",
     ];
+    assert_eq!(got, want);
+}
+
+/// 錯配的結束標記在非嚴格模式下改成關閉堆疊頂端,一路往上關(與 Go 相同)。
+#[test]
+fn mismatched_end_closes_outward() {
+    let got = tokens(r#"<r><p><b>x</p></r>"#);
+    let want = ["<:r>", "<:p>", "<:b>", "\"x\"", "</:b>", "</:p>", "</:r>", "ERR EOF"];
     assert_eq!(got, want);
 }
 

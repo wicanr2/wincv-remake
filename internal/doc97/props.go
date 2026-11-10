@@ -61,7 +61,9 @@ func (d *Doc) readStyles(wd, tbl []byte) {
 	for i := 0; i < cstd && p+2 <= len(st); i++ {
 		cbStd := int(binary.LittleEndian.Uint16(st[p:]))
 		p += 2
-		if cbStd == 0 || p+cbStd > len(st) {
+		// cbStd 小於 2 的 STD 連識別碼都放不下:不論在表中間還是表尾,
+		// 都當成不知道,不去讀下一筆的長度欄位或表外。
+		if cbStd < 2 || p+cbStd > len(st) {
 			p += cbStd
 			continue
 		}

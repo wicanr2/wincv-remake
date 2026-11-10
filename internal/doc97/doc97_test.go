@@ -1,8 +1,11 @@
 package doc97
 
 import (
+	"encoding/binary"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wicanr2/wincv-remake/internal/markdown"
 )
@@ -167,5 +170,68 @@ func TestListWithoutFormatStillLists(t *testing.T) {
 	}
 	if n != 2 {
 		t.Errorf("認出 %d 段清單,預期 2", n)
+	}
+}
+
+// Prc 的 cb 是有號數。cb 等於 -3 時位置原地不動,小於 -3 時往回走到負的
+// 索引。兩種都要當成 piece table 截斷,不能卡住或當掉。
+func TestCLXNegativePrcSize(t *testing.T) {
+	for _, clx := range [][]byte{
+		{1, 0xFD, 0xFF},       // cb = -3
+		{1, 0xFC, 0xFF},       // cb = -4
+		{1, 0x00, 0x80, 2, 0}, // cb = -32768
+	} {
+		done := make(chan error, 1)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					done <- fmt.Errorf("panic: %v", r)
+				}
+			}()
+			_, err := parseCLX(clx)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err == nil || strings.HasPrefix(err.Error(), "panic") {
+				t.Errorf("% X:應該回報截斷,拿到 %v", clx, err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("% X:parseCLX 沒有結束", clx)
+		}
+	}
+}
+
+// styleTable 組一份只有樣式表的 FIB 與 table 串流。
+func styleTable(stds []byte, cstd int) (wd, tbl []byte) {
+	st := []byte{4, 0, byte(cstd), byte(cstd >> 8), 0, 0}
+	st = append(st, stds...)
+	wd = make([]byte, 0x9A+2*8)
+	binary.LittleEndian.PutUint32(wd[0x9A+fibStshf*8:], 0)
+	binary.LittleEndian.PutUint32(wd[0x9A+fibStshf*8+4:], uint32(len(st)))
+	return wd, st
+}
+
+// cbStd 小於 2 的 STD 連樣式識別碼都放不下,不論在表中間還是表尾,
+// 都當成不知道(-1),也不讀到下一筆的長度欄位或表外。
+func TestStyleTooShortForSti(t *testing.T) {
+	cases := []struct {
+		name string
+		stds []byte
+		cstd int
+		want []int
+	}{
+		{"表尾", []byte{2, 0, 1, 0, 1, 0, 5}, 2, []int{1, -1}},
+		{"表中間", []byte{2, 0, 1, 0, 1, 0, 5, 2, 0, 2, 0}, 3, []int{1, -1, 2}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			wd, tbl := styleTable(c.stds, c.cstd)
+			var d Doc
+			d.readStyles(wd, tbl)
+			if fmt.Sprint(d.stis) != fmt.Sprint(c.want) {
+				t.Errorf("stis = %v,要 %v", d.stis, c.want)
+			}
+		})
 	}
 }

@@ -150,3 +150,11 @@ fn heading_from_stylesheet() {
 fn not_rtf() {
     assert!(Doc::parse(b"hello").is_err(), "不是 RTF 應該要失敗");
 }
+
+/// `\bin` 的長度大到超過 int 的範圍時,要當成沒有資料,後面的字照常解。
+/// 對應 Go 版 `TestBinLengthOverflow`。
+#[test]
+fn bin_length_overflow() {
+    let got = text(&parse(r"{\rtf1\ansi before\par {\bin99999999999999999999 x}after\par}").blocks());
+    assert!(got.contains("before") && got.contains("after"), "內容不對:{got:?}");
+}

@@ -196,8 +196,8 @@ impl Parser<'_> {
 
     /// 跳過 \binN 後面那一段原始位元組。
     fn binary(&mut self, n: i64) {
-        // Go 版的 p.i+n 在 n 接近 int 上限時會溢位成負數,之後切片 panic(見報告);
-        // 這裡用不會溢位的比法。
+        // 長度大到超過 int 時解出來是 i64 上限,i+n 會溢位;
+        // 用剩下的長度比,不做加法。
         if n <= 0 || n as u64 > (self.src.len() - self.i) as u64 {
             return;
         }

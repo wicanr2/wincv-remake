@@ -209,3 +209,13 @@ func TestNotRTF(t *testing.T) {
 		t.Fatal("不是 RTF 應該要失敗")
 	}
 }
+
+// \bin 的長度大到超過 int 的範圍時,Atoi 給 MaxInt,p.i+n 溢位成負數。
+// 這種長度一定超出檔案,要當成沒有資料,後面的字照常解。
+func TestBinLengthOverflow(t *testing.T) {
+	d := parse(t, `{\rtf1\ansi before\par {\bin99999999999999999999 x}after\par}`)
+	got := text(d.Blocks())
+	if !strings.Contains(got, "before") || !strings.Contains(got, "after") {
+		t.Errorf("內容不對:%q", got)
+	}
+}
