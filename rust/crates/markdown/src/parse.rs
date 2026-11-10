@@ -48,26 +48,9 @@ pub fn parse(src: &str) -> Vec<Block> {
         // ATX 標題
         let n = heading_level(trimmed);
         if n > 0 {
-            let text = trimmed.trim_start_matches('#').trim();
-            let text = text.trim_end_matches(['#', ' ']);
-            out.push(Block { kind: Kind::Heading, level: n, spans: inline(text), ..Default::default() });
+            out.push(Block { kind: Kind::Heading, level: n, spans: inline(atx_text(&trimmed[n as usize..])), ..Default::default() });
             i += 1;
             continue;
-        }
-
-        // setext 標題:下一行整行是 === 或 ---
-        //
-        // 這一段要放在水平線之後、段落之前:`---` 單獨出現(前面是空行)
-        // 是水平線,接在一行文字後面才是二級標題。判斷的時機決定了語意:
-        // 這裡是在處理**那行文字**時往下看,所以走到這裡就表示前面有文字。
-        if i + 1 < lines.len() {
-            let nx = lines[i + 1].trim();
-            if nx.len() >= 2 && (all_of(nx, b'=') || all_of(nx, b'-')) {
-                let lvl = if nx.as_bytes()[0] == b'-' { 2 } else { 1 };
-                out.push(Block { kind: Kind::Heading, level: lvl, spans: inline(trimmed), ..Default::default() });
-                i += 2;
-                continue;
-            }
         }
 
         // 表格:這一行有 |,而且下一行是分隔列
@@ -113,6 +96,25 @@ pub fn parse(src: &str) -> Vec<Block> {
             });
             i += 1;
             continue;
+        }
+
+        // setext 標題:下一行整行是 === 或 ---
+        //
+        // 這一段要放在水平線之後、段落之前:`---` 單獨出現(前面是空行)
+        // 是水平線,接在一行文字後面才是二級標題。判斷的時機決定了語意:
+        // 這裡是在處理**那行文字**時往下看,所以走到這裡就表示前面有文字。
+        //
+        // 也要放在引言與清單之後:底線只能接在段落文字後面。放在前面的話
+        // 「- 項目」下一行接 `===` 會被當成一級標題,`1) 項目` 接 `---`
+        // 會被當成二級標題,而那其實是清單後面接著一條水平線。
+        if i + 1 < lines.len() {
+            let nx = lines[i + 1].trim();
+            if nx.len() >= 2 && (all_of(nx, b'=') || all_of(nx, b'-')) {
+                let lvl = if nx.as_bytes()[0] == b'-' { 2 } else { 1 };
+                out.push(Block { kind: Kind::Heading, level: lvl, spans: inline(trimmed), ..Default::default() });
+                i += 2;
+                continue;
+            }
         }
 
         // 只有一張圖片的段落:獨立成一個 Image 區塊,才能整塊配版面。
@@ -198,17 +200,14 @@ fn list_item(ln: &str) -> Option<ListItem<'_>> {
     if b.len() >= 2 && matches!(b[0], b'-' | b'*' | b'+') && b[1] == b' ' {
         return Some(ListItem { rest: s[2..].trim(), ordered: false, num: 0 });
     }
-    // 有序:數字 + . 或 )
+    // 有序:數字 + . 或 )。數字最多 9 位(CommonMark 的上限):再長的序號沒有人會寫,
+    // 而且會讓序號溢位,畫出一個與原文無關的數字。
     let mut n = 0;
     while n < b.len() && b[n].is_ascii_digit() {
         n += 1;
     }
-    if n > 0 && n + 1 < b.len() && (b[n] == b'.' || b[n] == b')') && b[n + 1] == b' ' {
-        // Go 的 int 溢位會繞回,這裡照做,不讓超長的數字 panic。
-        let mut num: i64 = 0;
-        for &c in &b[..n] {
-            num = num.wrapping_mul(10).wrapping_add(i64::from(c - b'0'));
-        }
+    if n > 0 && n <= 9 && n + 1 < b.len() && (b[n] == b'.' || b[n] == b')') && b[n + 1] == b' ' {
+        let num = b[..n].iter().fold(0i64, |a, &c| a * 10 + i64::from(c - b'0'));
         return Some(ListItem { rest: s[n + 2..].trim(), ordered: true, num });
     }
     None
@@ -241,7 +240,24 @@ fn table_cells(ln: &str) -> Vec<String> {
     let s = ln.trim();
     let s = s.strip_prefix('|').unwrap_or(s);
     let s = s.strip_suffix('|').unwrap_or(s);
-    s.split('|').map(|c| c.trim().to_string()).collect()
+    // tab 在格子裡展開成空白:畫面上一個 tab 只佔一格,寬度會算錯。
+    s.split('|').map(|c| crate::wrap::expand_tabs(c.trim())).collect()
+}
+
+/// ATX 標題的內文,去掉結尾的 # 串。
+///
+/// 照 CommonMark:結尾的 # 串前面要是空白(或整段都是 #)才算收尾記號。一律把結尾的 #
+/// 剪掉的話,「# 標題 C#」會變成「標題 C」。
+fn atx_text(s: &str) -> &str {
+    let s = s.trim();
+    let t = s.trim_end_matches('#');
+    if t.is_empty() {
+        return "";
+    }
+    if t.len() < s.len() && (t.ends_with(' ') || t.ends_with('\t')) {
+        return t.trim();
+    }
+    s
 }
 
 fn table_aligns(ln: &str) -> Vec<u8> {

@@ -281,3 +281,135 @@ func TestHeadingRule(t *testing.T) {
 		t.Errorf("標題底下沒有線:\n%s", textOf(ls))
 	}
 }
+
+// 折到下一列的詞不能帶著前導空白:那會讓續行多一格縮排。
+func TestWrappedLinesDoNotStartWithSpace(t *testing.T) {
+	ls, _ := layout(t, "alpha beta gamma delta epsilon zeta eta theta", 12)
+	for i, l := range strings.Split(strings.TrimRight(textOf(ls), "\n"), "\n") {
+		if strings.HasPrefix(l, " ") {
+			t.Errorf("第 %d 列以空白開頭: %q", i, l)
+		}
+	}
+}
+
+// 段落後面接清單要空一行;清單項目之間、Pre 後面接清單(gopher 選單)不空。
+func TestBlankLineBeforeList(t *testing.T) {
+	ls, _ := layout(t, "段落\n- 一\n- 二\n", 40)
+	if got := textOf(ls); got != "段落\n\n• 一\n• 二\n" {
+		t.Errorf("清單前後的空行不對: %q", got)
+	}
+	blocks := []Block{
+		{Kind: Pre, Lines: []string{"說明"}},
+		{Kind: List, Marker: "[目錄] ", Spans: []Span{{Text: "項目"}}},
+		{Kind: List, Marker: "[文字] ", Spans: []Span{{Text: "另一項"}}},
+	}
+	ls, _ = Layout(blocks, 40, 8, 16, nil, DefaultTheme())
+	if got := textOf(ls); got != "說明\n[目錄] 項目\n[文字] 另一項\n" {
+		t.Errorf("gopher 選單被空行拆開了: %q", got)
+	}
+}
+
+// 清單記號含全形字時,續行縮排與折行寬度要以顯示格數算。
+func TestListMarkerWidthIsDisplayWidth(t *testing.T) {
+	blocks := []Block{{Kind: List, Marker: "[目錄] ", Spans: []Span{{Text: "aaaa bbbb cccc dddd"}}}}
+	ls, _ := Layout(blocks, 16, 8, 16, nil, DefaultTheme())
+	lines := strings.Split(strings.TrimRight(textOf(ls), "\n"), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("沒有折行: %q", lines)
+	}
+	for i, l := range lines {
+		if w := width(l); w > 16 {
+			t.Errorf("第 %d 列寬 %d,超過 16: %q", i, w, l)
+		}
+	}
+	if !strings.HasPrefix(lines[1], strings.Repeat(" ", width("[目錄] "))) {
+		t.Errorf("續行縮排沒有對齊記號: %q", lines[1])
+	}
+}
+
+// Pre 與 Code 的裁切以顯示格數算,全形字不能讓一列超出畫面。
+func TestPreAndCodeClipByDisplayWidth(t *testing.T) {
+	long := strings.Repeat("中", 30)
+	blocks := []Block{{Kind: Pre, Lines: []string{long}}, {Kind: Code, Lines: []string{long}}}
+	ls, _ := Layout(blocks, 20, 8, 16, nil, DefaultTheme())
+	for i, l := range strings.Split(strings.TrimRight(textOf(ls), "\n"), "\n") {
+		if w := width(l); w > 20 {
+			t.Errorf("第 %d 列寬 %d,超過 20", i, w)
+		}
+	}
+}
+
+// tab 的停點以顯示格數算。
+func TestExpandTabsUsesDisplayWidth(t *testing.T) {
+	if got := expandTabs("中\tx"); got != "中  x" {
+		t.Errorf("expandTabs(中\\tx) = %q,想要「中」後面補到第 4 格", got)
+	}
+	if got := expandTabs("ab\tc"); got != "ab  c" {
+		t.Errorf("expandTabs(ab\\tc) = %q", got)
+	}
+}
+
+// 全是空格子的表格在很窄的畫面上不能除以零。
+func TestEmptyTableOnNarrowScreen(t *testing.T) {
+	blocks := []Block{{Kind: Table, Rows: [][]string{{"", "", ""}, {"", "", ""}}}}
+	Layout(blocks, 8, 8, 16, nil, DefaultTheme()) // 不能 panic
+}
+
+// 底線只能接在段落文字後面:清單或引言後面的 === / --- 不是標題。
+func TestSetextOnlyAfterParagraph(t *testing.T) {
+	for _, src := range []string{"- 項目\n===\n", "3) 括號序號\n---\n", "> 引言\n===\n"} {
+		for _, b := range Parse(src) {
+			if b.Kind == Heading {
+				t.Errorf("%q 被當成標題", src)
+			}
+		}
+	}
+	if bs := Parse("文字\n===\n"); len(bs) != 1 || bs[0].Kind != Heading {
+		t.Errorf("段落後面的 === 應該是標題: %+v", bs)
+	}
+}
+
+// ATX 標題結尾的 # 串前面要有空白才是收尾記號。
+func TestATXClosingSequence(t *testing.T) {
+	for src, want := range map[string]string{
+		"# 標題 C#":    "標題 C#",
+		"# 標題 C# ##": "標題 C#",
+		"## 標題 ##":   "標題",
+		"# ###":      "",
+		"# a#b":      "a#b",
+	} {
+		bs := Parse(src)
+		if len(bs) != 1 || bs[0].Kind != Heading {
+			t.Errorf("%q 不是標題: %+v", src, bs)
+			continue
+		}
+		got := ""
+		for _, sp := range bs[0].Spans {
+			got += sp.Text
+		}
+		if got != want {
+			t.Errorf("%q 的標題文字 = %q,想要 %q", src, got, want)
+		}
+	}
+}
+
+// 表格格子裡的 tab 展開成空白。
+func TestTableCellTabExpanded(t *testing.T) {
+	bs := Parse("| a\tb | c |\n|---|---|\n| d | e |\n")
+	if len(bs) != 1 || bs[0].Kind != Table {
+		t.Fatalf("不是表格: %+v", bs)
+	}
+	if strings.Contains(bs[0].Rows[0][0], "\t") {
+		t.Errorf("格子裡還有 tab: %q", bs[0].Rows[0][0])
+	}
+}
+
+// 有序清單的序號最多 9 位;再長就不是清單(不然序號會溢位成別的數字)。
+func TestOrderedListNumberLimit(t *testing.T) {
+	if bs := Parse("123456789. 項目\n"); len(bs) != 1 || bs[0].Kind != List || bs[0].Num != 123456789 {
+		t.Errorf("9 位序號應該是清單: %+v", bs)
+	}
+	if bs := Parse("99999999999999999999. 項目\n"); len(bs) != 1 || bs[0].Kind != Para {
+		t.Errorf("20 位序號不該是清單: %+v", bs)
+	}
+}

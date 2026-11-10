@@ -52,30 +52,22 @@ pub(crate) fn pad_to(s: &str, w: i32, align: u8) -> String {
 
 /// 把 tab 換成空白。
 ///
-/// 定位點照 Go 版以**位元組長度**算(`4 - b.Len()%4`),不是顯示格數:
-/// tab 前面有中文時,停點會跟畫面上的欄位對不齊。要與 Go 逐位元相同,照抄。
+/// 把 tab 展開到下一個 4 格停點。停點以**顯示格數**算:以位元組算的話,tab 前面有中文時
+/// 停點就與畫面上的欄位對不齊。
 pub(crate) fn expand_tabs(s: &str) -> String {
     let mut b = String::new();
+    let mut col = 0;
     for r in s.chars() {
         if r == '\t' {
-            let n = 4 - b.len() % 4;
+            let n = 4 - col % 4;
             b.push_str(&" ".repeat(n));
-        } else {
-            b.push(r);
+            col += n;
+            continue;
         }
+        b.push(r);
+        col += if wincv_cell::is_wide(r) { 2 } else { 1 };
     }
     b
-}
-
-/// Go 版的 itoa:負數回空字串(迴圈一次都不跑)。
-pub(crate) fn itoa(n: i64) -> String {
-    if n == 0 {
-        return "0".to_string();
-    }
-    if n < 0 {
-        return String::new();
-    }
-    n.to_string()
 }
 
 /// 把帶樣式的片段折成固定寬度的列。
@@ -102,6 +94,9 @@ pub(crate) fn wrap_spans(spans: &[Span], cols: i32) -> Vec<Vec<Span>> {
     // (CJK 是逐字切的折行單位),一段千字的中文會產生上千個片段,
     // 後面每一層都得為此付代價。
     fn add(cur: &mut Vec<Span>, used: &mut i32, text: &str, st: Style, href: &str) {
+        // 每一列開頭的空白丟掉。空白黏在下一個詞前面(見 split_words),那個詞被折到
+        // 下一列時,空白也跟著過去,變成多一格縮排。
+        let text = if *used == 0 { text.trim_start_matches(' ') } else { text };
         if text.is_empty() {
             return;
         }

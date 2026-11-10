@@ -205,3 +205,114 @@ fn heading_rule() {
     }
     assert!(found, "標題底下沒有線:\n{}", text_of(&ls));
 }
+
+fn lines_of(ls: &[Line]) -> Vec<String> {
+    text_of(ls).trim_end_matches('\n').split('\n').map(String::from).collect()
+}
+
+fn span(t: &str) -> Span {
+    Span { text: t.into(), ..Default::default() }
+}
+
+/// 折到下一列的詞不能帶著前導空白:那會讓續行多一格縮排。
+#[test]
+fn wrapped_lines_do_not_start_with_space() {
+    let (ls, _) = lay("alpha beta gamma delta epsilon zeta eta theta", 12);
+    for (i, l) in lines_of(&ls).iter().enumerate() {
+        assert!(!l.starts_with(' '), "第 {i} 列以空白開頭: {l:?}");
+    }
+}
+
+/// 段落後面接清單要空一行;清單項目之間、Pre 後面接清單(gopher 選單)不空。
+#[test]
+fn blank_line_before_list() {
+    let (ls, _) = lay("段落\n- 一\n- 二\n", 40);
+    assert_eq!(text_of(&ls), "段落\n\n• 一\n• 二\n");
+    let blocks = vec![
+        Block { kind: Kind::Pre, lines: vec!["說明".into()], ..Default::default() },
+        Block { kind: Kind::List, marker: "[目錄] ".into(), spans: vec![span("項目")], ..Default::default() },
+        Block { kind: Kind::List, marker: "[文字] ".into(), spans: vec![span("另一項")], ..Default::default() },
+    ];
+    let (ls, _) = layout(&blocks, 40, 8, 16, None, default_theme());
+    assert_eq!(text_of(&ls), "說明\n[目錄] 項目\n[文字] 另一項\n", "gopher 選單被空行拆開了");
+}
+
+/// 清單記號含全形字時,續行縮排與折行寬度要以顯示格數算。
+#[test]
+fn list_marker_width_is_display_width() {
+    let blocks = vec![Block { kind: Kind::List, marker: "[目錄] ".into(), spans: vec![span("aaaa bbbb cccc dddd")], ..Default::default() }];
+    let (ls, _) = layout(&blocks, 16, 8, 16, None, default_theme());
+    let lines = lines_of(&ls);
+    assert!(lines.len() >= 2, "沒有折行: {lines:?}");
+    for (i, l) in lines.iter().enumerate() {
+        assert!(width(l) <= 16, "第 {i} 列寬 {},超過 16: {l:?}", width(l));
+    }
+    assert!(lines[1].starts_with(&" ".repeat(width("[目錄] ") as usize)), "續行縮排沒有對齊記號: {:?}", lines[1]);
+}
+
+/// Pre 與 Code 的裁切以顯示格數算,全形字不能讓一列超出畫面。
+#[test]
+fn pre_and_code_clip_by_display_width() {
+    let long = "中".repeat(30);
+    let blocks = vec![
+        Block { kind: Kind::Pre, lines: vec![long.clone()], ..Default::default() },
+        Block { kind: Kind::Code, lines: vec![long], ..Default::default() },
+    ];
+    let (ls, _) = layout(&blocks, 20, 8, 16, None, default_theme());
+    for (i, l) in lines_of(&ls).iter().enumerate() {
+        assert!(width(l) <= 20, "第 {i} 列寬 {},超過 20", width(l));
+    }
+}
+
+/// tab 的停點以顯示格數算。
+#[test]
+fn expand_tabs_uses_display_width() {
+    assert_eq!(crate::wrap::expand_tabs("中\tx"), "中  x");
+    assert_eq!(crate::wrap::expand_tabs("ab\tc"), "ab  c");
+}
+
+/// 全是空格子的表格在很窄的畫面上不能除以零。
+#[test]
+fn empty_table_on_narrow_screen() {
+    let row = vec![String::new(), String::new(), String::new()];
+    let blocks = vec![Block { kind: Kind::Table, rows: vec![row.clone(), row], ..Default::default() }];
+    layout(&blocks, 8, 8, 16, None, default_theme()); // 不能 panic
+}
+
+/// 底線只能接在段落文字後面:清單或引言後面的 === / --- 不是標題。
+#[test]
+fn setext_only_after_paragraph() {
+    for src in ["- 項目\n===\n", "3) 括號序號\n---\n", "> 引言\n===\n"] {
+        assert!(parse(src).iter().all(|b| b.kind != Kind::Heading), "{src:?} 被當成標題");
+    }
+    let bs = parse("文字\n===\n");
+    assert!(bs.len() == 1 && bs[0].kind == Kind::Heading, "段落後面的 === 應該是標題");
+}
+
+/// ATX 標題結尾的 # 串前面要有空白才是收尾記號。
+#[test]
+fn atx_closing_sequence() {
+    for (src, want) in [("# 標題 C#", "標題 C#"), ("# 標題 C# ##", "標題 C#"), ("## 標題 ##", "標題"), ("# ###", ""), ("# a#b", "a#b")] {
+        let bs = parse(src);
+        assert!(bs.len() == 1 && bs[0].kind == Kind::Heading, "{src:?} 不是標題");
+        let got: String = bs[0].spans.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(got, want, "{src:?}");
+    }
+}
+
+/// 表格格子裡的 tab 展開成空白。
+#[test]
+fn table_cell_tab_expanded() {
+    let bs = parse("| a\tb | c |\n|---|---|\n| d | e |\n");
+    assert!(bs.len() == 1 && bs[0].kind == Kind::Table);
+    assert!(!bs[0].rows[0][0].contains('\t'), "格子裡還有 tab: {:?}", bs[0].rows[0][0]);
+}
+
+/// 有序清單的序號最多 9 位;再長就不是清單(不然序號會溢位成別的數字)。
+#[test]
+fn ordered_list_number_limit() {
+    let bs = parse("123456789. 項目\n");
+    assert!(bs.len() == 1 && bs[0].kind == Kind::List && bs[0].num == 123456789);
+    let bs = parse("99999999999999999999. 項目\n");
+    assert!(bs.len() == 1 && bs[0].kind == Kind::Para, "20 位序號不該是清單");
+}

@@ -106,28 +106,8 @@ func Parse(src string) []Block {
 
 		// ATX 標題
 		if n := headingLevel(trimmed); n > 0 {
-			text := strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
-			text = strings.TrimRight(text, "# ")
-			out = append(out, Block{Kind: Heading, Level: n, Spans: inline(text)})
+			out = append(out, Block{Kind: Heading, Level: n, Spans: inline(atxText(trimmed[n:]))})
 			continue
-		}
-
-		// setext 標題:下一行整行是 === 或 ---
-		//
-		// 這一段要放在水平線之後、段落之前:`---` 單獨出現(前面是空行)
-		// 是水平線,接在一行文字後面才是二級標題。判斷的時機決定了語意 ——
-		// 這裡是在處理**那行文字**時往下看,所以走到這裡就表示前面有文字。
-		if i+1 < len(lines) {
-			nx := strings.TrimSpace(lines[i+1])
-			if len(nx) >= 2 && (allOf(nx, '=') || allOf(nx, '-')) {
-				lvl := 1
-				if nx[0] == '-' {
-					lvl = 2
-				}
-				out = append(out, Block{Kind: Heading, Level: lvl, Spans: inline(trimmed)})
-				i++
-				continue
-			}
 		}
 
 		// 表格:這一行有 |,而且下一行是分隔列
@@ -169,6 +149,28 @@ func Parse(src string) []Block {
 				Ordered: ordered, Num: num, Spans: inline(rest),
 			})
 			continue
+		}
+
+		// setext 標題:下一行整行是 === 或 ---
+		//
+		// 這一段要放在水平線之後、段落之前:`---` 單獨出現(前面是空行)
+		// 是水平線,接在一行文字後面才是二級標題。判斷的時機決定了語意 ——
+		// 這裡是在處理**那行文字**時往下看,所以走到這裡就表示前面有文字。
+		//
+		// 也要放在引言與清單之後:底線只能接在段落文字後面。放在前面的話
+		// 「- 項目」下一行接 `===` 會被當成一級標題,`1) 項目` 接 `---`
+		// 會被當成二級標題,而那其實是清單後面接著一條水平線。
+		if i+1 < len(lines) {
+			nx := strings.TrimSpace(lines[i+1])
+			if len(nx) >= 2 && (allOf(nx, '=') || allOf(nx, '-')) {
+				lvl := 1
+				if nx[0] == '-' {
+					lvl = 2
+				}
+				out = append(out, Block{Kind: Heading, Level: lvl, Spans: inline(trimmed)})
+				i++
+				continue
+			}
 		}
 
 		// 只有一張圖片的段落:獨立成一個 Image 區塊,才能整塊配版面。
@@ -220,6 +222,22 @@ func headingLevel(s string) int {
 	return n
 }
 
+// atxText 取 ATX 標題的內文,去掉結尾的 # 串。
+//
+// 照 CommonMark:結尾的 # 串前面要是空白(或整段都是 #)才算收尾記號。
+// 一律把結尾的 # 剪掉的話,「# 標題 C#」會變成「標題 C」。
+func atxText(s string) string {
+	s = strings.TrimSpace(s)
+	t := strings.TrimRight(s, "#")
+	if t == "" {
+		return ""
+	}
+	if len(t) < len(s) && (strings.HasSuffix(t, " ") || strings.HasSuffix(t, "\t")) {
+		return strings.TrimSpace(t)
+	}
+	return s
+}
+
 func isRule(s string) bool {
 	s = strings.ReplaceAll(s, " ", "")
 	if len(s) < 3 {
@@ -255,12 +273,13 @@ func listItem(ln string) (string, string, bool, int, bool) {
 	if len(s) >= 2 && (s[0] == '-' || s[0] == '*' || s[0] == '+') && s[1] == ' ' {
 		return string(s[0]), strings.TrimSpace(s[2:]), false, 0, true
 	}
-	// 有序:數字 + . 或 )
+	// 有序:數字 + . 或 )。數字最多 9 位(CommonMark 的上限):再長的序號
+	// 沒有人會寫,而且會讓序號溢位,畫出一個與原文無關的數字。
 	n := 0
 	for n < len(s) && s[n] >= '0' && s[n] <= '9' {
 		n++
 	}
-	if n > 0 && n+1 < len(s) && (s[n] == '.' || s[n] == ')') && s[n+1] == ' ' {
+	if n > 0 && n <= 9 && n+1 < len(s) && (s[n] == '.' || s[n] == ')') && s[n+1] == ' ' {
 		num := 0
 		for _, c := range s[:n] {
 			num = num*10 + int(c-'0')
@@ -303,7 +322,8 @@ func tableCells(ln string) []string {
 	s = strings.TrimSuffix(s, "|")
 	out := strings.Split(s, "|")
 	for i := range out {
-		out[i] = strings.TrimSpace(out[i])
+		// tab 在格子裡展開成空白:畫面上一個 tab 只佔一格,寬度會算錯。
+		out[i] = expandTabs(strings.TrimSpace(out[i]))
 	}
 	return out
 }

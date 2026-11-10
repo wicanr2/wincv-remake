@@ -54,28 +54,26 @@ func padTo(s string, w int, align byte) string {
 	return s + strings.Repeat(" ", d)
 }
 
+// expandTabs 把 tab 展開到下一個 4 格停點。停點以**顯示格數**算:
+// 以位元組算的話,tab 前面有中文時停點就與畫面上的欄位對不齊。
 func expandTabs(s string) string {
 	var b strings.Builder
+	col := 0
 	for _, r := range s {
 		if r == '\t' {
-			b.WriteString(strings.Repeat(" ", 4-b.Len()%4))
+			n := 4 - col%4
+			b.WriteString(strings.Repeat(" ", n))
+			col += n
+			continue
+		}
+		b.WriteRune(r)
+		if cell.IsWide(r) {
+			col += 2
 		} else {
-			b.WriteRune(r)
+			col++
 		}
 	}
 	return b.String()
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var d []byte
-	for n > 0 {
-		d = append([]byte{byte('0' + n%10)}, d...)
-		n /= 10
-	}
-	return string(d)
 }
 
 // wrapSpans 把帶樣式的片段折成固定寬度的列。
@@ -104,6 +102,11 @@ func wrapSpans(spans []Span, cols int) [][]Span {
 	// (CJK 是逐字切的折行單位),一段千字的中文會產生上千個片段,
 	// 後面每一層都得為此付代價。
 	add := func(text string, st Style, href string) {
+		// 每一列開頭的空白丟掉。空白黏在下一個詞前面(見 splitWords),
+		// 那個詞被折到下一列時,空白也跟著過去,變成多一格縮排。
+		if used == 0 {
+			text = strings.TrimLeft(text, " ")
+		}
 		if text == "" {
 			return
 		}

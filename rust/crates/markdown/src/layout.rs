@@ -6,7 +6,7 @@ use wincv_cell::Color;
 use wincv_i18n::t as tr;
 use wincv_render::Image;
 
-use crate::wrap::{clip, expand_tabs, itoa, pad_to, width, wrap_spans};
+use crate::wrap::{clip, expand_tabs, pad_to, width, wrap_spans};
 use crate::{Block, Kind, Span, Style};
 
 /// 水平線(Go 版 `cell.HLine`)。
@@ -134,16 +134,14 @@ pub fn layout(blocks: &[Block], cols: i32, cell_w: i32, cell_h: i32, load: Optio
     let piece = |text: String, fg: Color| Piece { text, fg, ..Default::default() };
 
     for (bi, b) in blocks.iter().enumerate() {
-        if bi > 0 && b.kind != Kind::List && b.kind != Kind::Pre {
-            // 清單項目之間不空行,其餘區塊之間空一行。
+        if bi > 0 && b.kind != Kind::Pre {
+            // 區塊之間空一行,清單項目之間不空(段落後面接清單要空)。
             //
-            // Pre 也不空行:那是「呼叫端已經排好版」的意思,
-            // 排版引擎再自己加空白就是在猜它的意圖。
-            //
-            // (這一層已經排除 b 是 List,所以「前後都是 List」的例外在 Go 版
-            // 裡永遠不成立;照抄判斷式,行為相同。)
-            let prev = &blocks[bi - 1];
-            if !(prev.kind == Kind::List && b.kind == Kind::List) {
+            // Pre 不空行:那是「呼叫端已經排好版」的意思,排版引擎再自己加空白就是在猜
+            // 它的意圖。Pre 後面接清單也不空:gopher 選單就是說明文字(Pre)與項目(List)
+            // 交錯,空行會把選單拆散。
+            let prev = blocks[bi - 1].kind;
+            if !(b.kind == Kind::List && (prev == Kind::List || prev == Kind::Pre)) {
                 out.push(Line::default());
             }
         }
@@ -185,11 +183,11 @@ pub fn layout(blocks: &[Block], cols: i32, cell_w: i32, cell_h: i32, load: Optio
                         mark.push(' ');
                     }
                 } else if b.ordered {
-                    mark = ind + &itoa(b.num) + ". ";
+                    mark = ind + &b.num.to_string() + ". ";
                 }
-                // Go 版用字元數(len([]rune(mark)))當記號的寬度,不是顯示格數:
-                // 記號裡有全形字時,折行寬度與續行縮排都少算。照抄。
-                let mark_n = mark.chars().count() as i32;
+                // 記號的寬度以顯示格數算:記號裡有全形字(gopher 的「[目錄]」)時,以字元數
+                // 算會讓折行寬度與續行縮排都少算。
+                let mark_n = width(&mark);
                 let pad = rep(" ", mark_n);
                 for (i, ln) in wrap_spans(&b.spans, cols - mark_n).iter().enumerate() {
                     let (m, fg) = if i > 0 { (pad.clone(), t.text) } else { (mark.clone(), t.marker) };
@@ -205,15 +203,15 @@ pub fn layout(blocks: &[Block], cols: i32, cell_w: i32, cell_h: i32, load: Optio
                 // 常常是 70 欄的 ASCII art)。markdown 的解析器不會產生這種區塊,
                 // 它只從 layout 這一側被用到。
                 //
-                // 裁切照 Go 版以字元數計,不是顯示格數。
+                // 裁切以顯示格數算,全形字才不會讓這一列超出畫面。
                 for ln in &b.lines {
-                    let ln = truncate_runes(expand_tabs(ln), cols);
+                    let ln = clip(&expand_tabs(ln), cols);
                     out.push(line(vec![piece(ln, t.text)]));
                 }
             }
             Kind::Code => {
                 for ln in &b.lines {
-                    let ln = truncate_runes(expand_tabs(ln), cols - 2);
+                    let ln = clip(&expand_tabs(ln), cols - 2);
                     out.push(line(vec![Piece { text: "  ".to_string() + &ln, fg: t.code, bg: t.code_bg, ..Default::default() }]));
                 }
             }
@@ -245,15 +243,6 @@ pub fn layout(blocks: &[Block], cols: i32, cell_w: i32, cell_h: i32, load: Optio
         }
     }
     (out, pics)
-}
-
-/// `string([]rune(s)[:n])`,只在字元數超過 n 時才切。
-fn truncate_runes(s: String, n: i32) -> String {
-    if s.chars().count() as i32 > n {
-        s.chars().take(n.max(0) as usize).collect()
-    } else {
-        s
-    }
 }
 
 fn load_pic(src: &str, alt: &str, cols: i32, cell_w: i32, cell_h: i32, load: Option<Loader>) -> Pic {
@@ -306,17 +295,17 @@ fn table(b: &Block, cols: i32, t: &Theme) -> Vec<Line> {
             }
         }
     }
-    // 太寬就等比例壓,不要讓表格把畫面撐爆。
-    //
-    // 每一欄的寬度都是 0(整張表都是空格子)而欄數又多到 1+3n 超過 cols 時,
-    // 分母是 0。Go 版在這裡會 panic(integer divide by zero),Rust 的整數除法
-    // 同樣 panic,行為相同。
+    // 太寬就等比例壓,不要讓表格把畫面撐爆。分母是所有格子內容的總寬,全是空格子時
+    // 它是 0:每欄給 1 格,不要除以零。
     let n64 = n as i64;
     let total: i64 = 1 + w.iter().map(|v| v + 3).sum::<i64>();
     let cols64 = i64::from(cols);
     if total > cols64 {
+        let content = total - 1 - 3 * n64;
         for v in w.iter_mut() {
-            *v = *v * (cols64 - 1 - 3 * n64) / (total - 1 - 3 * n64);
+            if content > 0 {
+                *v = *v * (cols64 - 1 - 3 * n64) / content;
+            }
             if *v < 1 {
                 *v = 1;
             }

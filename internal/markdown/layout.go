@@ -3,6 +3,7 @@ package markdown
 import (
 	"github.com/wicanr2/wincv-remake/internal/i18n"
 	"image"
+	"strconv"
 	"strings"
 
 	"github.com/wicanr2/wincv-remake/internal/cell"
@@ -95,12 +96,13 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 	blank := func() { out = append(out, Line{}) }
 
 	for bi, b := range blocks {
-		if bi > 0 && b.Kind != List && b.Kind != Pre {
-			// 清單項目之間不空行,其餘區塊之間空一行。
+		if bi > 0 && b.Kind != Pre {
+			// 區塊之間空一行,清單項目之間不空(段落後面接清單要空)。
 			//
-			// Pre 也不空行:那是「呼叫端已經排好版」的意思,
-			// 排版引擎再自己加空白就是在猜它的意圖。
-			if prev := blocks[bi-1]; !(prev.Kind == List && b.Kind == List) {
+			// Pre 不空行:那是「呼叫端已經排好版」的意思,排版引擎再自己
+			// 加空白就是在猜它的意圖。Pre 後面接清單也不空:gopher 選單
+			// 就是說明文字(Pre)與項目(List)交錯,空行會把選單拆散。
+			if prev := blocks[bi-1].Kind; !(b.Kind == List && (prev == List || prev == Pre)) {
 				blank()
 			}
 		}
@@ -143,10 +145,12 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 					mark += " "
 				}
 			case b.Ordered:
-				mark = ind + itoa(b.Num) + ". "
+				mark = ind + strconv.Itoa(b.Num) + ". "
 			}
-			pad := strings.Repeat(" ", len([]rune(mark)))
-			for i, ln := range wrapSpans(b.Spans, cols-len([]rune(mark))) {
+			// 記號的寬度以顯示格數算:記號裡有全形字(gopher 的「[目錄]」)時,
+			// 以字元數算會讓折行寬度與續行縮排都少算。
+			pad := strings.Repeat(" ", width(mark))
+			for i, ln := range wrapSpans(b.Spans, cols-width(mark)) {
 				m := mark
 				fg := t.Marker
 				if i > 0 {
@@ -162,18 +166,13 @@ func Layout(blocks []Block, cols, cellW, cellH int, load Loader, t Theme) ([]Lin
 			// 常常是 70 欄的 ASCII art)。markdown 的解析器不會產生這種區塊,
 			// 它只從 layout 這一側被用到。
 			for _, ln := range b.Lines {
-				ln = expandTabs(ln)
-				if len([]rune(ln)) > cols {
-					ln = string([]rune(ln)[:cols])
-				}
+				// 裁切以顯示格數算,全形字才不會讓這一列超出畫面。
+				ln = clip(expandTabs(ln), cols)
 				out = append(out, Line{Pieces: []Piece{{Text: ln, FG: t.Text}}})
 			}
 		case Code:
 			for _, ln := range b.Lines {
-				ln = expandTabs(ln)
-				if len([]rune(ln)) > cols-2 {
-					ln = string([]rune(ln)[:cols-2])
-				}
+				ln = clip(expandTabs(ln), cols-2)
 				out = append(out, Line{Pieces: []Piece{
 					{Text: "  " + ln, FG: t.Code, BG: t.CodeBG},
 				}})
@@ -271,8 +270,13 @@ func table(b Block, cols int, t Theme) []Line {
 		total += v + 3
 	}
 	if total > cols {
+		// 分母是所有格子內容的總寬。全是空格子時它是 0:每欄給 1 格,
+		// 不要除以零。
+		content := total - 1 - 3*n
 		for i := range w {
-			w[i] = w[i] * (cols - 1 - 3*n) / (total - 1 - 3*n)
+			if content > 0 {
+				w[i] = w[i] * (cols - 1 - 3*n) / content
+			}
 			if w[i] < 1 {
 				w[i] = 1
 			}
