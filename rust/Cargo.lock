@@ -2967,11 +2967,49 @@ name = "wincv"
 version = "0.1.0"
 dependencies = [
  "softbuffer",
+ "wincv-app",
+ "wincv-bundled",
  "wincv-cell",
+ "wincv-datadir",
  "wincv-eten",
- "wincv-fnt",
+ "wincv-fontset",
+ "wincv-i18n",
+ "wincv-keys",
  "wincv-render",
+ "wincv-session",
+ "wincv-ttf",
+ "wincv-vfs",
  "winit",
+]
+
+[[package]]
+name = "wincv-app"
+version = "0.1.0"
+dependencies = [
+ "wincv-archive",
+ "wincv-browser",
+ "wincv-cell",
+ "wincv-checksum",
+ "wincv-convert",
+ "wincv-dict",
+ "wincv-editor",
+ "wincv-eten",
+ "wincv-fileop",
+ "wincv-hexview",
+ "wincv-i18n",
+ "wincv-imgfmt",
+ "wincv-imgview",
+ "wincv-keys",
+ "wincv-launch",
+ "wincv-note",
+ "wincv-render",
+ "wincv-search",
+ "wincv-session",
+ "wincv-syntax",
+ "wincv-textenc",
+ "wincv-thumbs",
+ "wincv-vfs",
+ "wincv-viewer",
 ]
 
 [[package]]
@@ -3016,6 +3054,7 @@ name = "wincv-celldump"
 version = "0.1.0"
 dependencies = [
  "png 0.17.16",
+ "wincv-app",
  "wincv-archive",
  "wincv-browser",
  "wincv-bundled",
@@ -3028,6 +3067,7 @@ dependencies = [
  "wincv-hexview",
  "wincv-imgfmt",
  "wincv-imgview",
+ "wincv-keys",
  "wincv-render",
  "wincv-syntax",
  "wincv-textenc",
@@ -3159,10 +3199,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "wincv-launch"
+version = "0.1.0"
+dependencies = [
+ "wincv-i18n",
+]
+
+[[package]]
 name = "wincv-lzh"
 version = "0.1.0"
 dependencies = [
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "wincv-markdown"
+version = "0.1.0"
+dependencies = [
+ "wincv-cell",
+ "wincv-i18n",
+ "wincv-render",
 ]
 
 [[package]]
@@ -3183,6 +3239,7 @@ dependencies = [
  "wincv-archive",
  "wincv-fnt",
  "wincv-imgfmt",
+ "wincv-markdown",
  "wincv-render",
  "wincv-textenc",
  "wincv-ttf",

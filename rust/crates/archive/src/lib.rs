@@ -549,6 +549,10 @@ impl SevenZ {
 }
 
 impl Fs for ArchiveFs {
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        Some(self)
+    }
+
     fn read_dir(&self, dir: &Path) -> io::Result<Vec<vfs::Entry>> {
         let inner = self.inner(dir);
         let mut seen: HashSet<Vec<u8>> = HashSet::new();

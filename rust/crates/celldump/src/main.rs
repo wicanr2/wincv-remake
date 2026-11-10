@@ -30,6 +30,8 @@ struct Args {
     fallback: Option<PathBuf>,
     no_fallback: bool,
     bitmap_cjk: bool,
+    app: Option<PathBuf>,
+    keys: String,
 }
 
 fn parse_args() -> Args {
@@ -50,6 +52,8 @@ fn parse_args() -> Args {
         fallback: None,
         no_fallback: false,
         bitmap_cjk: false,
+        app: None,
+        keys: String::new(),
     };
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
@@ -71,6 +75,8 @@ fn parse_args() -> Args {
             "-fallback" => a.fallback = Some(v().into()),
             "-no-fallback" => a.no_fallback = true,
             "-bitmap-cjk" => a.bitmap_cjk = true,
+            "-app" => a.app = Some(v().into()),
+            "-keys" => a.keys = v(),
             _ => die(&format!("不認得的參數 {k}")),
         }
     }
@@ -162,9 +168,15 @@ fn main() {
 
     let mut s = Screen::new(a.cols, a.rows);
     let mut overlay: Option<wincv_render::Overlay> = None;
-    if let Some(f) = &a.edit {
-        // 與 Go 版 celldump -edit 相同:語法設定目錄留空時跟著 -half 走。
-        let cfg_dir = a.cfg.clone().unwrap_or_else(|| a.half.parent().map(PathBuf::from).unwrap_or_default());
+    let mut overlays: Vec<wincv_render::Overlay> = Vec::new();
+    let mut the_app: Option<wincv_app::App> = None;
+    // 語法上色設定與字典的目錄:留空時跟著 -half 走(與 Go 版相同)。
+    let cfg_dir = a.cfg.clone().unwrap_or_else(|| a.half.parent().map(PathBuf::from).unwrap_or_default());
+    if let Some(dir) = &a.app {
+        let (ov, app) = draw_app(&mut s, dir, &cfg_dir, &a.keys, r.cell_w, r.cell_h);
+        overlays = ov;
+        the_app = Some(app);
+    } else if let Some(f) = &a.edit {
         let data = std::fs::read(f).unwrap_or_else(|e| die(&format!("{}: {e}", f.display())));
         let syn = wincv_syntax::Set::load(&cfg_dir).ok().and_then(|set| set.for_name(&f.to_string_lossy()));
         let base = f.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -192,8 +204,14 @@ fn main() {
         None => demo(&mut s),
     } }
     let (w, h) = r.size(s.cols, s.rows);
-    let ovs: Vec<&wincv_render::Overlay> = overlay.iter().collect();
-    let px = r.draw_with(&s, &ovs);
+    let ovs: Vec<&wincv_render::Overlay> = overlay.iter().chain(overlays.iter()).collect();
+    let content = r.draw_with(&s, &ovs).to_vec();
+    // 選單層是分開畫的(它可以用不同的字型與大小),在這裡疊回去。
+    let (px, h) = match the_app.as_mut() {
+        Some(app) => with_menu(content, w, h, app, &mut r),
+        None => (content, h),
+    };
+    let px = px.as_slice();
 
     let f = std::fs::File::create(&a.out).unwrap_or_else(|e| die(&format!("{}: {e}", a.out.display())));
     let mut enc = png::Encoder::new(std::io::BufWriter::new(f), w as u32, h as u32);
@@ -205,6 +223,65 @@ fn main() {
         "{}  {w}x{h} px  ({}x{} 格,每格 {}x{})",
         a.out.display(), s.cols, s.rows, r.cell_w, r.cell_h
     );
+}
+
+/// 跑完整的 app 並送一串按鍵(與 Go 版 celldump -app -keys 相同)。
+fn draw_app(s: &mut Screen, dir: &std::path::Path, cfg_dir: &std::path::Path, keys: &str, cw: i32, ch: i32) -> (Vec<wincv_render::Overlay>, wincv_app::App) {
+    let abs = std::path::absolute(dir).unwrap_or_else(|e| die(&format!("{}: {e}", dir.display())));
+    let mut app = wincv_app::App::new(Box::new(wincv_vfs::Os), &abs);
+    app.cell_w = cw;
+    app.cell_h = ch;
+    app.load_syntax(cfg_dir);
+    app.dict_dir = cfg_dir.to_path_buf();
+    // 不帶磁碟統計(與 -dir 相同):剩餘空間在兩次執行之間會變,驗收用的截圖要可以重現。
+    app.browser.disk_stat = None;
+    (app.browser.free_bytes, app.browser.disk_bytes) = (0, 0);
+    let ks = wincv_keys::parse_all(keys).unwrap_or_else(|e| die(&e));
+    // 先畫一次,讓 app 知道畫面有幾列(翻頁與選單定位要用)。
+    app.draw(s);
+    for k in ks {
+        app.handle_key(k);
+        app.draw(s);
+    }
+    (app.draw(s), app)
+}
+
+/// 把選單層疊在內容上面,內容整個往下移一列(與 Go 版 withMenu 相同)。
+///
+/// 選單有自己的格點,所以這裡是**像素**層面的合成,不是格點層面的。
+fn with_menu(content: Vec<u8>, w: i32, h: i32, app: &mut wincv_app::App, r: &mut Rasterizer) -> (Vec<u8>, i32) {
+    if !app.menu_bar {
+        return (content, h);
+    }
+    let (cols, rows) = (w / r.cell_w, (h + r.cell_h) / r.cell_h);
+    let layer = app.menu_layer(cols, rows);
+    let Some(bar) = &layer.bar else { return (content, h) };
+    let out_h = h + r.cell_h;
+    let mut out = vec![0u8; (w * out_h * 4) as usize];
+    // 把一塊 RGBA 貼到 out 的 (x, y),超出的部分裁掉(Go 的 draw.Draw 也是)。
+    let blit = |out: &mut [u8], src: &[u8], sw: i32, sh: i32, x: i32, y: i32| {
+        for row in 0..sh {
+            let ty = y + row;
+            if ty < 0 || ty >= out_h {
+                continue;
+            }
+            let n = sw.min(w - x).max(0) as usize;
+            let s0 = (row * sw * 4) as usize;
+            let d0 = ((ty * w + x) * 4) as usize;
+            out[d0..d0 + n * 4].copy_from_slice(&src[s0..s0 + n * 4]);
+        }
+    };
+    let (bw, bh) = r.size(bar.cols, bar.rows);
+    let bar_px = r.draw(bar).to_vec();
+    blit(&mut out, &bar_px, bw, bh.min(r.cell_h), 0, 0);
+    blit(&mut out, &content, w, h, 0, r.cell_h);
+    if let Some(drop) = &layer.drop {
+        // draw 的緩衝區會被下一次呼叫重用,所以下拉要在選單列用完之後才畫。
+        let (dw, dh) = r.size(drop.cols, drop.rows);
+        let drop_px = r.draw(drop).to_vec();
+        blit(&mut out, &drop_px, dw, dh, layer.drop_x * r.cell_w, r.cell_h);
+    }
+    (out, out_h)
 }
 
 /// 看檔(與 Go 版 celldump -file 相同):文字用文字檢視,二進位用 HEX。

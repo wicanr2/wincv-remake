@@ -39,6 +39,9 @@ wincv-bundled = { path = "crates/bundled" }
 wincv-vecfont = { path = "crates/vecfont" }
 wincv-fontset = { path = "crates/fontset" }
 wincv-datadir = { path = "crates/datadir" }
+wincv-launch = { path = "crates/launch" }
+wincv-app = { path = "crates/app" }
+wincv-markdown = { path = "crates/markdown" }
 encoding_rs = "0.8"
 png = "0.17"
 sha2 = "0.10"

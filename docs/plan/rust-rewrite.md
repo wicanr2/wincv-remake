@@ -426,6 +426,33 @@ HKSCS 區的 764 個字。現在 Go 與 encoding_rs 在全部 14,653 個字上�
 Rust 程式在 `rust/`（cargo workspace），工具鏈映像由 `tools/docker/rust.Dockerfile` 建成 `wincv-rust:1`，
 cargo 一律經 `tools/cargo.sh` 在容器裡跑。
 
+## 第三階段：app 層（規劃，2026-11-10）
+
+第二階段搬完的是底層模組，Rust 的視窗程式還只有示範畫面。合併進 master 與 Rust preview 發布等到這一階段完成，
+README 的截圖也那時一起換。依「最快得到能用的程式」排序：
+
+| 段 | 內容 | 完成判準 |
+|---|---|---|
+| 3a | `launch`、`markdown` | Go 版單元測試照搬並通過；markdown 檢視場景逐像素相同 |
+| 3b | `app` 本體：瀏覽、檢視、編輯、選單、按鍵、輸入列、session。PDF、Office、EPUB、網頁先回「尚未搬」 | Go 版 `internal/app` 的測試照搬；`celldump -app -keys` 場景逐像素相同 |
+| 3c | 視窗進入點：按鍵轉換、字級切換、選單層、滑鼠 | 三個桌面平台建得出來，實際操作過一輪 |
+| 3d | `gopher`、`web`、`epub` | 同 3a |
+| 3e | Office：`cfb`、`doc97`、`rtf`、`ooxml`、`docx`、`pptx`、`xlsx`、`officedoc` | 以 LibreOffice 產生的測試檔與 Go 版比對 |
+| 3f | PDF（hayro）與 `pdfdoc` | `tools/pdf-parity.sh` 與 Go 版相當 |
+
+### 3a–3c 的進度(2026-11-10)
+
+- 3a 完成:`wincv-launch`;`wincv-markdown` 的 16 條測試照搬並通過,`tools/md-parity.sh` 對 repo 內 37 份 markdown
+  (加邊角案例與手組的區塊)在 40、80、120 欄的解析與排版結果與 Go 版逐位元相同。搬移時列出 Go 版 11 個可疑行為
+  (折行後的列以空白開頭、清單前不空行、清單記號以字元數當寬度等),Rust 照抄,修正與否另外決定。
+- 3b 進行中:`wincv-app` 的瀏覽、檢視、16 進位、看圖、縮圖、編輯、尋找、轉換、解壓、打包、MD5/SFV、選單、輸入列、
+  磁碟窗格、預視、session 已搬;Go 版 7 個測試檔的 74 條測試照搬並通過。`tools/rust-parity.sh` 加 13 個
+  `celldump -app -keys` 場景,除了「關於」畫面寫的實作語言以外逐像素相同。markdown 檢視、網路瀏覽、EPUB、PDF、
+  Office、觸控列、滑鼠還沒接;F1 說明暫時用文字檢視器開原文。
+- 3c 進行中:`rust/crates/wincv` 改成真正的程式(字級與倍率挑選、選單層合成、按鍵轉換含輸入法、session、全螢幕、
+  視窗大小請求),在 Xvfb 裡實際開過、操作過。還沒有滑鼠、程式圖示、`-menu-font`;網頁版的冒煙測試
+  (`tools/rust-web-smoke.sh`)還用舊的 `WINCV_FONT_DIR`,要改成 `wincv-bundled` 的內嵌方式。
+
 ## 待決定事項
 
 - 網頁版是否公開部署。公開部署就不能內含第三方字型，介面會改用可散布字型或由使用者提供。

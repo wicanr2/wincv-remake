@@ -84,6 +84,11 @@ pub trait Fs {
     fn open(&self, path: &Path) -> io::Result<Box<dyn Read>>;
     /// 路徑列上顯示的字樣。
     fn label(&self, dir: &Path) -> String;
+    /// 取回具體型別(Go 版的型別斷言 `fs.(*archive.FS)`)。只有需要被認出來的
+    /// 實作(壓縮檔)才覆寫;其餘的回 None。
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        None
+    }
 }
 
 /// 真實的檔案系統。

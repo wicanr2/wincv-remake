@@ -389,6 +389,10 @@ func drawApp(s *cell.Screen, dir, cfgDir, keyStr string, cw, ch int, touch bool,
 	a.Touch = touch
 	a.LoadSyntax(cfgDir)
 	a.DictDir = cfgDir
+	// 不帶磁碟統計(與 -dir 相同):剩餘空間在兩次執行之間會變,
+	// 驗收用的截圖要可以重現。
+	a.Browser.DiskStat = nil
+	a.Browser.FreeBytes, a.Browser.DiskBytes = 0, 0
 
 	ks, err := keys.ParseAll(keyStr)
 	if err != nil {

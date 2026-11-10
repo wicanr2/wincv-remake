@@ -2,6 +2,7 @@
 # Go 版與 Rust 版的 celldump 逐像素比對,跑多個場景。
 #
 #   tools/rust-parity.sh
+#   ONLY='^app-' tools/rust-parity.sh     # 只跑名稱符合的場景
 #
 # 兩邊用同一組原版字型(original/app/cvga.fon 與 original/eten/*.15),關掉
 # 後備字型;名稱以 fb- 開頭的場景才開,而且指定同一份字型(自動找的後備鏈兩邊
@@ -27,7 +28,7 @@ FONTS=(-half /src/original/app/cvga.fon -eten-std /src/original/eten/STDFONT.15 
 
 # 場景:名稱|celldump 的額外參數[|已知差異的格數]
 #
-# 已知差異的格數留給「Go 版有已知 bug、Rust 版是對的」的情況;格數吻合就不算失敗。
+# 已知差異的格數留給「Go 版有已知 bug、Rust 版是對的」與刻意不同的地方;格數吻合就不算失敗。
 # 目前沒有:Go 版 Big5 編碼器的 HKSCS 問題已在 v.0.53.4 修正。
 SCENES=(
     "demo|"
@@ -64,6 +65,21 @@ SCENES=(
     "img-pgm|-file /src/$OUT/fixture/img/gray.pgm"
     "thumbs-ui|-thumbs /src/docs/ui"
     "thumbs-small|-thumbs /src/$OUT/fixture/img -cols 40 -rows 12"
+    # app 層(選單列、模式切換、按鍵分派)。
+    "app-main|-app /src/$OUT/fixture"
+    "app-menu|-app /src/$OUT/fixture -keys F9"
+    "app-menu-setup|-app /src/$OUT/fixture -keys Alt-7"
+    "app-menu-sub|-app /src/$OUT/fixture -keys Alt-7,End,Enter"
+    "app-view|-app /src/original/app -keys End,Up,Up,Enter"
+    "app-hex|-app /src/original/app -keys Home,Down,Down,Down,Enter,H"
+    "app-arch|-app /src/$OUT/fixture/arch -keys Down,Enter"
+    "app-sort|-app /src/$OUT/fixture -keys S,S,Down,Space,Down,Space"
+    "app-prompt|-app /src/$OUT/fixture -keys Down,R"
+    "app-find-kind|-app /src/$OUT/fixture -keys W"
+    "app-preview|-app /src/$OUT/fixture -keys Alt-P,Down,Down"
+    # 「關於」畫面寫著用什麼做的:Go 版是「Go + Ebiten」,Rust 版是「Rust」,差那 10 格。
+    "app-about|-app /src/$OUT/fixture -keys Alt-8,Down,Enter|10"
+    "app-small|-app /src/$OUT/fixture -keys F9 -cols 40 -rows 12"
     # 字級與全形來源(fontset):10×18 與 12×24 是倚天縮放;12×24 另有原生 24 點字庫。
     "lvl-1018|-half /src/original/app/CVGA1018.FON -file /src/original/app/whatsnew.txt"
     "lvl-1224|-half /src/original/app/cvga1224.FON -file /src/original/app/whatsnew.txt"
@@ -82,6 +98,8 @@ SCENES=(
 fail=0
 for sc in "${SCENES[@]}"; do
     IFS='|' read -r name args known <<< "$sc"
+    # ONLY=正規式 只跑名稱符合的場景(例如 ONLY='^app-')。
+    [[ -n "${ONLY:-}" && ! $name =~ $ONLY ]] && continue
     nofb=-no-fallback
     case $name in fb-*) nofb= ;; esac
     # 差異以格點回報,格子大小跟著半形字型走(字身高 + 1 列列距)。

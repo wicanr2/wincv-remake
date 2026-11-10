@@ -1,0 +1,207 @@
+//! 對應 Go 版 `markdown_test.go`,逐條照搬。
+
+use std::sync::Arc;
+
+use wincv_render::Image;
+
+use crate::inline::inline;
+use crate::wrap::width;
+use crate::*;
+
+fn text_of(ls: &[Line]) -> String {
+    let mut b = String::new();
+    for l in ls {
+        for p in &l.pieces {
+            b.push_str(&p.text);
+        }
+        b.push('\n');
+    }
+    b
+}
+
+fn lay(src: &str, cols: i32) -> (Vec<Line>, Vec<Arc<Pic>>) {
+    layout(&parse(src), cols, 8, 16, None, default_theme())
+}
+
+#[test]
+fn headings_and_paragraph() {
+    let (ls, _) = lay("# 標題\n\n一段文字。\n\n## 次標題\n", 40);
+    let got = text_of(&ls);
+    for want in ["# 標題", "一段文字。", "## 次標題"] {
+        assert!(got.contains(want), "少了 {want:?}\n{got}");
+    }
+}
+
+/// setext 標題(底下一行 === 或 ---)不能被當成段落 + 水平線。
+#[test]
+fn setext_heading() {
+    let (ls, _) = lay("標題\n====\n\n內文\n", 40);
+    let got = text_of(&ls);
+    assert!(got.contains("# 標題"), "setext 標題沒有被認出來:\n{got}");
+}
+
+/// 程式碼區塊裡的東西一律原樣保留,那正是它的用途。
+/// 裡面的 # 不是標題,* 不是清單,- 不是水平線。
+#[test]
+fn code_fence_keeps_content_verbatim() {
+    let src = "```go\n# not a heading\n* not a list\n---\n```\n";
+    let (ls, _) = lay(src, 40);
+    let got = text_of(&ls);
+    for want in ["# not a heading", "* not a list", "---"] {
+        assert!(got.contains(want), "程式碼區塊的 {want:?} 被改掉了:\n{got}");
+    }
+}
+
+/// 落單的星號不能讓後面整段變成斜體。
+#[test]
+fn unpaired_emphasis_is_literal() {
+    let sp = inline("2 * 3 = 6");
+    let mut b = String::new();
+    for s in &sp {
+        b.push_str(&s.text);
+        assert_eq!(s.style, Style::default(), "{:?} 不該有樣式 {:?}", s.text, s.style);
+    }
+    assert_eq!(b, "2 * 3 = 6", "文字被吃掉了");
+}
+
+#[test]
+fn inline_styles() {
+    let sp = inline("普通 **粗** 與 *斜* 與 `碼` 與 [連結](http://x/y)");
+    let find = |txt: &str| -> Span {
+        sp.iter().find(|s| s.text == txt).cloned().unwrap_or_else(|| panic!("找不到片段 {txt:?},實際 {sp:?}"))
+    };
+    assert!(find("粗").style.has(Style::BOLD), "粗體沒認出來");
+    assert!(find("斜").style.has(Style::ITALIC), "斜體沒認出來");
+    assert!(find("碼").style.has(Style::MONO), "行內程式碼沒認出來");
+    let l = find("連結");
+    assert!(l.style.has(Style::LINK) && l.href == "http://x/y", "連結 = {l:?}");
+}
+
+/// [![alt](img)](url) 這種巢狀在 README 裡很常見。
+/// 只找第一個 ] 會切在錯的地方,把後面整行吃掉。
+#[test]
+fn nested_image_link() {
+    let sp = inline("[![badge](b.svg)](https://ci/x) 後面的字");
+    assert!(sp.len() >= 2, "解析結果太短: {sp:?}");
+    assert!(sp[0].href == "https://ci/x" && sp[0].text == "badge", "巢狀連結 = {:?}", sp[0]);
+    assert!(sp[sp.len() - 1].text.contains("後面的字"), "後面的文字被吃掉了: {sp:?}");
+}
+
+/// 中文不靠空白斷字。只按空白折的話,一整段中文會變成一列超長的字。
+#[test]
+fn wrap_cjk() {
+    let long = "中文".repeat(30);
+    let (ls, _) = lay(&long, 20);
+    for (i, l) in ls.iter().enumerate() {
+        let w: i32 = l.pieces.iter().map(|p| width(&p.text)).sum();
+        assert!(w <= 20, "第 {i} 列寬 {w},超過 20");
+    }
+    assert!(ls.len() >= 5, "只折成 {} 列,應該更多", ls.len());
+}
+
+/// 超長且沒有空白的字串(例如網址)要硬切,不能無限卡住。
+#[test]
+fn wrap_very_long_word() {
+    let (ls, _) = lay(&"a".repeat(200), 20);
+    assert!(ls.len() >= 5 && ls.len() <= 40, "折成 {} 列,不合理", ls.len());
+    for l in &ls {
+        let w: i32 = l.pieces.iter().map(|p| width(&p.text)).sum();
+        assert!(w <= 20, "有一列寬 {w}");
+    }
+}
+
+#[test]
+fn table() {
+    let src = "| 名稱 | 大小 |\n|---|---:|\n| a.txt | 12 |\n| b.bin | 3400 |\n";
+    let (ls, _) = lay(src, 40);
+    let got = text_of(&ls);
+    for want in ["名稱", "a.txt", "3400"] {
+        assert!(got.contains(want), "表格少了 {want:?}:\n{got}");
+    }
+}
+
+/// 圖片載不到時要把 alt 與原因寫出來。留白的話使用者會以為本來就沒東西。
+#[test]
+fn image_failure_is_visible() {
+    let (ls, pics) = lay("![一張圖](a.png)\n", 40);
+    assert_eq!(pics.len(), 1, "圖片數");
+    assert!(text_of(&ls).contains("一張圖"), "alt 沒顯示:\n{}", text_of(&ls));
+}
+
+/// 「哪些位址可以載」是載入器的政策,排版引擎一律照送。
+///
+/// 這一條之前是反過來的:Layout 自己擋掉 http 開頭的位址。那對「開一份
+/// .md 檔」是對的,但同一個引擎也服務使用者自己輸入網址的瀏覽模式,
+/// 在那裡擋掉等於整頁的圖都不會出現。政策移到各自的載入器上。
+#[test]
+fn remote_image_passed_to_loader() {
+    let got = std::cell::RefCell::new(String::new());
+    let load = |src: &str| -> Result<Arc<Image>, String> {
+        *got.borrow_mut() = src.to_string();
+        Err("載入器說不行".to_string())
+    };
+    let (_, pics) = layout(&parse("![x](https://example.com/a.png)"), 40, 8, 16, Some(&load), default_theme());
+    assert_eq!(*got.borrow(), "https://example.com/a.png", "載入器收到的位址");
+    assert!(pics.len() == 1 && pics[0].err == "載入器說不行", "載入器的說法沒有傳出來: {pics:?}");
+}
+
+/// 圖片要佔掉整數列,而且後面的文字要接在圖的下面,不能疊在上面。
+#[test]
+fn image_occupies_rows() {
+    let load = |_: &str| -> Result<Arc<Image>, String> { Ok(Arc::new(Image::new(160, 160))) };
+    let (ls, pics) = layout(&parse("![x](a.png)\n\n後面\n"), 40, 8, 16, Some(&load), default_theme());
+    assert!(pics.len() == 1 && pics[0].img.is_some(), "圖沒載進來: {pics:?}");
+    let p = &pics[0];
+    assert!(p.rows >= 2 && p.cols >= 2, "尺寸 = {}×{} 格", p.cols, p.rows);
+    let mine = |l: &Line| l.pic.as_ref().is_some_and(|q| Arc::ptr_eq(q, p));
+    let n = ls.iter().filter(|l| mine(l)).count() as i32;
+    assert_eq!(n, p.rows, "圖佔了 {n} 列,宣告 {} 列", p.rows);
+    // 「後面」必須在圖之後
+    let last = ls.iter().rposition(mine).map_or(-1, |i| i as i64);
+    let found = ls.iter().rposition(|l| l.pieces.iter().any(|pc| pc.text.contains("後面"))).map_or(-1, |i| i as i64);
+    assert!(found > last, "文字在第 {found} 列,圖到第 {last} 列,疊到一起了");
+}
+
+/// 一張很大的圖不能把整個畫面吃掉。
+#[test]
+fn image_rows_capped() {
+    let load = |_: &str| -> Result<Arc<Image>, String> { Ok(Arc::new(Image::new(100, 8000))) };
+    let (_, pics) = layout(&parse("![x](a.png)"), 40, 8, 16, Some(&load), default_theme());
+    assert!(pics[0].rows <= MAX_PIC_ROWS, "佔了 {} 列,上限是 {MAX_PIC_ROWS}", pics[0].rows);
+}
+
+#[test]
+fn list() {
+    let (ls, _) = lay("- 第一\n- 第二\n\n1. 甲\n2. 乙\n", 40);
+    let got = text_of(&ls);
+    for want in ["• 第一", "• 第二", "1. 甲", "2. 乙"] {
+        assert!(got.contains(want), "清單少了 {want:?}:\n{got}");
+    }
+}
+
+/// `---` 單獨出現是水平線,接在一行文字後面是二級標題。
+/// 同一串字元、兩種語意,差別只在前一行有沒有東西。
+#[test]
+fn dashes_rule_vs_setext() {
+    let (ls, _) = lay("一段文字\n\n---\n\n另一段\n", 40);
+    assert!(!text_of(&ls).contains("# 一段文字"), "空行之後的 --- 被當成標題了:\n{}", text_of(&ls));
+    let (ls, _) = lay("一段文字\n---\n\n另一段\n", 40);
+    assert!(text_of(&ls).contains("## 一段文字"), "緊接在文字後的 --- 應該是二級標題:\n{}", text_of(&ls));
+}
+
+/// 標題底下要有一條線。看不見的顏色等於沒有這條線,所以順便盯著顏色。
+#[test]
+fn heading_rule() {
+    let (ls, _) = lay("# 標題\n", 20);
+    let mut found = false;
+    for l in &ls {
+        for p in &l.pieces {
+            if p.text.contains("───") {
+                found = true;
+                // DkGray:#404040,畫在黑底上等於看不見
+                assert_ne!(p.fg, wincv_cell::Color::DK_GRAY, "分隔線用了看不見的顏色");
+            }
+        }
+    }
+    assert!(found, "標題底下沒有線:\n{}", text_of(&ls));
+}

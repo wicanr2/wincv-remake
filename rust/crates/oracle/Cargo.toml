@@ -35,6 +35,10 @@ path = "src/bin/imgsum.rs"
 name = "pdfshot"
 path = "src/bin/pdfshot.rs"
 
+[[bin]]
+name = "mdsum"
+path = "src/bin/mdsum.rs"
+
 [dependencies]
 wincv-archive.workspace = true
 wincv-imgfmt.workspace = true
@@ -44,6 +48,7 @@ wincv-fnt.workspace = true
 wincv-render.workspace = true
 wincv-vfs.workspace = true
 wincv-textenc.workspace = true
+wincv-markdown.workspace = true
 sha2.workspace = true
 hayro = { version = "0.9", features = ["embed-fonts"] }
 png.workspace = true
