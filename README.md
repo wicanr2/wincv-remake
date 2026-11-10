@@ -5,7 +5,7 @@
 WinCV（CView for Windows）是台灣的共享軟體，作者 Lcc Wizard（林健總）一個人從 1999 年
 維護到 2011 年，站台 cview.com.tw，最後一版 0.52 更新於 2011 年 11 月 24 日。
 它的執行檔裡沒有應用邏輯，真正的程式是隨附的一份 Forth image。這個 repo 把那份 image
-逆向出來，用 Go 重寫成不綁在 Windows 上的程式。標準不是「功能差不多就好」。
+逆向出來，用 Go 重寫成不綁在 Windows 上的程式，再用 Rust 重寫一次。標準不是「功能差不多就好」。
 原版畫面上哪一格擺什麼字、那一格是什麼顏色，都是對著原版量過再寫的，
 8×16 的格子一格不動。
 
@@ -154,9 +154,9 @@ CView 是「以前 DOS 時代最喜歡的一套軟體」，看圖「超快」，
 時間跟著檔案自己的顏色走、長檔名欄帶底線，這些照慣例猜都會猜錯。
 量測結果與重跑指令記在 `docs/ui/main-screen.md`。
 
-![F1 選單](docs/ui/shot-menu.png)
+![選單](docs/ui/shot-menu.png)
 
-*`F1` 選單同時是說明書：每一列右邊標著對應的按鍵，在選單裡直接按那顆鍵等同選它。*
+*選單同時是說明書：每一列右邊標著對應的按鍵，在選單裡直接按那顆鍵等同選它。*
 
 ## 壓縮格式
 
@@ -255,6 +255,7 @@ tools/oracle-measure.sh docs/ui/oracle.png    # 量視窗幾何、截圖、印�
 
 ```bash
 tools/go.sh run ./cmd/celldump -app <目錄> -keys "F1" -o shot.png -cols 93 -rows 30
+tools/cargo.sh run --release -p wincv-celldump --bin celldump -- -app <目錄> -keys "F1" -o shot.png   # Rust 版
 ```
 
 `-keys` 的寫法與 `docs/ui/keymap.md` 的按鍵欄一致（`Ctrl-O`、`Alt-Z`、`F6`、`Down`…）。
@@ -266,15 +267,13 @@ tools/go.sh run ./cmd/celldump -app <目錄> -keys "F1" -o shot.png -cols 93 -ro
 上面這張是重製版**自己畫出來的**——文件是 `docs/demo/showcase.md`，
 裡面的字模圖集（PNG）與 29 色色票（SVG）不是貼上去的，
 是 markdown 檢視模式把 `![...](...)` 解出來、光柵化、再嵌進字元格點裡。
-重跑：
+這一頁的截圖都由 Rust 版畫出，重拍全部：
 
 ```bash
-tools/go.sh run ./cmd/celldump -app docs/demo -cols 104 -rows 56 \
-    -keys "Down,Down,Down,Enter" -o docs/ui/showcase-markdown.png
+tools/readme-shots.sh
 ```
 
-同一份 `render.Rasterizer` 也是 Ebiten 視窗用的那一份，
-所以這張 PNG 與視窗裡看到的是同一批像素。
+同一份光柵器也是視窗程式用的那一份，所以這張 PNG 與視窗裡看到的是同一批像素。
 
 ### 檔案瀏覽器（與原版逐格比對過）
 
@@ -284,6 +283,37 @@ tools/go.sh run ./cmd/celldump -app docs/demo -cols 104 -rows 56 \
 
 檔案清單那 16 列與原版的**屬性差是 0**，狀態列第二列連字模都完全相同。
 量測方式與數字記在 [`docs/ui/main-screen.md`](docs/ui/main-screen.md)。
+
+## Rust 改寫
+
+這一頁的截圖都是 Rust 版畫的。Go 版仍是目前發布的版本；Rust 版在 [`rust/`](rust/)，
+逐模組照 Go 版搬，每一層都拿 Go 版當 oracle 對照：
+
+| 層 | 對照方式 | 結果 |
+|---|---|---|
+| 畫面 | `tools/rust-parity.sh`：同一串按鍵送進兩版的 celldump，逐像素比 | 82 個場景，除了「關於」畫面寫的實作語言以外全部相同 |
+| 字模 | `tools/glyph-parity.sh`：1,068 個字 | Go 讀得了的字型，點陣字模逐位元相同、向量外框逐段相同 |
+| markdown | `tools/md-parity.sh`：repo 內 37 份 × 3 種欄寬 | 逐位元組相同 |
+| 網頁、gopher、EPUB | `tools/net-parity.sh`：1,267 份 | 1,257 份相同；10 份是 HTML tokenizer 的差異，Rust 的結果符合 WHATWG 規格 |
+| Office | `tools/office-parity.sh`：430 份 | 428 份相同；2 份是已知的取捨（CJK 解碼、xlsx 的 NaN） |
+| PDF | `tools/pdfdoc-parity.sh`：124 份，以 poppler 為準 | 頁面圖的平均密度差 Go 0.0223、Rust 0.0067；文字內容不同時 Rust 較接近 156 頁、Go 較接近 59 頁 |
+| SVG | `tools/svg-parity.sh`：224 份，以 Chromium 為準 | Rust 全部解得開，平均差 2.38；Go 10.04，另有 21 份解不開 |
+
+PDF 與 SVG 兩邊用的光柵器不同（Rust 是 hayro 與 resvg），所以改以第三方為準。
+
+逐行對照兩邊的程式時，順手找到 Go 版 35 項可疑行為，記在
+[`docs/plan/go-suspects.md`](docs/plan/go-suspects.md)。會遺失內容或讓程式當掉的已經在兩邊一起修好，
+例如 PowerPoint 的換行讓投影片後半消失、某些 PDF 書籤讓程式結束、Big5 的 gopher 選單是亂碼。
+
+建置與規劃：
+
+```bash
+tools/cargo.sh build --release -p wincv    # 產物在 .cache/cargo-target/release/wincv
+tools/cargo.sh test                        # 測試(在 docker 裡跑)
+```
+
+Windows 與 macOS 版都建得出來（macOS 走 osxcross）。每個階段的量測與取捨在
+[`docs/plan/rust-rewrite.md`](docs/plan/rust-rewrite.md)。
 
 ## 重製版多做的東西
 
@@ -331,10 +361,9 @@ markdown 裡的圖片只認**文件所在目錄底下**的相對路徑，而且�
 
 ![四種語言的介面](docs/ui/shot-i18n.png)
 
-*同一個畫面的四種語言:繁體中文、简体中文、English、日本語。
-選單、狀態列(剩餘／剩余／remaining／残り)與訊息都跟著換,
-`7設定` → 語言 隨時可切,選過就記住。日文假名與簡體字倚天字庫裡
-沒有,由後備字型畫 —— 那是 Big5 字庫的邊界,不是設定問題。*
+*同一個畫面的四種語言:繁體中文、简体中文、English、日本語,展開的是 `7設定`。
+選單、狀態列與訊息都跟著換,語言就在這個選單的最後一項,選過就記住。
+日文假名與簡體字倚天字庫裡沒有,由後備字型畫:那是 Big5 字庫的邊界,不是設定問題。*
 
 ## 操作
 
@@ -408,8 +437,9 @@ PDF 描述的是「把這個字放在這個座標」，沒有段落、沒有欄�
 | ![PDF 取文字](docs/ui/shot-pdf-text.png) | ![PDF 整頁](docs/ui/shot-pdf-page.png) |
 
 左邊找字快，右邊才看得到表格、圖表、公式、簽名那些「意義在位置上」的東西。
+這兩張是 Rust 版畫的，它的整頁算繪用 [hayro](https://docs.rs/hayro)。
 
-整頁那一路是自己寫的算繪器，沒有加新的相依——光柵器用 SVG 那條路本來就在用的
+Go 版的整頁那一路是自己寫的算繪器，沒有加新的相依——光柵器用 SVG 那條路本來就在用的
 `rasterx`，字形外框用 `x/image/font/sfnt` 加自寫的 CFF 與 Type1 解譯器：
 
 | | |

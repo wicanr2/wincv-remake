@@ -509,8 +509,8 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
 - `[profile.release]` 原本設 `panic = "abort"`,那樣 pdfdoc 的 `catch_unwind` 在正式版接不住 panic,壞掉的 PDF 若讓
   hayro panic 會直接結束程式。改回預設的 unwind,Linux 版從 19.3 MB 變成 20.6 MB(+1.29 MB)。
 - 待處理:沒嵌入的 CJK 字型在畫整頁時可能畫不出來(hayro 的預設 resolver 挑拉丁標準字型),語料裡沒有
-  樣本可以量。hayro 的 `embed-fonts` 會把字型嵌進執行檔,這些字型的授權要在發布前確認;NOTICE 也還沒列
-  Rust 的第三方套件(resvg、hayro 等)。
+  樣本可以量。hayro 的 `embed-fonts` 嵌進的 Foxit 字型(取自 PDFium)與 Adobe CMap 都是 BSD 3-Clause,
+  全文與其他 Rust 第三方套件的授權一起收在 `rust/THIRD-PARTY-LICENSES.txt`(`tools/rust-licenses.sh`)。
 
 ## 待決定事項
 

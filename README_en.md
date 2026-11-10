@@ -3,7 +3,7 @@
 [繁體中文](README.md) ｜ **English** ｜ [日本語](README_jp.md)
 
 WinCV (CView for Windows) is a piece of Taiwanese shareware. Its author, Lcc Wizard (Lin Chien-tsung), maintained it alone from 1999 to 2011 on the site cview.com.tw; the last release, 0.52, was updated on November 24, 2011.
-Its executable contains no application logic — the actual program is a bundled Forth image. This repo reverse-engineers that image and rewrites it in Go as a program that is not tied to Windows. The standard is not "close enough." Which character sits in which cell on the original screen, and what color that cell is, were both measured against the original before being written down — the 8x16 grid does not shift by a single cell.
+Its executable contains no application logic — the actual program is a bundled Forth image. This repo reverse-engineers that image and rewrites it in Go as a program that is not tied to Windows, then rewrites it again in Rust. The standard is not "close enough." Which character sits in which cell on the original screen, and what color that cell is, were both measured against the original before being written down — the 8x16 grid does not shift by a single cell.
 
 ## What's done
 
@@ -99,9 +99,9 @@ The ETEN row determines how text lays out: `STDFONT.15`'s full-width cell is exa
 The screen colors follow the original: the names and RGB values of all 29 named colors were decoded straight out of `WINCV.IMG`, not repicked from scratch. Which color each column of the file list uses was measured by cutting both screenshots into the same character cell grid and comparing cell by cell — the indicator column is solid dark blue and the cursor doesn't cover it, dates are always green, the time column follows each file's own color, and the long-filename column is underlined; guessing any of these from convention would get them wrong.
 The measurements and the commands to rerun them are recorded in `docs/ui/main-screen.md`.
 
-![F1 menu](docs/ui/shot-menu.png)
+![Menu](docs/ui/shot-menu.png)
 
-*The `F1` menu doubles as the manual: each row shows its corresponding key on the right, and pressing that key while the menu is open selects it directly.*
+*The menu doubles as the manual: each row shows its corresponding key on the right, and pressing that key while the menu is open selects it directly.*
 
 ## Archive formats
 
@@ -170,6 +170,7 @@ Checking the remake's screen without opening a window:
 
 ```bash
 tools/go.sh run ./cmd/celldump -app <directory> -keys "F1" -o shot.png -cols 93 -rows 30
+tools/cargo.sh run --release -p wincv-celldump --bin celldump -- -app <directory> -keys "F1" -o shot.png   # Rust
 ```
 
 The syntax for `-keys` matches the key column in `docs/ui/keymap.md` (`Ctrl-O`, `Alt-Z`, `F6`, `Down`...).
@@ -179,14 +180,13 @@ The syntax for `-keys` matches the key column in `docs/ui/keymap.md` (`Ctrl-O`, 
 ![Markdown view mode](docs/ui/showcase-markdown.png)
 
 The image above was **drawn by the remake itself** — the document is `docs/demo/showcase.md`, and the glyph atlas (PNG) and the 29-color swatch (SVG) inside it aren't pasted in; the markdown view mode parses `![...](...)`, rasterizes it, and embeds it into the character cell grid.
-To rerun:
+Every screenshot on this page is drawn by the Rust version. To reshoot them all:
 
 ```bash
-tools/go.sh run ./cmd/celldump -app docs/demo -cols 104 -rows 56 \
-    -keys "Down,Down,Down,Enter" -o docs/ui/showcase-markdown.png
+tools/readme-shots.sh
 ```
 
-This is the same `render.Rasterizer` the Ebiten window uses, so this PNG and what you'd see in the window are the same pixels.
+This is the same rasterizer the window uses, so this PNG and what you'd see in the window are the same pixels.
 
 ### File browser (compared cell-by-cell against the original)
 
@@ -196,6 +196,33 @@ This is the same `render.Rasterizer` the Ebiten window uses, so this PNG and wha
 
 The 16 rows of the file list have **zero attribute differences** from the original, and the second row of the status bar matches down to the glyphs.
 The measurement method and numbers are recorded in [`docs/ui/main-screen.md`](docs/ui/main-screen.md).
+
+## The Rust rewrite
+
+Every screenshot on this page was drawn by the Rust version. The Go version is still the one being released; the Rust version lives in [`rust/`](rust/), ported module by module from Go, with Go as the oracle at every layer:
+
+| Layer | How it's compared | Result |
+|---|---|---|
+| Screen | `tools/rust-parity.sh`: the same key sequence sent to both celldumps, compared pixel by pixel | 82 scenes, all identical except the implementation language named on the About screen |
+| Glyphs | `tools/glyph-parity.sh`: 1,068 characters | For fonts Go can load, bitmap glyphs are bit-identical and vector outlines segment-identical |
+| Markdown | `tools/md-parity.sh`: 37 files in the repo × 3 widths | Byte-identical |
+| Web, gopher, EPUB | `tools/net-parity.sh`: 1,267 files | 1,257 identical; the other 10 are HTML tokenizer differences where Rust follows the WHATWG spec |
+| Office | `tools/office-parity.sh`: 430 files | 428 identical; 2 are known trade-offs (CJK decoding, NaN in xlsx) |
+| PDF | `tools/pdfdoc-parity.sh`: 124 files, poppler as reference | Mean page-image density difference Go 0.0223, Rust 0.0067; where the text differs, Rust is closer on 156 pages and Go on 59 |
+| SVG | `tools/svg-parity.sh`: 224 files, Chromium as reference | Rust opens all of them with a mean difference of 2.38; Go 10.04, and 21 it can't open |
+
+PDF and SVG use different rasterizers on the two sides (Rust uses hayro and resvg), so those layers are compared against a third party instead.
+
+Reading both sides line by line turned up 35 questionable behaviors in the Go version, listed in [`docs/plan/go-suspects.md`](docs/plan/go-suspects.md). The ones that lose content or crash have been fixed on both sides — for example a PowerPoint line break that made the rest of a slide disappear, PDF bookmarks that ended the program, and Big5 gopher menus shown as mojibake.
+
+Building and plans:
+
+```bash
+tools/cargo.sh build --release -p wincv    # output in .cache/cargo-target/release/wincv
+tools/cargo.sh test                        # tests (run in docker)
+```
+
+Windows and macOS builds also work (macOS through osxcross). Measurements and trade-offs for each phase are in [`docs/plan/rust-rewrite.md`](docs/plan/rust-rewrite.md).
 
 ## What the remake adds
 
@@ -238,9 +265,8 @@ Images in markdown only resolve relative paths **under the document's own direct
 
 ![The interface in four languages](docs/ui/shot-i18n.png)
 
-*The same screen in four languages: 繁體中文, 简体中文, English, 日本語.
-Menus, the status bar (剩餘／剩余／remaining／残り) and messages all follow.
-`F9` → Settings → Language switches at any time and the choice is remembered.
+*The same screen in four languages: 繁體中文, 简体中文, English, 日本語, with `7 Settings` open.
+Menus, the status bar and messages all follow. Language is the last item in this menu, and the choice is remembered.
 Japanese kana and simplified characters aren't in the ETEN font, so they're
 drawn by the fallback font — that's the boundary of a Big5 font, not a setting.*
 
@@ -304,8 +330,9 @@ What PDF describes is "put this character at this coordinate" — there's no par
 | ![PDF text extraction](docs/ui/shot-pdf-text.png) | ![PDF full page](docs/ui/shot-pdf-page.png) |
 
 The left side is fast for finding text; the right side is where you can see tables, charts, formulas, signatures — things whose meaning lives in their position.
+Both shots were drawn by the Rust version, which renders full pages with [hayro](https://docs.rs/hayro).
 
-The full-page path is a hand-written renderer that adds no new dependency — the rasterizer is `rasterx`, already in use on the SVG path, and glyph outlines use `x/image/font/sfnt` plus hand-written CFF and Type1 interpreters:
+In the Go version, the full-page path is a hand-written renderer that adds no new dependency — the rasterizer is `rasterx`, already in use on the SVG path, and glyph outlines use `x/image/font/sfnt` plus hand-written CFF and Type1 interpreters:
 
 | | |
 |---|---|

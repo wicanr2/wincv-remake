@@ -118,6 +118,22 @@ Rust 版要與 Go 版得到逐位元組相同的結果,下列檔案**逐段移�
 授權條款與上一節 golang.org/x/image 相同(`Copyright 2009 The Go Authors.` 的 BSD 3-Clause),
 全文見上一節。
 
+## Rust 版的第三方套件:`rust/THIRD-PARTY-LICENSES.txt`
+
+Rust 版執行檔連結 356 個第三方 crate,授權都是寬鬆授權(MIT、Apache-2.0、BSD、Zlib、ISC、
+Unicode-3.0 等,沒有 GPL 類)。這些授權要求散布二進位檔時附上授權全文,全文收在
+`rust/THIRD-PARTY-LICENSES.txt`(由 `tools/rust-licenses.sh` 從 crate 原始碼產生,改了
+`rust/Cargo.lock` 要重跑),Rust 版的發布包一併附上。
+
+其中兩項是嵌進執行檔的資料,不是程式碼:
+
+- **Foxit 字型 14 個**(`hayro-font` 的 `embed-fonts`,約 240 KB):PDF 14 種標準字型的替代字型,
+  取自 PDFium。`Copyright 2014 PDFium Authors`,原始程式碼 `copyright 2014 Foxit Software Inc.`,
+  BSD 3-Clause。
+- **Adobe CMap 資料**(`hayro-cmap`):`Copyright 1990-2023 Adobe`,BSD 3-Clause。
+
+`hayro-interpret` 另嵌兩份 ICC 色彩描述檔,CC0-1.0。
+
 ## 字型:隨產物散布
 
 公開 Release **不內嵌**下面這些字型；使用者必須自行合法取得並提供。只有

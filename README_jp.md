@@ -7,7 +7,7 @@ WinCV(CView for Windows)は台湾のシェアウェアで、作者の Lcc Wizard
 最終版 0.52 の更新日は 2011 年 11 月 24 日です。実行ファイル自体には
 アプリケーションロジックが入っておらず、本体は同梱された Forth image です。
 この repo はその image をリバースエンジニアリングし、Go で Windows に
-縛られないプログラムとして書き直しました。目標は「だいたい同じ機能なら
+縛られないプログラムとして書き直し、さらに Rust でもう一度書き直しました。目標は「だいたい同じ機能なら
 よい」ではありません。原版の画面のどのマスに何の文字が置かれ、そのマスが
 何色かまで、原版を実測して書き起こしており、8×16 のマスは 1 ピクセルも
 ずれていません。
@@ -200,9 +200,9 @@ Windows DLL に依存していました。`unrar.dll`、`unlha32.dll`、
 すべて外れます。測定結果と再実行の手順は `docs/ui/main-screen.md` に
 記載しています。
 
-![F1 メニュー](docs/ui/shot-menu.png)
+![メニュー](docs/ui/shot-menu.png)
 
-*`F1` メニューはそのままヘルプでもあります。各行の右側に対応するキーが
+*メニューはそのままヘルプでもあります。各行の右側に対応するキーが
 表示されており、メニュー内でそのキーを押すと選択したのと同じ動作になります。*
 
 ## アーカイブ形式
@@ -306,6 +306,7 @@ tools/oracle-measure.sh docs/ui/oracle.png    # ウィンドウ形状の測定�
 
 ```bash
 tools/go.sh run ./cmd/celldump -app <ディレクトリ> -keys "F1" -o shot.png -cols 93 -rows 30
+tools/cargo.sh run --release -p wincv-celldump --bin celldump -- -app <ディレクトリ> -keys "F1" -o shot.png   # Rust 版
 ```
 
 `-keys` の書式は `docs/ui/keymap.md` のキー列と同じです(`Ctrl-O`、
@@ -318,15 +319,14 @@ tools/go.sh run ./cmd/celldump -app <ディレクトリ> -keys "F1" -o shot.png 
 上の画像はリメイク版が**自分で描画したもの**です——文書は
 `docs/demo/showcase.md` で、中のグリフ集(PNG)と 29 色のカラーチップ
 (SVG)は貼り付けたものではなく、markdown 表示モードが `![...](...)` を
-解釈し、ラスタライズして文字セルグリッドに埋め込んだ結果です。再実行
-するには:
+解釈し、ラスタライズして文字セルグリッドに埋め込んだ結果です。このページの
+スクリーンショットはすべて Rust 版が描いたもので、まとめて撮り直すには:
 
 ```bash
-tools/go.sh run ./cmd/celldump -app docs/demo -cols 104 -rows 56 \
-    -keys "Down,Down,Down,Enter" -o docs/ui/showcase-markdown.png
+tools/readme-shots.sh
 ```
 
-同じ `render.Rasterizer` は Ebiten のウィンドウでも使われているものなので、
+同じラスタライザーはウィンドウでも使われているものなので、
 この PNG とウィンドウで見えるものは同じピクセルです。
 
 ### ファイルブラウザ(原版とマスごとに比較済み)
@@ -338,6 +338,39 @@ tools/go.sh run ./cmd/celldump -app docs/demo -cols 104 -rows 56 \
 ファイル一覧の 16 行は原版との**属性差が 0**で、ステータスバー 2 行目は
 グリフまで完全に一致しています。測定方法と数値は
 [`docs/ui/main-screen.md`](docs/ui/main-screen.md) に記載しています。
+
+## Rust による書き直し
+
+このページのスクリーンショットはすべて Rust 版が描いたものです。現在リリースしているのは
+引き続き Go 版で、Rust 版は [`rust/`](rust/) にあります。Go 版からモジュール単位で移植し、
+どの層も Go 版を oracle として照合しています。
+
+| 層 | 照合方法 | 結果 |
+|---|---|---|
+| 画面 | `tools/rust-parity.sh`:同じキー列を両方の celldump に送り、ピクセル単位で比較 | 82 場面。「バージョン情報」画面に書かれた実装言語以外はすべて同一 |
+| グリフ | `tools/glyph-parity.sh`:1,068 文字 | Go が読めるフォントでは、ビットマップのグリフはビット単位、ベクター輪郭はセグメント単位で同一 |
+| markdown | `tools/md-parity.sh`:repo 内の 37 ファイル × 3 種類の桁幅 | バイト単位で同一 |
+| Web、gopher、EPUB | `tools/net-parity.sh`:1,267 ファイル | 1,257 ファイルが同一。残り 10 ファイルは HTML トークナイザーの違いで、Rust 側が WHATWG 仕様どおり |
+| Office | `tools/office-parity.sh`:430 ファイル | 428 ファイルが同一。2 ファイルは既知のトレードオフ(CJK のデコード、xlsx の NaN) |
+| PDF | `tools/pdfdoc-parity.sh`:124 ファイル、poppler を基準 | ページ画像の平均濃度差は Go 0.0223、Rust 0.0067。テキストが異なるページでは Rust が近いのが 156 ページ、Go が近いのが 59 ページ |
+| SVG | `tools/svg-parity.sh`:224 ファイル、Chromium を基準 | Rust はすべて開けて平均差 2.38。Go は 10.04 で、21 ファイルは開けない |
+
+PDF と SVG は両側でラスタライザーが異なる(Rust は hayro と resvg)ため、第三者を基準に比べています。
+
+両側のコードを行単位で突き合わせるうちに、Go 版の疑わしい挙動が 35 件見つかりました。
+[`docs/plan/go-suspects.md`](docs/plan/go-suspects.md) に記録しています。内容が失われるもの、
+プログラムが落ちるものは両側で修正済みです。たとえば PowerPoint の改行でスライドの後半が消える、
+一部の PDF のしおりでプログラムが終了する、Big5 の gopher メニューが文字化けする、などです。
+
+ビルドと計画:
+
+```bash
+tools/cargo.sh build --release -p wincv    # 成果物は .cache/cargo-target/release/wincv
+tools/cargo.sh test                        # テスト(docker 内で実行)
+```
+
+Windows 版と macOS 版もビルドできます(macOS は osxcross 経由)。各段階の計測と判断は
+[`docs/plan/rust-rewrite.md`](docs/plan/rust-rewrite.md) にあります。
 
 ## リメイク版で追加した機能
 
@@ -394,10 +427,9 @@ markdown 内の画像は**文書のあるディレクトリ配下**の相対パ�
 
 ![4 言語のインターフェース](docs/ui/shot-i18n.png)
 
-*同じ画面の 4 言語:繁體中文、简体中文、English、日本語。
-メニュー、ステータス行(剩餘／剩余／remaining／残り)、メッセージが
-すべて切り替わります。`F9` → 設定 → 言語 でいつでも変更でき、選んだ
-言語は記憶されます。日本語のかなと簡体字は倚天(ETEN)の字庫にないため、
+*同じ画面の 4 言語:繁體中文、简体中文、English、日本語。開いているのは `7設定` です。
+メニュー、ステータス行、メッセージがすべて切り替わります。言語はこのメニューの
+最後の項目で、選んだ言語は記憶されます。日本語のかなと簡体字は倚天(ETEN)の字庫にないため、
 フォールバックフォントで描画されます——Big5 字庫の境界であって、
 設定の問題ではありません。*
 
@@ -487,8 +519,9 @@ PDF が記述しているのは「この文字をこの座標に置く」とい�
 
 左側は文字を探すのが速く、右側はテーブル、図表、数式、署名といった
 「位置に意味がある」ものまで見えます。
+この 2 枚は Rust 版が描いたもので、ページ全体描画には [hayro](https://docs.rs/hayro) を使っています。
 
-ページ全体描画は自前で書いたレンダラーで、新たな依存関係は追加して
+Go 版のページ全体描画は自前で書いたレンダラーで、新たな依存関係は追加して
 いません——ラスタライザーは SVG のルートで既に使っている `rasterx` を、
 グリフ輪郭は `x/image/font/sfnt` に自前実装の CFF・Type1 インタープリタを
 組み合わせています。

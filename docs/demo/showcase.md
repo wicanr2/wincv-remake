@@ -1,7 +1,7 @@
 # WinCV Remake
 
 把 1999–2011 年的台灣共享軟體 **WinCV 0.52（CView for Windows）** 逆向，
-用 Go + Ebiten 重寫成 Linux / Windows / macOS 三個平台都能跑的版本。
+用 Go 與 Rust 各重寫一次，Linux / Windows / macOS 三個平台都能跑。
 原作者是 Lcc Wizard（林健總），原站 `cview.com.tw`。
 
 這一頁是重製版自己畫出來的：底下的圖不是貼上去的，是 markdown 檢視模式
@@ -20,13 +20,13 @@
 ![29 色](palette.svg)
 
 名稱與順序在 `WINCV.IMG` 的 0x5692d，RGB 值在每個顏色 word 的 body
-第 8–10 個位元組。上面那張是 SVG，用 oksvg 光柵化。
+第 8–10 個位元組。上面那張是 SVG，Go 版用 oksvg、Rust 版用 resvg 光柵化。
 
 | 項目 | 原版 | 重製版 |
 |---|:---:|---|
 | 平台 | 32 位元 Windows | Linux / Windows / macOS |
-| 壓縮格式 | 外掛 Windows DLL | 純 Go，12 種全部支援 |
-| 圖檔 | FreeImage + Intel JPEG | 純 Go，12 種支援 11 種 |
+| 壓縮格式 | 外掛 Windows DLL | 不靠外掛，12 種全部支援 |
+| 圖檔 | FreeImage + Intel JPEG | 不靠外掛，12 種支援 11 種 |
 | 全形字形 | 隨使用者的 Windows 而異 | 固定用倚天 16×15 |
 | markdown | 沒有 | 排版 + 內嵌圖片 |
 
