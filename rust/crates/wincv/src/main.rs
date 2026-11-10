@@ -7,6 +7,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod input;
+mod mouse;
 
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
@@ -16,7 +17,7 @@ use std::rc::Rc;
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Fullscreen, Window, WindowId};
 
@@ -180,6 +181,9 @@ struct Shell {
     resume: bool,
     last_st: State,
     keys: input::Keys,
+    mouse: mouse::Mouse,
+    /// 最近一次畫出來的下拉框佔的像素。點擊要知道下拉貼在哪,而那只有 paint 知道。
+    drop_rect: Option<mouse::Rect>,
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     /// 視窗的像素大小。
@@ -443,6 +447,7 @@ impl Shell {
             self.app.decode_thumbs(self.cols, self.rows);
         }
         let top = self.menu_bar_px();
+        self.drop_rect = None;
         let ov: Vec<Overlay> = self.app.draw(&mut self.screen);
         let refs: Vec<&Overlay> = ov.iter().collect();
         let (eff, sc) = (self.eff_idx, self.eff_scale);
@@ -464,7 +469,9 @@ impl Shell {
                 if let Some(drop) = &layer.drop {
                     // 光柵器的緩衝區會被下一次呼叫重用,所以下拉一定要在選單列貼完之後才畫。
                     let (dw, dh) = r.size(drop.cols, drop.rows);
-                    blit(&mut canvas, w, h, r.draw(drop), dw, dh, layer.drop_x * mcw, mch, msc);
+                    let x = layer.drop_x * mcw;
+                    blit(&mut canvas, w, h, r.draw(drop), dw, dh, x, mch, msc);
+                    self.drop_rect = Some((x, mch, x + drop.cols * mcw, mch + drop.rows * mch));
                 }
             }
         }
@@ -488,6 +495,76 @@ impl Shell {
         let Ok(mut buf) = surface.buffer_mut() else { return };
         buf.copy_from_slice(&canvas);
         let _ = buf.present();
+    }
+}
+
+impl Shell {
+    /// 把螢幕像素翻成「哪一層的第幾格」。
+    fn hit_test(&mut self, px: i32, py: i32) -> (mouse::Zone, i32, i32) {
+        let top = self.menu_bar_px();
+        if top > 0 {
+            let (_, _, mcw, mch) = self.menu();
+            if let Some((x0, y0, x1, y1)) = self.drop_rect {
+                if px >= x0 && px < x1 && py >= y0 && py < y1 {
+                    return (mouse::Zone::MenuDrop, (px - x0) / mcw.max(1), (py - y0) / mch.max(1));
+                }
+            }
+            if py < top {
+                return (mouse::Zone::MenuBar, px / mcw.max(1), 0);
+            }
+        }
+        let (cw, ch) = self.cell_px();
+        if cw <= 0 || ch <= 0 {
+            return (mouse::Zone::Content, 0, 0);
+        }
+        (mouse::Zone::Content, px / cw, (py - top) / ch)
+    }
+
+    /// 滑鼠移動:移到下拉上就換選取列(只在移動時更新,靜止的滑鼠不蓋過鍵盤選取);
+    /// 按著左鍵橫向拖過一格就送一次 drag(只有內容區算)。
+    fn mouse_moved(&mut self) -> bool {
+        let (px, py) = (self.mouse.pos.0 as i32, self.mouse.pos.1 as i32);
+        let (zone, col, row) = self.hit_test(px, py);
+        let mut changed = false;
+        if zone == mouse::Zone::MenuDrop {
+            changed |= self.app.menu_drop_hover(row);
+        }
+        if self.mouse.dragging && self.mouse.drag_col >= 0 && zone == mouse::Zone::Content && col != self.mouse.drag_col {
+            changed |= self.app.drag(col - self.mouse.drag_col);
+            self.mouse.drag_col = col;
+        }
+        changed
+    }
+
+    fn mouse_button(&mut self, pressed: bool) -> bool {
+        if !pressed {
+            self.mouse.dragging = false;
+            return false;
+        }
+        let (px, py) = (self.mouse.pos.0 as i32, self.mouse.pos.1 as i32);
+        let (zone, col, row) = self.hit_test(px, py);
+        let double = self.mouse.press(zone, (col, row));
+        self.mouse.dragging = true;
+        self.mouse.drag_col = if zone == mouse::Zone::Content { col } else { -1 };
+        match zone {
+            mouse::Zone::MenuBar => self.app.menu_bar_click(col),
+            mouse::Zone::MenuDrop => self.app.menu_drop_click(row),
+            mouse::Zone::Content => self.app.click(col, row, double),
+        }
+    }
+
+    fn mouse_wheel(&mut self, dy: f64) -> bool {
+        self.mouse.wheel += dy;
+        let mut changed = false;
+        while self.mouse.wheel >= 1.0 {
+            self.mouse.wheel -= 1.0;
+            changed |= self.app.wheel(-mouse::WHEEL_CELLS);
+        }
+        while self.mouse.wheel <= -1.0 {
+            self.mouse.wheel += 1.0;
+            changed |= self.app.wheel(mouse::WHEEL_CELLS);
+        }
+        changed
     }
 }
 
@@ -566,7 +643,29 @@ impl ApplicationHandler for Shell {
                 }
                 self.sync(el);
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse.pos = (position.x, position.y);
+                if self.mouse_moved() {
+                    self.sync(el);
+                }
+            }
+            WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
+                self.keys.mouse_pressed();
+                if self.mouse_button(state == ElementState::Pressed) {
+                    self.sync(el);
+                }
+            }
             WindowEvent::MouseInput { .. } => self.keys.mouse_pressed(),
+            WindowEvent::MouseWheel { delta, .. } => {
+                // 往上滾是正數(與 Go 版 Ebiten 的 Wheel 同號)。
+                let dy = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => y as f64,
+                    MouseScrollDelta::PixelDelta(p) => p.y / self.cell_px().1.max(1) as f64,
+                };
+                if self.mouse_wheel(dy) {
+                    self.sync(el);
+                }
+            }
             _ => {}
         }
     }
@@ -687,6 +786,8 @@ fn main() {
         resume: !a.no_resume,
         last_st: State::default(),
         keys: input::Keys::default(),
+        mouse: mouse::Mouse::default(),
+        drop_rect: None,
         window: None,
         surface: None,
         win: (0, 0),

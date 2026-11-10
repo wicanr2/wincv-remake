@@ -12,12 +12,14 @@ mod help;
 mod layout;
 mod mdview;
 mod menu;
+mod mouse;
 mod pending;
 mod preview;
 mod prompt;
 mod session;
 mod shell;
 mod startup;
+mod touch;
 mod viewsize;
 
 #[cfg(test)]
@@ -44,6 +46,7 @@ pub use layout::sane_layout;
 pub use mdview::{is_markdown, MAX_MD_IMAGE_BYTES};
 pub use menu::{cjk24_name, MenuLayer, MENU_BAR_ROWS};
 pub use preview::{MAX_PREVIEW_BYTES, PREVIEW_ROWS};
+pub use touch::TOUCH_ROWS;
 pub use viewsize::{MAX_SCALE, MIN_SCALE, SCALE_STEP};
 
 /// 目前在哪一個畫面。
@@ -266,6 +269,18 @@ impl App {
     pub fn draw(&mut self, s: &mut Screen) -> Vec<Overlay> {
         self.screen_cols = s.cols;
         self.screen_rows = s.rows;
+        // 觸控功能列佔掉底部幾列。與其讓每個模式各自知道「底下被佔了幾列」,不如先畫進
+        // 一個矮幾列的畫面再貼上去:一次對所有模式成立,之後加新模式不必記得這件事。
+        //
+        // 選單列不在這裡:它可以用與內容不同的字型與大小,格點對不起來,所以由外殼用
+        // menu_layer 拿去自己畫。
+        if self.touch && s.rows > touch::TOUCH_ROWS + 2 {
+            let mut inner = Screen::new(s.cols, s.rows - touch::TOUCH_ROWS);
+            let ov = self.draw_modes(&mut inner);
+            s.copy_from(&inner, 0, 0);
+            self.draw_touch_bar(s);
+            return ov;
+        }
         self.draw_modes(s)
     }
 

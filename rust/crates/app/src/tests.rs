@@ -1,11 +1,13 @@
 //! 照搬 Go 版 `internal/app` 的單元測試。
 //!
 //! 每個子模組對應一個 Go 測試檔(`app_test.go` → `app_test`,以此類推)。
-//! 依賴還沒搬過來的模式(網路瀏覽、EPUB、PDF、Office、觸控、滑鼠)的測試還沒有搬。
+//! 依賴還沒搬過來的模式(網路瀏覽、EPUB、PDF、Office)的測試還沒有搬。
 
 mod app_test;
 mod docpos_test;
 mod mdview_test;
+mod mouse_test;
+mod touch_test;
 mod drivepane_test;
 mod layout_test;
 mod menu_test;

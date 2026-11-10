@@ -50,7 +50,7 @@ fn sub(label: String, f: fn(&App) -> Vec<MenuItem>) -> MenuItem {
 /// 選單列上的一個分類。items 是函式而不是清單:項目的標籤會隨狀態變(例如放大倍率),
 /// 每次展開才建構,不必在意快取失效。
 pub(crate) struct MenuCat {
-    name: String,
+    pub name: String,
     items: fn(&App) -> Vec<MenuItem>,
 }
 
@@ -387,7 +387,7 @@ impl App {
     }
 
     /// 換到第 i 個分類並載入它的項目。左右兩端會繞回來。
-    fn select_cat(&mut self, i: i32) {
+    pub(crate) fn select_cat(&mut self, i: i32) {
         let cats = menu_cats();
         let n = cats.len() as i32;
         let i = if i < 0 {

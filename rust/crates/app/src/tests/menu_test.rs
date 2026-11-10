@@ -193,9 +193,6 @@ fn menu_key_alone_alt_toggles_all() {
 
 // 選了一個「什麼都沒改」的項目(字級已到頂),下拉照樣收起來,
 // 而且要回報畫面有變 —— 否則外殼不重繪,畫面停在已經收起的下拉上(GitHub issue #10)。
-//
-// Go 版的後半段(滑鼠點下拉走同一條路,MenuDropClick)依賴滑鼠模組,Rust 版還沒有,
-// 沒有搬。
 #[test]
 fn menu_no_op_item_still_redraws() {
     let td = TempDir::new();
@@ -207,4 +204,11 @@ fn menu_no_op_item_still_redraws() {
     assert!(a.handle_key(named(Code::Enter)), "字級已到頂時選「放大字體」,下拉收起來了卻回報沒變化");
     assert!(!a.menu.active, "下拉應該收起來");
     assert_eq!(a.zoom, 2, "字級不該變");
+    // 滑鼠點下拉走同一條路。
+    a.handle_key(Key::alt_ch('7'));
+    let i = a.menu.items.iter().position(|it| it.key == Key::ctrl_ch('+')).unwrap();
+    a.menu.cursor = i as i32;
+    a.menu_layer(80, 25); // 下拉要畫過一次才知道裝得下幾列
+    let row = a.menu.cursor - a.menu.top;
+    assert!(a.menu_drop_click(row), "滑鼠點「放大字體」(已到頂)應該回報畫面有變");
 }

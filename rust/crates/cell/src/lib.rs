@@ -7,6 +7,15 @@ mod cp437;
 
 pub use cp437::{from_cp437, CP437};
 
+// 常用的方框與區塊字元(對應 Go 版 cell 的同名常數)。直接寫在原始碼裡的字面值容易
+// 在編輯器裡被誤認或被自動格式化改掉,取個名字比較安全。
+pub const ARROW_UP: char = '▲';
+pub const ARROW_DOWN: char = '▼';
+pub const SHADE: char = '░';
+pub const BLOCK: char = '█';
+pub const H_LINE: char = '─';
+pub const V_LINE: char = '│';
+
 /// 調色盤的索引。實際 RGB 由 render 層決定。
 ///
 /// 前 29 個是語法上色用的具名顏色,名稱與順序取自 WINCV.IMG 0x5692d 的
