@@ -504,9 +504,11 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
 - 與 Go 刻意不同:字寬由前進量推算(hayro 不交出 Tc、Tw),San5 這類日文 PDF 因此少了部分詞間空白;取文字不含註解;
   畫整頁時畫 CropBox(Go 畫 MediaBox);圖片只收真的畫在頁面上的影像,同名資源不互相覆蓋。
 - 接進 app(`pdfview.rs`):`tools/rust-parity.sh` 加 4 個場景,與 Go 版逐像素相同。
-- 待處理:`[profile.release]` 的 `panic = "abort"` 讓 pdfdoc 的 `catch_unwind` 在正式版失效,壞掉的 PDF 若讓 hayro
-  panic 會直接結束程式。沒嵌入的 CJK 字型在畫整頁時可能畫不出來(hayro 的預設 resolver 挑拉丁標準字型),語料裡沒有
-  樣本可以量。
+- `[profile.release]` 原本設 `panic = "abort"`,那樣 pdfdoc 的 `catch_unwind` 在正式版接不住 panic,壞掉的 PDF 若讓
+  hayro panic 會直接結束程式。改回預設的 unwind,Linux 版從 19.3 MB 變成 20.6 MB(+1.29 MB)。
+- 待處理:沒嵌入的 CJK 字型在畫整頁時可能畫不出來(hayro 的預設 resolver 挑拉丁標準字型),語料裡沒有
+  樣本可以量。hayro 的 `embed-fonts` 會把字型嵌進執行檔,這些字型的授權要在發布前確認;NOTICE 也還沒列
+  Rust 的第三方套件(resvg、hayro 等)。
 
 ## 待決定事項
 
