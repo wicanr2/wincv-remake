@@ -28,6 +28,8 @@ wincv-editor = { path = "crates/editor" }
 wincv-checksum = { path = "crates/checksum" }
 wincv-convert = { path = "crates/convert" }
 wincv-note = { path = "crates/note" }
+wincv-officedoc = { path = "crates/officedoc" }
+wincv-pdfdoc = { path = "crates/pdfdoc" }
 wincv-search = { path = "crates/search" }
 wincv-fileop = { path = "crates/fileop" }
 wincv-dict = { path = "crates/dict" }

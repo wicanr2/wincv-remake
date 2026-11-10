@@ -15,7 +15,8 @@ use wincv_markdown::{Block, Kind, Line};
 use wincv_render::{Image, Overlay};
 
 use crate::bookview::EPUB_SCHEME;
-use crate::pending::{DOC_SCHEME, PDF_SCHEME};
+use crate::docview::DOC_SCHEME;
+use crate::pdfview::PDF_SCHEME;
 use crate::{cell_width, App, Mode};
 
 /// 排版之後畫面上的一個可點目標。記的是「第幾列」而不是「第幾個區塊」:一個項目在窄畫面上

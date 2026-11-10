@@ -450,10 +450,10 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
   不出來,也沒有呼叫端這樣用,不改。修正後 md-parity 仍逐位元相同。Go 的修正在 rust-rewrite 上,發 Go 版時
   要挑到 master。
 - 3b 進行中:`wincv-app` 的瀏覽、檢視、16 進位、看圖、縮圖、編輯、尋找、轉換、解壓、打包、MD5/SFV、選單、輸入列、
-  磁碟窗格、預視、session、markdown 檢視與 F1 說明、滑鼠、觸控列、網路瀏覽(gopher、http)與 EPUB 已搬;Go 版
-  12 個測試檔的 115 條測試照搬並通過(網路的測試在本機起 gopher 與 http 伺服器)。`tools/rust-parity.sh` 有 24 個
-  `celldump -app -keys` 場景(含 markdown 內嵌圖與 EPUB 的目錄、章節、書內圖),除了「關於」畫面寫的實作語言以外
-  逐像素相同。PDF 與 Office 文件還沒接,開檔時回一行「還沒搬到 Rust 版」。
+  磁碟窗格、預視、session、markdown 檢視與 F1 說明、滑鼠、觸控列、網路瀏覽(gopher、http)、EPUB、Office 文件與
+  PDF 都已搬;Go 版 14 個測試檔的 127 條測試照搬並通過(網路的測試在本機起 gopher 與 http 伺服器)。
+  `tools/rust-parity.sh` 有 35 個 `celldump -app -keys` 場景(含 markdown 內嵌圖、EPUB、Office 五種格式、PDF 的
+  內文與頁碼清單),除了「關於」畫面寫的實作語言以外逐像素相同。
 - 3c 大致完成:`rust/crates/wincv` 改成真正的程式(字級與倍率挑選、選單層合成、按鍵轉換含輸入法、session、全螢幕、
   視窗大小請求、滑鼠的點擊、雙擊、拖曳與滾輪),在 Xvfb 裡實際開過、用鍵盤與滑鼠操作過。Xvfb 裡 xdotool
   滾一格時游標移了 6 列(預期 3 列),疑似測試裝置同時送出兩種捲動事件,待實機確認。程式圖示(`wincv-appicon`,各尺寸與 Go 版逐像素相同)與縮圖的背景解碼已接上;Windows(GUI 子系統,只匯入系統 DLL)、macOS arm64 與 x86_64(osxcross)都建得出來,Windows 版 8.5 MB、
@@ -476,6 +476,37 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
 - 接進 app(`browse.rs`、`bookview.rs`):取回在背景執行緒做,結果經 channel 回來,`App::busy()` 為真時視窗每 50 ms
   醒來重畫一次,`celldump` 送完每個按鍵後等到取回結束(與 Go 版相同,另有 `-gopher` 參數)。網頁的行內圖片只在
   設了 web 客戶端時才去取;Go 版的視窗程式沒有設,實際上不取,Rust 版照做。
+
+### 3e:Office 文件(2026-11-10)
+
+- `cfb`、`doc97`、`rtf`、`ooxml`、`docx`、`pptx`、`xlsx`、`officedoc` 八個 crate 搬完,Go 版 54 條測試照搬並通過
+  (另補 8 條)。
+- XML 用 `ooxml/src/xml.rs` 逐行移植 Go 1.22.12 `encoding/xml` 的 Decoder:Go 版開非嚴格模式與 `HTMLAutoClose`,
+  這兩個設定改變解出來的結構(`br` 這類名字一打開就關閉、錯配的結束標籤往外關),換解析器會得到另一種結構。
+- 單位元組字碼頁用 x/text v0.18.0 逐位元組產生的表;Big5、GBK、Shift_JIS、EUC-KR 用 encoding_rs,與 `textenc` 相同。
+  雙位元組空間逐對比過,沒有任何一對位元組被兩邊解成不同的字,差異只有「Rust 多解出字」(GBK 與 Shift_JIS 的
+  自訂區)與「一段不合法位元組換成幾個 U+FFFD」兩類。
+- `tools/office-parity.sh`(約 4 分 20 秒):430 份文件(`~/cht` 的真實文件、testdata、產生的邊角案例、LibreOffice
+  轉出的檔案)427 份與 Go 逐位元組相同;另對 2,096 個 XML 組件、166 萬個 token 逐 token 對照。不同的 3 份:
+  Go 在 RTF `\bin` 長度溢位時當掉、上面的 CJK 取捨、xlsx 的 NaN 套日期格式(Go 的結果依平台而異,Rust 顯示 `NaN`)。
+- 接進 app(`docview.rs`):`tools/rust-parity.sh` 加 7 個場景(docx、doc、rtf、pptx、xlsx),與 Go 版逐像素相同。
+
+### 3f:PDF(2026-11-10)
+
+- `wincv-pdfdoc` 建在 hayro 0.9 上(解析、內容串流直譯、光柵化),不搬 Go 版自寫的 `internal/pdf`。Go 版 13 條測試照搬並
+  通過,另補 2 條。排行與分欄規則(`layout.rs`)逐行照搬 Go。
+- `tools/pdfdoc-parity.sh`:124 份 PDF(testdata 9 份,`~/cht` 23 個專案抽樣 115 份)。
+  - 頁數、頁面大小 123 份全同;1 份不是完整的 PDF,兩邊都打不開。
+  - 文字:1,384 頁中內容相同 766 頁,這些頁的切行全同。內容不同時以 poppler 為準,Rust 較近 156 頁、Go 較近 59 頁。
+  - 書籤:122 份相同;1 份 Go 遇到具名目的地當掉,Rust 讀出 101 筆。
+  - 圖片:兩邊都有的 778 張中 411 張位元組相同、354 張只差 PNG 編碼。
+  - 頁面圖:對 poppler 的平均密度差 Go 0.0223、Rust 0.0067;對 LibreOffice 是 0.0298 與 0.0144。
+- 與 Go 刻意不同:字寬由前進量推算(hayro 不交出 Tc、Tw),San5 這類日文 PDF 因此少了部分詞間空白;取文字不含註解;
+  畫整頁時畫 CropBox(Go 畫 MediaBox);圖片只收真的畫在頁面上的影像,同名資源不互相覆蓋。
+- 接進 app(`pdfview.rs`):`tools/rust-parity.sh` 加 4 個場景,與 Go 版逐像素相同。
+- 待處理:`[profile.release]` 的 `panic = "abort"` 讓 pdfdoc 的 `catch_unwind` 在正式版失效,壞掉的 PDF 若讓 hayro
+  panic 會直接結束程式。沒嵌入的 CJK 字型在畫整頁時可能畫不出來(hayro 的預設 resolver 挑拉丁標準字型),語料裡沒有
+  樣本可以量。
 
 ## 待決定事項
 

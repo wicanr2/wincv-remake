@@ -21,6 +21,16 @@ if [ ! -f "$REPO/$OUT/fixture/book/book.epub" ]; then
         --pids-limit 64 -u "$(id -u):$(id -g)" -v "$REPO/$OUT":/p -v "$REPO/tools":/t:ro python:3.12-slim \
         python3 -I /t/parity-fixture.py /p/fixture
 fi
+# 文件模式(Office、PDF)用 repo 內的測試檔,一個檔一個目錄,按鍵序列才不受排序影響。
+if [ ! -f "$REPO/$OUT/fixture/doc/xlsx/sheet.xlsx" ]; then
+    for f in officedoc/testdata/rich.docx officedoc/testdata/deck.pptx officedoc/testdata/sheet.xlsx \
+             doc97/testdata/rich.doc doc97/testdata/notes.rtf pdf/testdata/rich.pdf pdf/testdata/twocol.pdf; do
+        ext=${f##*.}
+        mkdir -p "$REPO/$OUT/fixture/doc/$ext"
+        cp "$REPO/internal/$f" "$REPO/$OUT/fixture/doc/$ext/"
+    done
+    find "$REPO/$OUT/fixture/doc" -exec touch -d 2001-09-09T01:46:40Z {} +
+fi
 E24="-eten24-std /src/original/eten/STD.24M -eten24-spc /src/original/eten/SPCFONT.24"
 FB_CJK=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
 FB_DV=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
@@ -92,6 +102,17 @@ SCENES=(
     "app-book-ch2|-app /src/$OUT/fixture/book -keys Down,Enter,Down,Enter"
     "app-book-narrow|-app /src/$OUT/fixture/book -keys Down,Enter,Enter -cols 40 -rows 20"
     "app-book-back|-app /src/$OUT/fixture/book -keys Down,Enter,Enter,End,Up,Enter"
+    "app-doc-docx|-app /src/$OUT/fixture/doc/docx -keys Down,Enter"
+    "app-doc-docx-end|-app /src/$OUT/fixture/doc/docx -keys Down,Enter,End"
+    "app-doc-doc|-app /src/$OUT/fixture/doc/doc -keys Down,Enter"
+    "app-doc-rtf|-app /src/$OUT/fixture/doc/rtf -keys Down,Enter"
+    "app-doc-pptx|-app /src/$OUT/fixture/doc/pptx -keys Down,Enter"
+    "app-doc-pptx-list|-app /src/$OUT/fixture/doc/pptx -keys Down,Enter,End,Up,Enter"
+    "app-doc-xlsx|-app /src/$OUT/fixture/doc/xlsx -keys Down,Enter"
+    "app-pdf|-app /src/$OUT/fixture/doc/pdf -keys Down,Down,Enter"
+    "app-pdf-p2|-app /src/$OUT/fixture/doc/pdf -keys Down,Down,Enter,End,Enter"
+    "app-pdf-toc|-app /src/$OUT/fixture/doc/pdf -keys Down,Down,Enter,End,Up,Enter"
+    "app-pdf-rich|-app /src/$OUT/fixture/doc/pdf -keys Down,Enter"
     # 字級與全形來源(fontset):10×18 與 12×24 是倚天縮放;12×24 另有原生 24 點字庫。
     "lvl-1018|-half /src/original/app/CVGA1018.FON -file /src/original/app/whatsnew.txt"
     "lvl-1224|-half /src/original/app/cvga1224.FON -file /src/original/app/whatsnew.txt"

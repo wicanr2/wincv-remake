@@ -7,6 +7,7 @@ mod about;
 mod actions;
 mod bookview;
 mod browse;
+mod docview;
 mod drivepane;
 mod editfind;
 mod filecolor;
@@ -15,7 +16,7 @@ mod layout;
 mod mdview;
 mod menu;
 mod mouse;
-mod pending;
+mod pdfview;
 mod preview;
 mod prompt;
 mod session;
@@ -174,6 +175,12 @@ pub struct App {
     /// 瀏覽模式正開著的一本 EPUB,與它的路徑。
     book: Option<wincv_epub::Book>,
     book_path: String,
+    /// 瀏覽模式正開著的 PDF。用 Rc 是因為整頁圖的重畫函式也要拿著它。
+    pdf: Option<std::rc::Rc<wincv_pdfdoc::Doc>>,
+    pdf_path: String,
+    /// 瀏覽模式正開著的 Office 文件。
+    office: Option<wincv_officedoc::Doc>,
+    office_path: String,
 
     /// 看圖是從瀏覽模式進來的,Esc 要退回去。
     g_return: bool,
@@ -270,6 +277,10 @@ impl App {
             pending: None,
             book: None,
             book_path: String::new(),
+            pdf: None,
+            pdf_path: String::new(),
+            office: None,
+            office_path: String::new(),
             g_return: false,
             md_return: false,
             edit_find: Default::default(),
@@ -675,11 +686,17 @@ impl App {
             }
             return true;
         }
-        // [雷] .epub、.pdf、.docx/.pptx/.xlsx 要在壓縮檔判斷**之前**攔下來。它們就是 zip
-        // (或至少不是要逐檔瀏覽的東西),不先攔的話按 Enter 會走進去看到 META-INF
-        // 與一堆 xml,而那不是任何人想看一份文件時要的東西。
-        if pending::is_document(&name) && !self.read_only_here() {
-            return self.open_document(&name);
+        // [雷] .epub、.docx/.pptx/.xlsx 要在壓縮檔判斷**之前**攔下來。它們就是 zip,不先攔
+        // 的話按 Enter 會走進去看到 META-INF 與一堆 xml,而那不是任何人想看一份文件時要的
+        // 東西。
+        if bookview::is_book(&name) && !self.read_only_here() {
+            return self.open_book(&name);
+        }
+        if pdfview::is_pdf(&name) && !self.read_only_here() {
+            return self.open_pdf(&name);
+        }
+        if docview::is_office_doc(&name) && !self.read_only_here() {
+            return self.open_office(&name);
         }
         if wincv_archive::is_archive(Path::new(&name)) {
             return self.enter_archive(&name);
@@ -869,6 +886,14 @@ impl App {
     }
 
     fn image_key(&mut self, k: Key) -> bool {
+        // PDF 的整頁圖:上/下一「張」就是上/下一頁(見 pdf_page_step)。
+        if self.in_pdf_page() {
+            match k.code {
+                Code::Enter | Code::PgDn => return self.pdf_page_step(1),
+                Code::Backspace | Code::PgUp => return self.pdf_page_step(-1),
+                _ => {}
+            }
+        }
         match k.code {
             Code::Enter | Code::PgDn => return self.step_image(1),
             Code::Backspace | Code::PgUp => return self.step_image(-1),

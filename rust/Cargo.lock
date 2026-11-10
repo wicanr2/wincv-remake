@@ -3295,6 +3295,8 @@ dependencies = [
  "wincv-launch",
  "wincv-markdown",
  "wincv-note",
+ "wincv-officedoc",
+ "wincv-pdfdoc",
  "wincv-render",
  "wincv-search",
  "wincv-session",

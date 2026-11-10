@@ -39,7 +39,7 @@ pub(crate) fn parse_book_url(raw: &str) -> Option<(String, i32)> {
 
 /// Go 的 strconv.Atoi:可帶一個正負號,其餘都要是十進位數字。Go 的 int 是 64 位元,
 /// 超出 i32 的章節號在後面一定找不到那一節,一律當解不開。
-fn go_atoi(s: &str) -> Result<i32, ()> {
+pub(crate) fn go_atoi(s: &str) -> Result<i32, ()> {
     let d = s.strip_prefix(['+', '-']).unwrap_or(s);
     if d.is_empty() || !d.bytes().all(|b| b.is_ascii_digit()) {
         return Err(());
