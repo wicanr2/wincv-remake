@@ -19,6 +19,10 @@ case "$VERSION" in
 esac
 case "$MODE" in public|full-local) ;; *) echo "模式只能是 public 或 full-local" >&2; exit 2 ;; esac
 [ -d "$OUT" ] || { echo "找不到輸出目錄:$OUT" >&2; exit 1; }
+# zip 在容器裡做(tools/go.sh 把 repo 掛在 /src),所以輸出目錄要在 repo 底下。
+OUT=$(cd "$OUT" && pwd)
+case "$OUT" in "$REPO"/*) ;; *) echo "輸出目錄要在 repo 底下:$OUT" >&2; exit 1 ;; esac
+REL=${OUT#"$REPO"/}
 
 if [ "$MODE" = public ]; then
     PLATFORMS=(
@@ -67,7 +71,7 @@ for entry in "${PLATFORMS[@]}"; do
 EOF
     fi
     [ "$plat" = windows-amd64 ] && sed -i 's/$/\r/' "$dir/README.txt"
-    go run "$REPO/tools/zipdir" "$zip" "$dir"
+    "$REPO/tools/go.sh" run ./tools/zipdir "/src/$REL/$zip" "/src/$REL/$dir"
     rm -rf "$dir"
     zips+=("$zip")
     printf '  %-62s %10s\n' "$zip" "$(stat -c%s "$zip")"

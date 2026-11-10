@@ -85,3 +85,11 @@
 - 建置：`tools/rust-release.sh v.0.53.8-preview-20261110`，來源提交 `c07f5b560976d273b0e4faf8dfc770a016b92a47`。三個執行檔都含版本字串；拿原版與倚天字型檔的位元組片段比對，三個執行檔都沒有內嵌字型資料；Linux 版從 zip 解出後在容器 Xvfb 不帶任何字型啟動，改用系統字型，「關於」畫面顯示版本號。
 - 發布：[v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110) 標成 prerelease，Go 的 v.0.53.7 仍是 Latest。三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip`；從 GitHub 下載回來的 ZIP 校驗與本機一致。
 - 未驗證：Windows 與 macOS 版沒有實機啟動；macOS 版的 ad-hoc 簽章在 `strip` 之後是否仍有效要在 Mac 上用 `codesign -v` 確認。
+
+## 2026-11-10：v.0.53.9-20261110（Go 版最後一版）
+
+- 定案：Go 版到這一版為止，之後的開發與發布都改用 Rust 版。Go 的原始碼留在 repo 當 Rust 版的對照基準，不再發新版、不再加功能。三份 README 的下載段與「Rust 改寫」一節已註明。
+- 內容：Rust 改寫時一起修的 Go 問題（見上一筆與 `docs/plan/go-suspects.md`），加上 markdown 的 10 個排版修正。
+- 建置：`tools/release.sh v.0.53.9-20261110`，來源提交 `ec3f993d34f468bd09eeec6b81943c162106ad2f`。工作區有未追蹤的 `AGENTS.md`（使用者的檔案），用 `WINCV_RELEASE_COMMIT` 指定來源提交；追蹤中的檔案是乾淨的。`tools/package.sh` 原本在主機上 `go run` 打 zip，這台主機沒有 Go，改成經 `tools/go.sh` 在容器裡跑，再以 `--no-build` 重新打包（執行檔沒有重建）。`tools/verify-dist.sh` 靜態驗收通過；三個執行檔都含版本字串，比對原版與倚天字型檔的位元組片段，沒有內嵌字型資料。
+- 發布：[v.0.53.9-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.9-20261110) 標成 Latest。三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip`；從 GitHub 下載回來的 ZIP 校驗與本機一致。
+- 固定入口：`dist-all/wincv-linux-amd64-full` 已換成這一版（SHA-256 `93032b106b28880e5860dae602b46dd1a6929a6bf0cf8fca3d3586c4896c9256`）。
