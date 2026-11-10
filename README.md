@@ -50,7 +50,7 @@ Linux 版」，隔了二十二年有了回應。
 ---
 
 把 1999–2011 年的台灣共享軟體 **WinCV 0.52（CView for Windows）** 逆向，
-用 Go + Ebiten 重寫成 Linux / Windows / macOS / Android 都能跑的版本，
+先用 Go + Ebiten 重寫，現在以 Rust（winit + softbuffer）為主線，Linux / Windows / macOS 都能跑，
 介面與原版點陣像素對齊。原作者是 Lcc Wizard（林健總），原站 `cview.com.tw`。
 
 WinCV 是一支在同一個畫面裡做完很多事的中文工具：瀏覽目錄、看文字檔、看圖與縮圖、
@@ -128,9 +128,9 @@ CView 是「以前 DOS 時代最喜歡的一套軟體」，看圖「超快」，
 
 | 項目 | 原版 WinCV 0.52 | 本重製版 | 說明 |
 |---|---|---|---|
-| 平台 | 32 位元 Windows | Linux / Windows / macOS / Android | 同一份 `internal/` 編四個平台 |
-| 解壓縮 | 外掛 Windows DLL | 純 Go：標準庫、第三方套件，加上六個自寫解碼器 | 12 種格式全部支援 |
-| 圖檔解碼 | `FreeImage.dll` + Intel `ijl15.dll` | 純 Go 解碼 | 12 種格式支援 11 種，缺 Photo CD |
+| 平台 | 32 位元 Windows | Linux / Windows / macOS | 同一份 `rust/crates/` 編三個桌面平台。Android 目前只有 Go 版（v.0.53.9） |
+| 解壓縮 | 外掛 Windows DLL | 不靠外掛：Rust 的 crate（`zip`、`tar`、`flate2`、`bzip2`、`rars`、`sevenz-rust2`），加上六個自寫解碼器 | 12 種格式全部支援 |
+| 圖檔解碼 | `FreeImage.dll` + Intel `ijl15.dll` | 不靠外掛：`image` crate 加自寫的解碼器，SVG 用 `resvg` | 12 種格式支援 11 種，缺 Photo CD |
 | 半形字型 | 自帶點陣字型 `cvga.fon`，8×15 | 直接解析原版的 `.FON` 取字模 | 字模真值來自字型檔本身 |
 | 全形中文字形 | 交給 Windows GDI 用系統字型畫（image 內指名「新細明體」） | 倚天（ETEN）點陣字庫 `STDFONT.15`，16×15 | 原版的中文長相隨每個人的 Windows 而異，重製版需要一個確定的來源 |
 | 格子大小 | 8 × 16 | 8 × 16 | 字模 8×15 靠上對齊，下方留一列。原版列高取自它同時要求的 16 px 全形字 |
@@ -142,7 +142,7 @@ CView 是「以前 DOS 時代最喜歡的一套軟體」，看圖「超快」，
 | 捲軸 | Win32 控制項 | 最右邊一欄，箭頭 + 滑塊 | 原版那根用系統顏色畫，做不到像素等價 |
 | 半形字碼表 | CP437 | 同樣走 CP437 | ANSI art 用的 `░▒▓█│─` 都在 0xB0–0xDF，當成 Latin-1 會整批畫成別的字 |
 | 副檔名配色 | 有（`.bat` 整列洋紅） | 尚未實作 | 原版可在設定裡改 |
-| KK 音標 | 自訂編碼，一個位元組一個音素 | 轉成 IPA 顯示（`ˈlɪtl̩`、`ˈbʌtn̩`） | 對照表解在 `internal/dict/kk.go` |
+| KK 音標 | 自訂編碼，一個位元組一個音素 | 轉成 IPA 顯示（`ˈlɪtl̩`、`ˈbʌtn̩`） | 對照表解在 `rust/crates/dict/src/kk.rs` |
 | 字級 | 設定裡選三種點陣字型之一 | `Ctrl-+` / `Ctrl--` 即時切換同樣三種 | 12×24 字級可用原生 24×24 字形；支援 ETUNPACK 壓縮的倚天與國喬相容字模 |
 | 視窗 | 固定版面 | 放大視窗就多幾格 | 格子大小不變，多出來的空間變成更多欄列 |
 | Big5 以外的字 | 交給 Windows 系統字型 | 掃系統字型目錄組一條後備鏈 | 簡體、日文、韓文、西里爾、希臘、阿拉伯、泰文、數學與製表符號、emoji 都補得到。真的缺字畫成空框，不留白 |
@@ -169,8 +169,8 @@ CView 是「以前 DOS 時代最喜歡的一套軟體」，看圖「超快」，
 
 | 格式 | 實作 | 驗證對象 |
 |---|---|---|
-| ZIP / TAR / GZ / BZ2 | Go 標準庫 | — |
-| RAR / 7z | `nwaples/rardecode`、`bodgit/sevenzip` | 該套件 |
+| ZIP / TAR / GZ / BZ2 | `zip`、`tar`、`flate2`、`bzip2` crate | — |
+| RAR / 7z | `rars`、`sevenz-rust2` crate | 該套件；另與 Go 版（`nwaples/rardecode`、`bodgit/sevenzip`）對照過 |
 | LHA / LZH | 自寫 | p7zip，675 個成員 |
 | `.Z` | 自寫 | ncompress |
 | CAB（MSZIP） | 自寫 | gcab / cabextract |
@@ -244,10 +244,12 @@ Android 是外部儲存的 `wincv/`,與桌面的「執行檔旁邊的 `wincv/`�
 ## 建置與驗收
 
 ```bash
-tools/build-all.sh      # 桌面三平台產物到 dist/(Android 是 tools/build-android.sh)
-tools/verify-dist.sh    # 靜態驗收:檔案格式、macOS 逐弧簽章、動態庫依賴
-tools/go.sh test ./...  # 測試(全部在 docker 裡跑)
+tools/cargo.sh test                              # 測試(全部在 docker 裡跑)
+tools/rust-release.sh v.X.Y.Z-preview-YYYYMMDD   # 桌面三平台建置與打包到 dist-all/<版本>/rust/
+ENGINE=rust VERSION=<版本> tools/build-full.sh linux   # 本機用的完整版(含字型,不可散布)
 ```
+
+Go 版（凍結在 v.0.53.9，只當對照用）：`tools/go.sh test ./...`、`tools/build-all.sh`、`tools/verify-dist.sh`。
 
 原版當 oracle：
 
@@ -327,7 +329,7 @@ Windows 與 macOS 版都建得出來（macOS 走 osxcross）。每個階段的�
 | 功能 | 說明 |
 |---|---|
 | markdown 檢視 | 開 `.md` 直接排版：標題、清單、表格、引言、程式碼區塊，**圖片嵌在文件裡顯示**（PNG / GIF / SVG 都可以），`Enter` 把圖放大 |
-| SVG | 路徑用 oksvg 光柵化，文字自己畫（oksvg 沒有 `<text>`）。原版是 2011 年的軟體，那時 SVG 還不流行 |
+| SVG | 用 resvg 光柵化，`<text>` 由 usvg 排版、字型走與點陣字同一條後備鏈（Go 版用 oksvg，文字自己畫）。原版是 2011 年的軟體，那時 SVG 還不流行 |
 | UTF-8 後備字型 | 倚天沒有的字改用系統 TrueType 補，掃字型目錄而不是只認寫死的路徑 |
 | 字級與倍率 | `Ctrl-+`/`Ctrl--` 換點陣字級，`Alt-+`/`Alt--` 放大倍率（每次 0.1）。倍率不是把字模硬拉大：原版隨附的三種點陣字（8×15 / 10×18 / 12×24）之間的比例正好是 1.19 與 1.56，所以 1.2 / 1.5 / 1.6 這幾格會換成**原生的字模**，每個像素都是當年設計出來的 |
 | 視窗大小 | `7設定` → 視窗大小，有原版版面 93×21 等檔位，也可以自訂欄列數；關掉再開會回到上次的格數 |
@@ -395,9 +397,8 @@ markdown 裡的圖片只認**文件所在目錄底下**的相對路徑，而且�
 | 滾輪 | 一格 = 3 次 `↑`／`↓`，各模式的意思照各自的按鍵 |
 | 網頁上的連結 | 單擊就跟過去（瀏覽器的手感，不要求雙擊） |
 
-按住方向鍵會自動重複這件事要自己做：Ebiten 只回報「剛按下」，
-作業系統的鍵盤重複不會經過它——不做的話按住 `↓` 只會動一格，
-而一個目錄可以有幾百個檔案。
+按住方向鍵會照作業系統的鍵盤重複速度連續移動。會重複的是方向、翻頁、`Backspace` 與 `Delete`，
+編輯器與輸入列裡打字也會；按住 `Enter` 一路開檔不是任何人要的，所以它不重複。（Go 版用的 Ebiten 只回報「剛按下」，重複要自己做。）
 
 ## Office 文件與 PDF
 
@@ -406,7 +407,7 @@ markdown 裡的圖片只認**文件所在目錄底下**的相對路徑，而且�
 下面幾張截圖用的示範文件在 [`docs/demo/office/`](docs/demo/office/)，
 內容是本專案自己寫的；重建與重拍的指令在那個目錄的 README 裡。
 
-五種 Office 格式收在同一個窄介面後面（`internal/officedoc`）。介面那一層
+五種 Office 格式收在同一個窄介面後面（`rust/crates/officedoc`）。介面那一層
 只認得「幾段內容 ＋ 幾張圖」，所以加第六種格式時它一行都不用改。
 
 ### Word
@@ -475,6 +476,8 @@ Go 版的整頁那一路是自己寫的算繪器，沒有加新的相依——�
 程式裡按 `F1` → 關於 可以看到同樣的內容。
 
 ### Android
+
+Android 版目前只有 Go 版（v.0.53.9）。Rust 版還沒做 Android，下面講的都是 Go 版。
 
 ![Android 實機畫面](docs/ui/android-emulator.png)
 

@@ -27,7 +27,7 @@ Calling this a renaissance of Taiwanese software would be overstating it — it'
 
 ---
 
-This project reverse-engineers **WinCV 0.52 (CView for Windows)**, a piece of Taiwanese shareware from 1999-2011, and rewrites it in Go + Ebiten as a version that runs on Linux / Windows / macOS / Android, with the interface pixel-aligned to the original's bitmap. The original author is Lcc Wizard (Lin Chien-tsung); the original site was `cview.com.tw`.
+This project reverse-engineers **WinCV 0.52 (CView for Windows)**, a piece of Taiwanese shareware from 1999-2011, and rewrites it — first in Go + Ebiten, now with Rust (winit + softbuffer) as the main line — as a version that runs on Linux / Windows / macOS, with the interface pixel-aligned to the original's bitmap. The original author is Lcc Wizard (Lin Chien-tsung); the original site was `cview.com.tw`.
 
 WinCV is a Chinese-language utility that does a lot within a single screen: browsing directories, viewing text files, viewing images and thumbnails, walking into archives as if they were directories, editing text, viewing hex, converting between Big5 / GB / SJIS / KOR / Unicode, looking up an English-Chinese dictionary and KK phonetic transcriptions, and computing MD5 and SFV checksums. Its last update stopped on November 24, 2011 (the final entry in `whatsnew.txt`), and there was never a Linux version or a macOS version after that.
 
@@ -77,9 +77,9 @@ That 2004 line — "I really wish he'd make a Linux version" — never got a rep
 
 | Item | Original WinCV 0.52 | This remake | Notes |
 |---|---|---|---|
-| Platform | 32-bit Windows | Linux / Windows / macOS / Android | The same `internal/` package builds for all four platforms |
-| Extraction | Plugin Windows DLLs | Pure Go: standard library, third-party packages, plus six hand-written decoders | All 12 formats supported |
-| Image decoding | `FreeImage.dll` + Intel `ijl15.dll` | Pure Go decoding | 11 of 12 formats supported; Photo CD is missing |
+| Platform | 32-bit Windows | Linux / Windows / macOS | The same `rust/crates/` builds for all three desktop platforms. Android exists only in the Go version (v.0.53.9) |
+| Extraction | Plugin Windows DLLs | No plugins: Rust crates (`zip`, `tar`, `flate2`, `bzip2`, `rars`, `sevenz-rust2`) plus six hand-written decoders | All 12 formats supported |
+| Image decoding | `FreeImage.dll` + Intel `ijl15.dll` | No plugins: the `image` crate plus hand-written decoders; SVG through `resvg` | 11 of 12 formats supported; Photo CD is missing |
 | Half-width font | Bundled bitmap font `cvga.fon`, 8x15 | Parses the original `.FON` directly for glyphs | Glyph ground truth comes from the font file itself |
 | Full-width Chinese glyphs | Left to Windows GDI to draw with a system font (the image names PMingLiU by name) | ETEN (倚天), the Taiwanese DOS Chinese system, bitmap library `STDFONT.15`, 16x15 | The original's Chinese rendering varied by whoever's Windows it ran on; the remake needs a fixed source |
 | Cell size | 8 x 16 | 8 x 16 | The 8x15 glyph is top-aligned, leaving one row of space below. The original's row height comes from the 16px full-width glyphs it also required |
@@ -91,7 +91,7 @@ That 2004 line — "I really wish he'd make a Linux version" — never got a rep
 | Scrollbar | Win32 control | Rightmost column, arrows + thumb | The original's is drawn in system colors, so pixel equivalence isn't achievable there |
 | Half-width code page | CP437 | Also CP437 | The `░▒▓█│─` characters used in ANSI art all sit in 0xB0-0xDF; treating them as Latin-1 would draw an entirely different set of characters |
 | Extension-based coloring | Present (`.bat` rows are entirely magenta) | Not yet implemented | The original lets you change this in settings |
-| KK phonetics | Custom encoding, one byte per phoneme | Converted to IPA for display (`ˈlɪtl̩`, `ˈbʌtn̩`) | The lookup table is worked out in `internal/dict/kk.go` |
+| KK phonetics | Custom encoding, one byte per phoneme | Converted to IPA for display (`ˈlɪtl̩`, `ˈbʌtn̩`) | The lookup table is worked out in `rust/crates/dict/src/kk.rs` |
 | Font size | Pick one of three bitmap fonts in settings | `Ctrl-+` / `Ctrl--` switches live between the same three | The 24-point full-width glyphs on the ETEN disc are compressed, so at that size Chinese is scaled up from 16x15 |
 | Window | Fixed layout | Enlarging the window adds more cells | Cell size doesn't change; the extra space becomes more columns and rows |
 | Characters outside Big5 | Left to Windows system fonts | A fallback chain built by scanning the system font directories | Covers Simplified Chinese, Japanese, Korean, Cyrillic, Greek, Arabic, Thai, math and box-drawing symbols, and emoji. A genuinely missing glyph is drawn as an empty box rather than left blank |
@@ -114,8 +114,8 @@ All six hand-written decoders are checked file-by-file against a reference imple
 
 | Format | Implementation | Verified against |
 |---|---|---|
-| ZIP / TAR / GZ / BZ2 | Go standard library | — |
-| RAR / 7z | `nwaples/rardecode`, `bodgit/sevenzip` | those packages |
+| ZIP / TAR / GZ / BZ2 | `zip`, `tar`, `flate2`, `bzip2` crates | — |
+| RAR / 7z | `rars`, `sevenz-rust2` crates | those packages; also compared against the Go version (`nwaples/rardecode`, `bodgit/sevenzip`) |
 | LHA / LZH | hand-written | p7zip, 675 members |
 | `.Z` | hand-written | ncompress |
 | CAB (MSZIP) | hand-written | gcab / cabextract |
@@ -159,10 +159,12 @@ Fonts that turn up are then filtered by filename: a desktop's font directory can
 ## Building and verification
 
 ```bash
-tools/build-all.sh      # Desktop three-platform builds into dist/ (Android is tools/build-android.sh)
-tools/verify-dist.sh    # Static verification: file format, macOS ad-hoc signing, dynamic library dependencies
-tools/go.sh test ./...  # Tests (all run inside docker)
+tools/cargo.sh test                              # tests (all run inside docker)
+tools/rust-release.sh v.X.Y.Z-preview-YYYYMMDD   # desktop builds and packages into dist-all/<version>/rust/
+ENGINE=rust VERSION=<version> tools/build-full.sh linux   # local full build (fonts embedded, not for distribution)
 ```
+
+The Go version (frozen at v.0.53.9, kept only as the reference): `tools/go.sh test ./...`, `tools/build-all.sh`, `tools/verify-dist.sh`.
 
 The original as oracle:
 
@@ -236,7 +238,7 @@ Things the original doesn't have, that this version does:
 | Feature | Notes |
 |---|---|
 | Markdown view | Opening a `.md` file lays it out directly: headings, lists, tables, blockquotes, code blocks, **with images embedded inline** (PNG / GIF / SVG all work), `Enter` enlarges an image |
-| SVG | Paths are rasterized with oksvg; text is drawn by hand (oksvg has no `<text>` support). The original is 2011-era software, from before SVG became common |
+| SVG | Rasterized with resvg; `<text>` is laid out by usvg using the same font fallback chain as the bitmap text (the Go version uses oksvg and draws text by hand). The original is 2011-era software, from before SVG became common |
 | UTF-8 fallback font | Characters ETEN doesn't have are filled in with system TrueType fonts, found by scanning font directories rather than checking only hardcoded paths |
 | Font size and scale | `Ctrl-+`/`Ctrl--` switches bitmap font size, `Alt-+`/`Alt--` changes the scale factor (0.1 per step). The scale isn't just stretching the glyphs: the ratios between the original's three bundled bitmap fonts (8x15 / 10x18 / 12x24) are exactly 1.19 and 1.56, so at the 1.2 / 1.5 / 1.6 steps it switches to the **native glyphs** instead — every pixel drawn as it was back then |
 | Window size | `F9` → Settings → Window Size, with presets like the original's 93x21 layout, and custom column/row counts too |
@@ -298,14 +300,14 @@ Keybindings follow the original (the key-by-key tested reference is in [`docs/ui
 | Wheel | One notch = 3x `↑`/`↓`; the meaning in each mode follows that mode's own keys |
 | Links on web pages | Single click follows it (browser-style, no double-click required) |
 
-Auto-repeat when holding down an arrow key had to be built by hand: Ebiten only reports "just pressed," and the OS's keyboard repeat doesn't pass through it — without this, holding `↓` would only move one cell, and a directory can hold hundreds of files.
+Holding an arrow key moves continuously at the OS keyboard repeat rate. Arrows, paging, `Backspace` and `Delete` repeat, and so does typing in the editor and the input line; holding `Enter` to open file after file is nobody's intent, so it doesn't repeat. (Ebiten, used by the Go version, only reports "just pressed," so there the repeat had to be built by hand.)
 
 ## Office documents and PDF
 
 The original never had these formats, so there's no original to check against — verification instead uses external tools: for Office formats, LibreOffice running in a container converts the same file to plain text; for PDF full-page rendering, the comparison is against poppler.
 The demo documents used in the screenshots below are in [`docs/demo/office/`](docs/demo/office/), and their content was written for this project; the commands to rebuild and re-capture them are in that directory's README.
 
-All five Office formats are collected behind the same narrow interface (`internal/officedoc`). That interface layer only understands "some blocks of content plus some images," so adding a sixth format wouldn't require changing a single line of it.
+All five Office formats are collected behind the same narrow interface (`rust/crates/officedoc`). That interface layer only understands "some blocks of content plus some images," so adding a sixth format wouldn't require changing a single line of it.
 
 ### Word
 
@@ -363,6 +365,8 @@ This repo is a remake, and the attribution here is for the remake itself:
 The same text is shown in-program under `F1` → About.
 
 ### Android
+
+The Android build exists only in the Go version (v.0.53.9). The Rust version doesn't do Android yet; everything below is about the Go version.
 
 ![Android device screen](docs/ui/android-emulator.png)
 

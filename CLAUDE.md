@@ -522,11 +522,11 @@ cmd/ internal/           Go 實作
 ```
 
 ```bash
-# 建自己要跑的那一個(含字型,約 30 秒)。名稱固定,掛 alias 用:
+# 建自己要跑的那一個(含字型)。名稱固定,掛 alias 用:
 #   alias wincv="$HOME/cht/wincv/dist-all/wincv-linux-amd64-full"
-# tools/release.sh 跑完也會自動更新它,發布的版本與手上跑的不會分岔。
+# Go 版在 v.0.53.9 凍結,這個固定入口改放 Rust 版(ENGINE=rust)。
 # dist-all/BUILT-FROM-full 記著它是哪個 commit 建的(工作區髒會標 -dirty)。
-tools/build-full.sh linux
+ENGINE=rust VERSION=v.0.53.8-preview-20261110 tools/build-full.sh linux
 
 # 重建原版素材與 Wine prefix
 tools/setup-wine-oracle.sh
