@@ -123,9 +123,6 @@ fn snapshot_leaves_archive() {
 }
 
 // 說明是內嵌的,不是檔案 —— 存下來下次會找不到那個「檔名」。
-//
-// [過渡] Rust 版的 F1 暫時用文字檢視器開說明(見 menu_test::help_opens),
-// 這條斷言對 viewer 與 markdown 兩種情形都成立。
 #[test]
 fn snapshot_skips_help() {
     let td = TempDir::new();

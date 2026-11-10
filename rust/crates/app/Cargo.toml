@@ -24,6 +24,7 @@ wincv-imgfmt.workspace = true
 wincv-imgview.workspace = true
 wincv-keys.workspace = true
 wincv-launch.workspace = true
+wincv-markdown.workspace = true
 wincv-note.workspace = true
 wincv-render.workspace = true
 wincv-search.workspace = true

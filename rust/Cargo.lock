@@ -3001,6 +3001,7 @@ dependencies = [
  "wincv-imgview",
  "wincv-keys",
  "wincv-launch",
+ "wincv-markdown",
  "wincv-note",
  "wincv-render",
  "wincv-search",

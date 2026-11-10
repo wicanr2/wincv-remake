@@ -130,17 +130,13 @@ fn dropdown_stays_on_screen() {
 }
 
 // F1 開使用說明,而且說明裡真的有按鍵表。
-//
-// [過渡] Go 版的 F1 進 ModeMarkdown。Rust 版的 markdown 檢視還沒接上,F1 暫時用文字
-// 檢視器開說明原文(help.rs),所以這裡斷言的是 Mode::Viewer 與檔名。markdown 接上之後
-// 改回斷言 Mode::Markdown。
 #[test]
 fn help_opens() {
     let td = TempDir::new();
     let mut a = new_at(td.path());
     a.handle_key(named(Code::F1));
-    assert_eq!(a.mode, Mode::Viewer, "[過渡] F1 之後的模式");
-    assert_eq!(a.viewer.as_ref().map(|v| v.name.as_str()), Some(crate::help::HELP_NAME));
+    assert_eq!(a.mode, Mode::Markdown, "F1 之後的模式");
+    assert_eq!(a.md.name, crate::help::HELP_NAME);
     let mut s = Screen::new(80, 25);
     a.draw(&mut s);
     let txt = screen_text(&s);

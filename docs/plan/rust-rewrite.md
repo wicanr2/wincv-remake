@@ -446,9 +446,9 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
   (加邊角案例與手組的區塊)在 40、80、120 欄的解析與排版結果與 Go 版逐位元相同。搬移時列出 Go 版 11 個可疑行為
   (折行後的列以空白開頭、清單前不空行、清單記號以字元數當寬度等),Rust 照抄,修正與否另外決定。
 - 3b 進行中:`wincv-app` 的瀏覽、檢視、16 進位、看圖、縮圖、編輯、尋找、轉換、解壓、打包、MD5/SFV、選單、輸入列、
-  磁碟窗格、預視、session 已搬;Go 版 7 個測試檔的 74 條測試照搬並通過。`tools/rust-parity.sh` 加 13 個
-  `celldump -app -keys` 場景,除了「關於」畫面寫的實作語言以外逐像素相同。markdown 檢視、網路瀏覽、EPUB、PDF、
-  Office、觸控列、滑鼠還沒接;F1 說明暫時用文字檢視器開原文。
+  磁碟窗格、預視、session、markdown 檢視與 F1 說明已搬;Go 版 8 個測試檔的 79 條測試照搬並通過。
+  `tools/rust-parity.sh` 加 19 個 `celldump -app -keys` 場景(含 markdown 內嵌圖),除了「關於」畫面寫的實作
+  語言以外逐像素相同。網路瀏覽、EPUB、PDF、Office、觸控列、滑鼠還沒接。
 - 3c 進行中:`rust/crates/wincv` 改成真正的程式(字級與倍率挑選、選單層合成、按鍵轉換含輸入法、session、全螢幕、
   視窗大小請求),在 Xvfb 裡實際開過、操作過。還沒有滑鼠、程式圖示、`-menu-font`;網頁版的冒煙測試
   (`tools/rust-web-smoke.sh`)還用舊的 `WINCV_FONT_DIR`,要改成 `wincv-bundled` 的內嵌方式。

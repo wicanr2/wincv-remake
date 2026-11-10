@@ -133,3 +133,44 @@ uni = (
 with open(os.path.join(root, "unicode.txt"), "w", encoding="utf-8", newline="\n") as f:
     f.write(uni)
 os.utime(os.path.join(root, "unicode.txt"), (1_000_000_000, 1_000_000_000))
+
+# markdown 檢視:標題、清單、表格、程式碼、引言、連結,加兩張內嵌圖(與 img/ 同一份)。
+md = os.path.join(root, "md")
+os.makedirs(os.path.join(md, "img"), exist_ok=True)
+for n in ("grad.tga", "gray.pgm"):
+    with open(os.path.join(im, n), "rb") as src, open(os.path.join(md, "img", n), "wb") as dst:
+        dst.write(src.read())
+doc = """# WinCV 文件檢視
+
+原版沒有 markdown,重製版**順手**支援,`README.md` 這類文件可以*直接*看。
+
+## 清單
+
+- 第一項
+- 第二項,內文夠長才會折行:這是一段夠長的內文，用來確認折行與縮排是否與 Go 版一致。
+  1. 編號一
+  2. 編號二
+
+> 引言:看文件的人要的是「這裡有張圖」。
+
+| 格式 | 自寫 | 備註 |
+|:---|:---:|---:|
+| LZH | 是 | 675 個成員 |
+| ACE | 是 | 269 個成員 |
+
+```go
+func main() { println("hello") }
+```
+
+![漸層](img/grad.tga)
+
+---
+
+![灰階](img/gray.pgm) [連結](https://example.com)
+
+結尾。
+"""
+with open(os.path.join(md, "doc.md"), "w", encoding="utf-8", newline="\n") as f:
+    f.write(doc)
+for p in ("img/grad.tga", "img/gray.pgm", "doc.md", "img", "."):
+    os.utime(os.path.join(md, p), (1_000_000_000, 1_000_000_000))

@@ -42,6 +42,7 @@ impl App {
             Mode::Hex => self.hex.as_ref().map(|h| ("hex", h.name.clone(), h.top, 0)),
             Mode::Edit => self.editor.as_ref().map(|e| ("edit", e.name.clone(), e.top as i32, 0)),
             Mode::Image => self.image.as_ref().map(|m| ("image", m.name.clone(), 0, 0)),
+            Mode::Markdown => Some(("markdown", self.md.name.clone(), self.md.top, 0)),
             _ => None,
         }
         .unwrap_or(("", String::new(), 0, 0));
@@ -124,6 +125,8 @@ impl App {
                         v.top = clamp_top(st.top, n);
                         v.cur = clamp_top(st.cur, n);
                     }
+                } else if self.mode == Mode::Markdown {
+                    self.md.top = clamp_top(st.top, self.md.blocks.len() as i32 * 4);
                 }
             }
         }

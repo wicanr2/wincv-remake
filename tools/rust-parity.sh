@@ -16,7 +16,7 @@ for f in original/app/cvga.fon original/eten/STDFONT.15 original/eten/SPCFONT.15
     [ -f "$REPO/$f" ] || { echo "缺少 $f(先跑 tools/setup-wine-oracle.sh 與 tools/setup-eten.sh)" >&2; exit 2; }
 done
 # 檔案列表比對用的目錄:tools/parity-fixture.py 以固定內容與時間戳產生。
-if [ ! -f "$REPO/$OUT/fixture/unicode.txt" ]; then
+if [ ! -f "$REPO/$OUT/fixture/md/doc.md" ]; then
     docker run --rm --log-opt max-size=10m --log-opt max-file=3 --network none --memory 256m --cpus 1 \
         --pids-limit 64 -u "$(id -u):$(id -g)" -v "$REPO/$OUT":/p -v "$REPO/tools":/t:ro python:3.12-slim \
         python3 -I /t/parity-fixture.py /p/fixture
@@ -80,6 +80,13 @@ SCENES=(
     # 「關於」畫面寫著用什麼做的:Go 版是「Go + Ebiten」,Rust 版是「Rust」,差那 10 格。
     "app-about|-app /src/$OUT/fixture -keys Alt-8,Down,Enter|10"
     "app-small|-app /src/$OUT/fixture -keys F9 -cols 40 -rows 12"
+    # markdown 檢視(含內嵌圖)與 F1 說明。
+    "app-md|-app /src/$OUT/fixture/md -keys Down,Down,Enter"
+    "app-md-scroll|-app /src/$OUT/fixture/md -keys Down,Down,Enter,PgDn"
+    "app-md-pic|-app /src/$OUT/fixture/md -keys Down,Down,Enter,PgDn,Enter"
+    "app-md-narrow|-app /src/$OUT/fixture/md -keys Down,Down,Enter -cols 40 -rows 30"
+    "app-help|-app /src/$OUT/fixture -keys F1"
+    "app-help-end|-app /src/$OUT/fixture -keys F1,End"
     # 字級與全形來源(fontset):10×18 與 12×24 是倚天縮放;12×24 另有原生 24 點字庫。
     "lvl-1018|-half /src/original/app/CVGA1018.FON -file /src/original/app/whatsnew.txt"
     "lvl-1224|-half /src/original/app/cvga1224.FON -file /src/original/app/whatsnew.txt"

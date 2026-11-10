@@ -10,6 +10,7 @@ mod editfind;
 mod filecolor;
 mod help;
 mod layout;
+mod mdview;
 mod menu;
 mod pending;
 mod preview;
@@ -40,6 +41,7 @@ use wincv_vfs::{Fs, SortKey};
 pub use about::VERSION;
 pub use actions::FindResult;
 pub use layout::sane_layout;
+pub use mdview::{is_markdown, MAX_MD_IMAGE_BYTES};
 pub use menu::{cjk24_name, MenuLayer, MENU_BAR_ROWS};
 pub use preview::{MAX_PREVIEW_BYTES, PREVIEW_ROWS};
 pub use viewsize::{MAX_SCALE, MIN_SCALE, SCALE_STEP};
@@ -150,6 +152,8 @@ pub struct App {
     prompt: prompt::Prompt,
     menu: menu::Menu,
     about: bool,
+    /// markdown 檢視模式,見 mdview.rs。
+    md: mdview::MdView,
 
     /// 看圖是從瀏覽模式進來的,Esc 要退回去。
     g_return: bool,
@@ -238,6 +242,7 @@ impl App {
             prompt: Default::default(),
             menu: Default::default(),
             about: false,
+            md: Default::default(),
             g_return: false,
             md_return: false,
             edit_find: Default::default(),
@@ -267,8 +272,9 @@ impl App {
     fn draw_modes(&mut self, s: &mut Screen) -> Vec<Overlay> {
         let mut ov = Vec::new();
         match self.mode {
-            Mode::Browse | Mode::Markdown => {
-                // 這兩個模式的程式還沒搬(見 pending.rs),進不來;保險起見退回列表。
+            Mode::Markdown => ov = self.draw_markdown(s),
+            Mode::Browse => {
+                // 這個模式的程式還沒搬(見 pending.rs),進不來;保險起見退回列表。
                 self.mode = Mode::Browser;
                 self.rows = self.browser.draw(s);
             }
@@ -327,6 +333,7 @@ impl App {
             Mode::Viewer => self.viewer.as_ref().map(|v| v.name.as_str()),
             Mode::Hex => self.hex.as_ref().map(|h| h.name.as_str()),
             Mode::Edit => self.editor.as_ref().map(|e| e.name.as_str()),
+            Mode::Markdown => Some(self.md.name.as_str()),
             _ => None,
         }
         .unwrap_or("");
@@ -356,6 +363,7 @@ impl App {
                 let e = self.editor.as_ref().unwrap();
                 (p.top, p.line, p.col) = (e.top as i32, e.cur.line as i32, e.cur.col as i32);
             }
+            Mode::Markdown => p.top = self.md.top,
             _ => {}
         }
         let mut st = wincv_session::State { positions: std::mem::take(&mut self.positions), ..Default::default() };
@@ -382,6 +390,7 @@ impl App {
                 e.top = session::clamp_top(p.top, e.lines.len() as i32) as usize;
                 e.move_to(wincv_editor::Pos { line: p.line.max(0) as usize, col: p.col.max(0) as usize });
             }
+            Mode::Markdown => self.md.top = session::clamp_top(p.top, self.md.blocks.len() as i32 * 4),
             _ => {}
         }
     }
@@ -450,6 +459,7 @@ impl App {
             _ => {}
         }
         match self.mode {
+            Mode::Markdown => self.markdown_key(k),
             Mode::Viewer => self.viewer_key(k),
             Mode::Hex => self.hex_key(k),
             Mode::Image => self.image_key(k),
@@ -754,6 +764,11 @@ impl App {
                 return true;
             }
         };
+        // markdown 走排版模式:標題、清單、表格照結構畫,圖片直接嵌在文件裡。要看原始碼按 E 進編輯器。
+        if is_markdown(name) {
+            self.open_markdown(name, &data);
+            return true;
+        }
         // 判成二進位就直接開 16 進位檢視:原版 0.5 版起就是這個行為
         // (「按 enter 看檔時自動將可能為執行檔的檔案以 16 進位方式看檔」)。
         let m = wincv_viewer::Model::load(name, &data, Enc::Unknown);

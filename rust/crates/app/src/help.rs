@@ -25,13 +25,17 @@ pub(crate) fn help_text() -> &'static str {
 }
 
 impl App {
-    /// 顯示使用說明。markdown 檢視模式搬過來之前先用文字檢視器顯示原文。
+    /// 用 markdown 模式顯示使用說明。
+    ///
+    /// 借用既有的 markdown 檢視器而不是另寫一個畫面:說明書要的東西(標題階層、清單、
+    /// 表格、程式碼樣式)那邊都已經有了,而且使用者在看 .md 檔時學到的按鍵在這裡照樣通。
     pub(crate) fn open_help(&mut self) -> bool {
-        let text = help_text();
-        self.view_data = text.as_bytes().to_vec();
-        self.view_raw = text.to_string();
-        self.viewer = Some(wincv_viewer::Model::load(HELP_NAME, text.as_bytes(), wincv_textenc::Enc::Utf8));
-        self.mode = Mode::Viewer;
+        self.md = crate::mdview::MdView {
+            name: HELP_NAME.to_string(),
+            blocks: wincv_markdown::parse(help_text()),
+            ..Default::default()
+        };
+        self.mode = Mode::Markdown;
         self.md_return = false;
         true
     }
