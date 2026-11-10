@@ -13,6 +13,10 @@
 #   tools/build-full.sh desktop      # 只做桌面三個
 #   tools/build-full.sh android      # 只做 APK
 #   tools/build-full.sh linux        # 只做 linux(平常自己要用的那一個)
+#   ENGINE=rust VERSION=v.0.53.8-preview-20261110 tools/build-full.sh linux   # Rust 版
+#
+# Go 版在 v.0.53.9 凍結,之後的開發都在 Rust 版(見 README),固定入口改放 Rust 版。
+# ENGINE=rust 目前只做 linux。
 #
 # `linux` 是給「我現在就想跑最新版」用的:桌面三個要編兩輪 darwin 再 lipo,
 # APK 要跑 gradle,加起來二十分鐘;只要 linux 的話一分鐘出頭。
@@ -38,11 +42,16 @@ OSX_IMG=${OSX_IMG:-wincv-osxcross-go:1}
 # 工具找不到,而 clang 只會轉述成 "unable to execute command"。
 OSX_TARGET=${OSX_TARGET:-}
 WHAT=${1:-all}
+ENGINE=${ENGINE:-go}
 VERSION=${VERSION:?請以 VERSION=v.主版.次版.修訂版-YYYYMMDD 指定發布版號}
-case "$VERSION" in
-    v.[0-9]*.[0-9]*.[0-9]-????????) ;;
-    *) echo "不合規的版本號:$VERSION" >&2; exit 2 ;;
+case "$ENGINE:$VERSION" in
+    go:v.[0-9]*.[0-9]*.[0-9]-????????) ;;
+    rust:v.[0-9]*.[0-9]*.[0-9]*-????????|rust:v.[0-9]*.[0-9]*.[0-9]*-preview-????????) ;;
+    *) echo "不合規的版本號:$VERSION(ENGINE=$ENGINE)" >&2; exit 2 ;;
 esac
+if [ "$ENGINE" = rust ] && [ "$WHAT" != linux ]; then
+    echo "ENGINE=rust 目前只做 linux" >&2; exit 2
+fi
 OUT=$REPO/dist-all/$VERSION/full-local
 
 # 字型素材只供本機完整版使用：15／24 點倚天、國喬與 Unicode 後備。
@@ -80,10 +89,17 @@ DOCKER="docker run --rm --log-opt max-size=10m --log-opt max-file=3
         -e GOFLAGS=-buildvcs=false -e GOCACHE=/tmp/gocache -e GOMODCACHE=/tmp/gomod"
 
 if [ "$WHAT" = all ] || [ "$WHAT" = desktop ] || [ "$WHAT" = linux ]; then
-    echo "=== linux/amd64(含字型)==="
-    $DOCKER "$BUILD_IMG" sh -c '
-        CGO_ENABLED=1 go build -tags fonts -trimpath -ldflags "-s -w -X github.com/wicanr2/wincv-remake/internal/app.Version=$WINCV_VERSION" \
-            -o /src/dist-all/$WINCV_VERSION/full-local/wincv-linux-amd64-full ./cmd/wincv'
+    echo "=== linux/amd64(含字型,$ENGINE)==="
+    if [ "$ENGINE" = rust ]; then
+        # wincv-bundled 的 build.rs 在 fonts 功能下列 internal/bundled/assets,每個檔案一行
+        # include_bytes!。版本字串由 WINCV_VERSION 帶入(tools/cargo.sh 會把 WINCV_* 帶進容器)。
+        WINCV_VERSION=$VERSION "$REPO/tools/cargo.sh" build -q --release -p wincv --features fonts
+        cp "$REPO/.cache/cargo-target/release/wincv" "$OUT/wincv-linux-amd64-full"
+    else
+        $DOCKER "$BUILD_IMG" sh -c '
+            CGO_ENABLED=1 go build -tags fonts -trimpath -ldflags "-s -w -X github.com/wicanr2/wincv-remake/internal/app.Version=$WINCV_VERSION" \
+                -o /src/dist-all/$WINCV_VERSION/full-local/wincv-linux-amd64-full ./cmd/wincv'
+    fi
     expect wincv-linux-amd64-full
     # 記下這個執行檔是哪個 commit 建的。alias 指的是固定名稱,光看檔案
     # 分不出它是今天建的還是三週前建的 —— 而那正是「改完卻沒生效」的來源。
