@@ -80,10 +80,14 @@ MD5 と SFV の計算まで行えます。最終更新は 2011 年 11 月 24 日
 (`whatsnew.txt` の最後の記載)で止まっており、それ以降 Linux 版も
 macOS 版も出ていません。
 
-ダウンロード:[v.0.53.7-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.7-20261109)(Go 版、正式版)、
+ダウンロード:[v.0.53.9-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.9-20261110)(Go 版の最終版)、
 [v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110)(Rust 版プレビュー)
 (Linux / Windows / macOS。公開パッケージにサードパーティのフォントは含まれません。
 合法に入手したフォントを各自で用意してください)
+
+> **Go 版は v.0.53.9 で終了し、以降の開発とリリースはすべて Rust 版**([`rust/`](rust/))**で行います。**
+> Go 版のソースは Rust 版の照合基準(oracle)として repo に残しますが、新しいリリースも機能追加も行いません。
+> 両者の比較は下の「Rust による書き直し」の節を参照してください。
 
 このリメイクのソースコード、ツール、ドキュメントは [BSD 2-Clause](LICENSE)
 です。**原版 WinCV の著作権は原作者 Lcc Wizard(林健総)に帰属し**、この
@@ -342,8 +346,8 @@ tools/readme-shots.sh
 
 ## Rust による書き直し
 
-このページのスクリーンショットはすべて Rust 版が描いたものです。現在リリースしているのは
-引き続き Go 版で、Rust 版は [`rust/`](rust/) にあります。Go 版からモジュール単位で移植し、
+このページのスクリーンショットはすべて Rust 版が描いたものです。Go 版の最終版は v.0.53.9 で、
+以降は Rust 版のみをリリースします。Rust 版は [`rust/`](rust/) にあります。Go 版からモジュール単位で移植し、
 どの層も Go 版を oracle として照合しています。
 
 | 層 | 照合方法 | 結果 |

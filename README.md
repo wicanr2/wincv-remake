@@ -58,9 +58,13 @@ WinCV 是一支在同一個畫面裡做完很多事的中文工具：瀏覽目�
 查英漢字典與 KK 音標、算 MD5 與 SFV。它的最後一次更新停在 2011 年 11 月 24 日
 （`whatsnew.txt` 的最後一筆），之後沒有 Linux 版，也沒有 macOS 版。
 
-下載：[v.0.53.7-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.7-20261109)（Go 版，正式版）、
+下載：[v.0.53.9-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.9-20261110)（Go 版的最後一版）、
 [v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110)（Rust 版預覽）
 （Linux / Windows / macOS；公開包不含第三方字型，可自行提供合法取得的字型）
+
+> **Go 版到 v.0.53.9 為止，之後的開發與發布都改用 Rust 版**（[`rust/`](rust/)）。
+> Go 版的原始碼留在 repo 裡，當 Rust 版的對照基準（oracle），不再發新版、不再加功能。
+> 兩版的差異與對照結果見下方「Rust 改寫」一節。
 
 remake 的原始碼、工具與文件走 [BSD 2-Clause](LICENSE)。**原版 WinCV 的著作權屬於
 原作者 Lcc Wizard（林健總）**，授權不涵蓋它——重寫是為了保存這份文化資產，
@@ -287,8 +291,8 @@ tools/readme-shots.sh
 
 ## Rust 改寫
 
-這一頁的截圖都是 Rust 版畫的。Go 版仍是目前發布的版本；Rust 版在 [`rust/`](rust/)，
-逐模組照 Go 版搬，每一層都拿 Go 版當 oracle 對照：
+這一頁的截圖都是 Rust 版畫的。Go 版的最後一版是 v.0.53.9，之後只發 Rust 版。Rust 版在
+[`rust/`](rust/)，逐模組照 Go 版搬，每一層都拿 Go 版當 oracle 對照：
 
 | 層 | 對照方式 | 結果 |
 |---|---|---|
