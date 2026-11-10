@@ -460,6 +460,19 @@ README 的截圖也那時一起換。依「最快得到能用的程式」排序�
   用 TrueType 選單字型時也是如此);網頁版的冒煙測試
   (`tools/rust-web-smoke.sh`)還用舊的 `WINCV_FONT_DIR`,要改成 `wincv-bundled` 的內嵌方式。
 
+### 3d:gopher、web、epub(2026-11-10)
+
+- 三個 crate 搬完,Go 版 38 條測試照搬並通過(Rust 另補 14 條,共 52 條)。
+- 第三方:html5ever 0.40.1(只用 tokenizer,與 Go 版只用 `html.Tokenizer` 對應)、ureq 3.5.1(rustls + ring;ring 含 C 與
+  組語,Windows mingw 與 osxcross 都實測建得出來)、zip 9.5.0(與 archive 相同)。Go 的 net/url、path、encoding/xml 的
+  寬鬆模式自己照 Go 原始碼搬:url crate 走 WHATWG,接相對位址的結果與 Go 的 RFC 3986 不同;沒有 Rust XML 套件有
+  Go 寬鬆模式的自動關閉與錯配結束標籤的行為。
+- `tools/net-parity.sh`:`~/cht` 的 390 份真實 HTML(每個專案最多 20 份)× html / raw / gopher 三種模式,加 53 份
+  邊角案例(含 24 份腳本產生的 EPUB,`~/cht` 裡沒有 EPUB),共 1,267 份,1,257 份與 Go 逐位元相同。不同的 10 份分三類:
+  - 不加引號的屬性值以 `/` 結尾後緊接 `>`(例:`href=https://translate.google.com/>`):Go 當成自閉合標籤,
+    WHATWG 規格與 html5ever 把 `/` 當成值的一部分。這是合法 HTML,Rust 較接近規格,列為允許差異。
+  - `&#x;` 沒有數字、`</>`:只出現在畸形 HTML,兩邊依各自 tokenizer 處理,Rust 的結果符合規格。
+
 ## 待決定事項
 
 - 網頁版是否公開部署。公開部署就不能內含第三方字型，介面會改用可散布字型或由使用者提供。

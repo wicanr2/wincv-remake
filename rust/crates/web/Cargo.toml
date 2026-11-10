@@ -1,0 +1,21 @@
+[package]
+name = "wincv-web"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# 用 gopher 的方式看網頁(對應 Go 版 internal/web)。
+#
+# html5ever:Servo 的 HTML5 解析器,實作 WHATWG 的 tokenization 演算法。Go 版用的
+# golang.org/x/net/html 也是照同一份規格寫的;這裡只用它的 tokenizer(Go 版也只用
+# html.Tokenizer,不建 DOM)。
+# ureq:同步的 HTTP 客戶端,純 Rust;TLS 走 rustls(密碼學用 ring),憑證用
+# webpki-roots 內建的 Mozilla 清單,所以不依賴系統的 OpenSSL,能交叉編到 Windows / macOS。
+
+[dependencies]
+wincv-markdown.workspace = true
+wincv-textenc.workspace = true
+wincv-i18n.workspace = true
+html5ever = "0.40.1"
+ureq = "3.5.1"

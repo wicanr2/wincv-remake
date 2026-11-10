@@ -1,0 +1,20 @@
+[package]
+name = "wincv-epub"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# EPUB 電子書(對應 Go 版 internal/epub)。ZIP 用與 wincv-archive 同一版的 zip,
+# XHTML 交給 wincv-web 的 HTML 解析器。
+
+[dependencies]
+wincv-markdown.workspace = true
+wincv-i18n.workspace = true
+wincv-textenc.workspace = true
+wincv-web = { path = "../web" }
+zip = { version = "9.5", default-features = false, features = ["deflate-flate2", "deflate64", "bzip2", "lzma", "xz", "legacy-zip"] }
+
+[dev-dependencies]
+# examples/docsum.rs(與 Go 版 tools/docsum-net 對照)也要印 gopher 的結果。
+wincv-gopher = { path = "../gopher" }

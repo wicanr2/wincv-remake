@@ -41,6 +41,9 @@ wincv-fontset = { path = "crates/fontset" }
 wincv-datadir = { path = "crates/datadir" }
 wincv-launch = { path = "crates/launch" }
 wincv-appicon = { path = "crates/appicon" }
+wincv-gopher = { path = "crates/gopher" }
+wincv-web = { path = "crates/web" }
+wincv-epub = { path = "crates/epub" }
 wincv-app = { path = "crates/app" }
 wincv-markdown = { path = "crates/markdown" }
 encoding_rs = "0.8"
