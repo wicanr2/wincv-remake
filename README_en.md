@@ -31,8 +31,9 @@ This project reverse-engineers **WinCV 0.52 (CView for Windows)**, a piece of Ta
 
 WinCV is a Chinese-language utility that does a lot within a single screen: browsing directories, viewing text files, viewing images and thumbnails, walking into archives as if they were directories, editing text, viewing hex, converting between Big5 / GB / SJIS / KOR / Unicode, looking up an English-Chinese dictionary and KK phonetic transcriptions, and computing MD5 and SFV checksums. Its last update stopped on November 24, 2011 (the final entry in `whatsnew.txt`), and there was never a Linux version or a macOS version after that.
 
-Download: [v0.52-remake.2](https://github.com/wicanr2/wincv-remake/releases/tag/v0.52-remake.2)
-(Linux / Windows / macOS / Android — extract and run, fonts already included)
+Download: [v.0.53.7-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.7-20261109) (Go, stable),
+[v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110) (Rust preview)
+(Linux / Windows / macOS; public packages contain no third-party fonts — supply your own legally obtained copies)
 
 The remake's own source code, tools, and documentation are licensed under [BSD 2-Clause](LICENSE). **Copyright of the original WinCV belongs to its original author, Lcc Wizard (Lin Chien-tsung)**, and the license does not cover it — the rewrite exists to preserve this cultural artifact, not to acquire rights to the original. The repo keeps the original installer and data extracted from it (the symbol table, UI strings, reference screenshots) so the reverse-engineering conclusions can be rerun and verified. The released executables **embed** the original's bundled half-width bitmap font and ETEN's full-width font library, so that extracting the archive gives a pixel-aligned screen matching the original; the rights to those fonts remain with their original holders and are not covered by BSD 2-Clause. Dictionary data is not bundled. Item-by-item copyright and provenance are in [NOTICE](NOTICE); rights holders who want any of this handled differently are welcome to open an issue.
 

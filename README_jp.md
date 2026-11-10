@@ -80,9 +80,10 @@ MD5 と SFV の計算まで行えます。最終更新は 2011 年 11 月 24 日
 (`whatsnew.txt` の最後の記載)で止まっており、それ以降 Linux 版も
 macOS 版も出ていません。
 
-ダウンロード:[v0.52-remake.2](https://github.com/wicanr2/wincv-remake/releases/tag/v0.52-remake.2)
-(Linux / Windows / macOS / Android、展開すればすぐ動きます。フォントは
-同梱済みです)
+ダウンロード:[v.0.53.7-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.7-20261109)(Go 版、正式版)、
+[v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110)(Rust 版プレビュー)
+(Linux / Windows / macOS。公開パッケージにサードパーティのフォントは含まれません。
+合法に入手したフォントを各自で用意してください)
 
 このリメイクのソースコード、ツール、ドキュメントは [BSD 2-Clause](LICENSE)
 です。**原版 WinCV の著作権は原作者 Lcc Wizard(林健総)に帰属し**、この

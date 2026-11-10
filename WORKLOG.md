@@ -77,3 +77,11 @@
 - 收錄上面三條修正：狀態列靠右對齊改用顯示寬度、`convert.RenameCase` 首字母大寫以字元為單位、ICO 與 TGA 的半透明像素改用非預乘。
 - 發布：來源提交 `3d1394a1704be69fdeb3e9b29718ae40245c9a39` 與同名 tag 已推送；[v.0.53.7-20261109](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.7-20261109) 於 2026-11-09 21:43（Asia/Taipei）公開，三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip` 的 GitHub SHA-256 與本機一致；`tools/verify-dist.sh` 靜態驗收通過。
 - 固定入口：`dist-all/wincv-linux-amd64-full` 已換成這一版（SHA-256 `dab3b31de88e86d1312f4bf41378b2a62651bde46bf30336fd83f6ab931de216`），與 `full-local/` 內相同；公開版與完整版 `-version` 都回報 `v.0.53.7-20261109`。
+
+## 2026-11-10：v.0.53.8-preview-20261110（Rust 版預覽）
+
+- 內容：Rust 改寫的 app 層搬完（瀏覽、gopher/http、EPUB、Office、PDF），`rust-rewrite` 快轉合併進 master。畫面 82 個場景與 Go 逐像素相同（「關於」畫面的實作語言除外）；各層對照數字見 `docs/plan/rust-rewrite.md` 與 README「Rust 改寫」一節。
+- 一起修的 Go 版問題：pptx 換行後內容遺失、PDF 具名目的地書籤 panic、doc97 的 CLX 與樣式表越界、rtf `\bin` 溢位、gopher/網頁/EPUB 的編碼判讀、Office 狀態列多出「— doc:」、子選單項目畫出 U+0000。清單與狀態在 `docs/plan/go-suspects.md`。Go 的修正已在 master，尚未發 Go 版。
+- 建置：`tools/rust-release.sh v.0.53.8-preview-20261110`，來源提交 `c07f5b560976d273b0e4faf8dfc770a016b92a47`。三個執行檔都含版本字串；拿原版與倚天字型檔的位元組片段比對，三個執行檔都沒有內嵌字型資料；Linux 版從 zip 解出後在容器 Xvfb 不帶任何字型啟動，改用系統字型，「關於」畫面顯示版本號。
+- 發布：[v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110) 標成 prerelease，Go 的 v.0.53.7 仍是 Latest。三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip`；從 GitHub 下載回來的 ZIP 校驗與本機一致。
+- 未驗證：Windows 與 macOS 版沒有實機啟動；macOS 版的 ad-hoc 簽章在 `strip` 之後是否仍有效要在 Mac 上用 `codesign -v` 確認。
