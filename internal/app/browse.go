@@ -657,7 +657,10 @@ func (a *App) drawBrowseStatus(s *cell.Screen) {
 	// 標題比位址好認,但位址才說得出「現在在哪一台」。標題有就先給標題,
 	// 後面補主機名 —— 網頁的標題常常完全看不出是哪個站。
 	left := a.bv.url
+	// PDF 與 Office 文件的位址是本機路徑,沒有主機名可補,只給標題。
 	if _, _, ok := parsePDFURL(a.bv.url); ok {
+		left = a.bv.title
+	} else if _, _, ok := parseDocURL(a.bv.url); ok {
 		left = a.bv.title
 	} else if book, _, ok := parseBookURL(a.bv.url); ok {
 		left = a.bv.title

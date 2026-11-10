@@ -70,3 +70,17 @@ fn esc_closes_document() {
     a.handle_key(named(Code::Esc));
     assert!(a.office.is_none(), "離開瀏覽模式之後文件還開著");
 }
+
+/// 狀態列只給標題。Office 文件的位址是本機路徑,沒有主機名,不該在後面補上「— doc:」。
+#[test]
+fn doc_status_bar_shows_title_only() {
+    let td = TempDir::new();
+    write_docx(td.path(), "a.docx", "<w:p><w:r><w:t>x</w:t></w:r></w:p>");
+    let mut a = doc_app(td.path());
+    a.focus_on("a.docx");
+    a.enter();
+    let mut s = Screen::new(70, 20);
+    a.draw(&mut s);
+    let last = row_text(&s, s.rows - 1);
+    assert!(last.starts_with("a.docx") && !last.contains("doc:"), "狀態列是 {last:?}");
+}

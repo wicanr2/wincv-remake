@@ -632,7 +632,8 @@ impl App {
         // 網頁的標題常常完全看不出是哪個站。
         let bv = &self.bv;
         let mut left = bv.url.clone();
-        if bv.url.starts_with(PDF_SCHEME) {
+        // PDF 與 Office 文件的位址是本機路徑,沒有主機名可補,只給標題。
+        if bv.url.starts_with(PDF_SCHEME) || bv.url.starts_with(DOC_SCHEME) {
             left = bv.title.clone();
         } else if let Some((book, _)) = crate::bookview::parse_book_url(&bv.url) {
             left = bv.title.clone();

@@ -112,3 +112,18 @@ func TestEscClosesDocument(t *testing.T) {
 		t.Error("離開瀏覽模式之後文件還開著")
 	}
 }
+
+// 狀態列只給標題。Office 文件的位址是本機路徑,沒有主機名,不該在後面補上「— doc:」。
+func TestDocStatusBarShowsTitleOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeDocx(t, dir, "a.docx", `<w:p><w:r><w:t>x</w:t></w:r></w:p>`)
+	a := docApp(t, dir)
+	a.focusOn("a.docx")
+	a.enter()
+	s := cell.New(70, 20)
+	a.Draw(s)
+	last := strings.Split(strings.TrimRight(screenText(s), "\n"), "\n")[s.Rows-1]
+	if !strings.HasPrefix(last, "a.docx") || strings.Contains(last, "doc:") {
+		t.Fatalf("狀態列是 %q", last)
+	}
+}
