@@ -51,6 +51,12 @@ pub(crate) struct BrowseView {
     pub imgs: HashMap<String, Option<Arc<Image>>>,
     /// 還沒取回的圖片位址。
     pub want: Vec<String>,
+    /// selector 不是合法 UTF-8 的 gopher 位址:畫面上的 href 字串 → 原始位址。
+    ///
+    /// href 是 String,Big5 的 selector 轉進去時壞位元組會變成 U+FFFD,再解回來送給伺服器
+    /// 的就不是原來那串位元組(Go 的字串保留原始位元組,沒有這個問題)。跟連結、回上一頁、
+    /// 查詢都先查這張表。整輪瀏覽共用,換頁不清:上一頁的堆疊存的也是這種字串。
+    pub raw_urls: HashMap<String, wincv_gopher::Url>,
 }
 
 impl Default for BrowseView {
@@ -68,6 +74,7 @@ impl Default for BrowseView {
             status: String::new(),
             imgs: HashMap::new(),
             want: Vec::new(),
+            raw_urls: HashMap::new(),
         }
     }
 }
@@ -181,7 +188,7 @@ impl App {
             });
             return;
         }
-        let u = match wincv_gopher::parse_url(&full) {
+        let u = match self.gopher_url(&full) {
             Ok(u) => u,
             Err(e) => {
                 self.pending = None;
@@ -195,6 +202,14 @@ impl App {
             let r = client.fetch(&u);
             let _ = tx.send((u.to_string(), Fetched::Gopher(u, r)));
         });
+    }
+
+    /// 把 href 字串解回 gopher 位址;selector 原本不是合法 UTF-8 的從對照表拿原始位元組。
+    fn gopher_url(&self, href: &str) -> Result<wincv_gopher::Url, String> {
+        match self.bv.raw_urls.get(href) {
+            Some(u) => Ok(u.clone()),
+            None => wincv_gopher::parse_url(href),
+        }
     }
 
     /// 收取回的結果。沒有結果就立刻回來:這支在每一幀都會被呼叫。
@@ -256,6 +271,10 @@ impl App {
                     // 選單、查詢結果,以及型別不認得的東西。不認得時當選單解:解不出項目的話
                     // 畫面會是空的,那比把選單當成純文字倒出來好判讀。
                     let items = wincv_gopher::parse_menu(&data);
+                    for it in items.iter().filter(|it| it.web_url().is_none() && std::str::from_utf8(&it.sel).is_err()) {
+                        let u = it.url();
+                        self.bv.raw_urls.insert(u.to_string(), u);
+                    }
                     if items.is_empty() {
                         wincv_gopher::text_blocks(&data)
                     } else {
@@ -507,7 +526,7 @@ impl App {
             self.browse_fetch(&href, true);
             return true;
         }
-        let mut u = match wincv_gopher::parse_url(&href) {
+        let mut u = match self.gopher_url(&href) {
             Ok(u) => u,
             Err(e) => {
                 self.message = e;
@@ -522,7 +541,9 @@ impl App {
                     return;
                 }
                 u.search = q;
-                a.browse_fetch(&u.to_string(), true);
+                let s = u.to_string();
+                a.bv.raw_urls.insert(s.clone(), u);
+                a.browse_fetch(&s, true);
             });
             return true;
         }

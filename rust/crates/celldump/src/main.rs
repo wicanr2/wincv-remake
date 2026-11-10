@@ -33,6 +33,8 @@ struct Args {
     app: Option<PathBuf>,
     keys: String,
     gopher: String,
+    lang: String,
+    touch: bool,
 }
 
 fn parse_args() -> Args {
@@ -56,6 +58,8 @@ fn parse_args() -> Args {
         app: None,
         keys: String::new(),
         gopher: String::new(),
+        lang: String::new(),
+        touch: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(k) = it.next() {
@@ -80,6 +84,8 @@ fn parse_args() -> Args {
             "-app" => a.app = Some(v().into()),
             "-keys" => a.keys = v(),
             "-gopher" => a.gopher = v(),
+            "-lang" => a.lang = v(),
+            "-touch" => a.touch = true,
             _ => die(&format!("不認得的參數 {k}")),
         }
     }
@@ -131,6 +137,12 @@ fn load_fallback(path: Option<&std::path::Path>, cw: i32, ch: i32) -> Option<win
 
 fn main() {
     let mut a = parse_args();
+    // 語言要在畫任何東西之前定下來:選單標籤與狀態列都是繪製時才組出來的。
+    if let Some(l) = wincv_i18n::valid(&a.lang) {
+        wincv_i18n::set(l);
+    } else if !a.lang.is_empty() {
+        die(&format!("不認得的語言 {:?}", a.lang));
+    }
     // 原版素材放在哪裡由 datadir 決定,不是相對於工作目錄猜一個(與 Go 版相同)。
     use wincv_datadir::resolve2;
     a.half = resolve2(Some(&a.half), "cvga.fon");
@@ -176,7 +188,7 @@ fn main() {
     // 語法上色設定與字典的目錄:留空時跟著 -half 走(與 Go 版相同)。
     let cfg_dir = a.cfg.clone().unwrap_or_else(|| a.half.parent().map(PathBuf::from).unwrap_or_default());
     if let Some(dir) = &a.app {
-        let (ov, app) = draw_app(&mut s, dir, &cfg_dir, &a.keys, &a.gopher, r.cell_w, r.cell_h);
+        let (ov, app) = draw_app(&mut s, dir, &cfg_dir, &a.keys, &a.gopher, a.touch, r.cell_w, r.cell_h);
         overlays = ov;
         the_app = Some(app);
     } else if let Some(f) = &a.edit {
@@ -229,11 +241,12 @@ fn main() {
 }
 
 /// 跑完整的 app 並送一串按鍵(與 Go 版 celldump -app -keys 相同)。
-fn draw_app(s: &mut Screen, dir: &std::path::Path, cfg_dir: &std::path::Path, keys: &str, gopher_url: &str, cw: i32, ch: i32) -> (Vec<wincv_render::Overlay>, wincv_app::App) {
+fn draw_app(s: &mut Screen, dir: &std::path::Path, cfg_dir: &std::path::Path, keys: &str, gopher_url: &str, touch: bool, cw: i32, ch: i32) -> (Vec<wincv_render::Overlay>, wincv_app::App) {
     let abs = std::path::absolute(dir).unwrap_or_else(|e| die(&format!("{}: {e}", dir.display())));
     let mut app = wincv_app::App::new(Box::new(wincv_vfs::Os), &abs);
     app.cell_w = cw;
     app.cell_h = ch;
+    app.touch = touch;
     app.load_syntax(cfg_dir);
     app.dict_dir = cfg_dir.to_path_buf();
     // 不帶磁碟統計(與 -dir 相同):剩餘空間在兩次執行之間會變,驗收用的截圖要可以重現。

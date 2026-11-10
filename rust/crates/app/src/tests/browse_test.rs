@@ -305,3 +305,42 @@ fn browse_click_follows_link() {
     settle(&mut a, &mut s);
     assert!(screen_text(&s).contains("點進來了"), "沒有跟著連結走\n{}", screen_text(&s));
 }
+
+/// Big5 的 selector 點下去要原封送回伺服器。href 是 String,壞位元組轉進去會變成 U+FFFD;
+/// 跟連結時要從原始位址拿位元組,不能把 href 解回來送。
+#[test]
+fn gopher_follows_non_utf8_selector() {
+    let ln = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = ln.local_addr().unwrap().to_string();
+    let (host, port) = split(&addr);
+    let got: Arc<Mutex<Vec<Vec<u8>>>> = Default::default();
+    let seen = got.clone();
+    // 「中文」的 Big5 是 A4 A4 A4 E5。
+    let mut menu = b"1\xa4\xa4\xa4\xe5\t/\xa4\xa4\xa4\xe5\t".to_vec();
+    menu.extend_from_slice(format!("{host}\t{port}\r\n.\r\n").as_bytes());
+    std::thread::spawn(move || {
+        for c in ln.incoming() {
+            let Ok(mut c) = c else { return };
+            let mut buf = [0u8; 1024];
+            let n = c.read(&mut buf).unwrap_or(0);
+            let sel = buf[..n].strip_suffix(b"\r\n").unwrap_or(&buf[..n]).to_vec();
+            let body = if sel.is_empty() { menu.clone() } else { b"iok\t\terror.host\t1\r\n.\r\n".to_vec() };
+            seen.lock().unwrap().push(sel);
+            let _ = c.write_all(&body);
+        }
+    });
+    let (mut a, mut s, _td) = new_browse_app();
+    a.open_url(&format!("gopher://{addr}"));
+    settle(&mut a, &mut s);
+    assert!(screen_text(&s).contains("中文"), "Big5 選單沒有解出來\n{}", screen_text(&s));
+    a.handle_key(named(Code::Enter));
+    settle(&mut a, &mut s);
+    assert_eq!(got.lock().unwrap().last().cloned(), Some(b"/\xa4\xa4\xa4\xe5".to_vec()), "送出的 selector 被改掉了");
+
+    // 回上一頁再點一次,一樣要送原始位元組。
+    a.handle_key(named(Code::Backspace));
+    settle(&mut a, &mut s);
+    a.handle_key(named(Code::Enter));
+    settle(&mut a, &mut s);
+    assert_eq!(got.lock().unwrap().last().cloned(), Some(b"/\xa4\xa4\xa4\xe5".to_vec()), "回上一頁之後送出的 selector 被改掉了");
+}

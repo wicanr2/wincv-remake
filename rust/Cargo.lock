@@ -3370,6 +3370,7 @@ dependencies = [
  "wincv-fnt",
  "wincv-fontset",
  "wincv-hexview",
+ "wincv-i18n",
  "wincv-imgfmt",
  "wincv-imgview",
  "wincv-keys",

@@ -90,6 +90,10 @@ SCENES=(
     # 「關於」畫面寫著用什麼做的:Go 版是「Go + Ebiten」,Rust 版是「Rust」,差那 10 格。
     "app-about|-app /src/$OUT/fixture -keys Alt-8,Down,Enter|10"
     "app-small|-app /src/$OUT/fixture -keys F9 -cols 40 -rows 12"
+    "app-lang-en|-app /src/$OUT/fixture -keys F9,Right,Right -lang en"
+    "app-lang-ja|-app /src/$OUT/fixture -keys F9,Right,Right -lang ja"
+    "app-lang-hans|-app /src/$OUT/fixture -keys F9,Right,Right -lang zh-Hans"
+    "app-touch|-app /src/$OUT/fixture -touch"
     # markdown 檢視(含內嵌圖)與 F1 說明。
     "app-md|-app /src/$OUT/fixture/md -keys Down,Down,Enter"
     "app-md-scroll|-app /src/$OUT/fixture/md -keys Down,Down,Enter,PgDn"
