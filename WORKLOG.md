@@ -1,5 +1,16 @@
 # 工作紀錄
 
+## 2026-11-11：v.0.53.10-20261111 發行結果
+
+- 已公開 [v.0.53.10-20261111](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.10-20261111)，時間為 2026-11-11 13:15:52（Asia/Taipei）。沿用 Rust 預覽版，GitHub `draft=false`、`prerelease=true`，Go 最後一版仍保留為正式版。來源提交為 `327b251aaac619344e5915e5b76ef88bef3a6384`，版本 tag 指向該提交；來源及 tag 均已推送。
+- 提交包含 `1aa0c1c` 的 ETEN 2000 驗證、詩詞／洛神圖文與發行工具，以及 `327b251` 的示範檔末尾空白修正。本次公開程式沒有新增產品執行邏輯；主要變更為驗證、文件、展示與發行流程。
+- 三平台從已提交來源重建至 `dist-all/v.0.53.10-20261111/patch/`。Rust 為 1.99.1；實際 Docker image 識別碼保存在 `smoke/docker-images.txt`。建置依次完成 Linux x86-64、Windows x86-64、macOS arm64 與 x86_64，後兩者合成 universal。授權清單重新產生後與已提交版本完全一致。
+- 公開 ZIP 的 SHA-256：Linux `e0306df3f47e026e6f98a29066cf2def76d06f0774e0fd775b570a80d1cd7c4e`；Windows `a40e97658ebcd2ba96c92ba923811c8bd5e405268f95336be0dc83fa106cab4d`；macOS `2a5c012347a3611955ac12e07cc785677d7b9fcc501ea9ac3596fd2196926da3`。封包、原始執行檔、大小、來源與輸入雜湊見版本根目錄的 `SHA256SUMS.json`。
+- 靜態驗收通過：三包只含執行檔、README、LICENSE、NOTICE 與第三方授權；Windows README 有 UTF-8 BOM 與 CRLF；58 組外部點陣字庫指紋均未出現在公開執行檔。Windows 僅引用系統 DLL。macOS 兩個架構均含正確版本、僅引用系統動態庫，arm64 的 3,599 頁 CodeDirectory SHA-256 全部吻合。
+- 實際啟動：從正式 Linux ZIP 解出執行檔，在空工作目錄、不提供私有字庫的環境啟動，文字檢視與「關於」畫面正常，`-version` 與畫面皆為本次完整版號。證據為 `smoke/linux-viewer.png`、`linux-about.png`、`linux-runtime.json`；重跑腳本存於 `smoke/release-smoke.py`。Windows 與 macOS 本次未實機啟動，不把靜態驗收稱為實機或 Gatekeeper 公證驗收。
+- 公開附件共六個：三個 ZIP、`MANIFEST.txt`、`SHA256SUMS-zip`、`SHA256SUMS.json`。先建立草稿，逐一核對伺服器 digest 並完整下載回來；六個附件的大小、SHA-256 與位元組內容皆與本機一致，再公開發布。收據在 `smoke/remote-verification.json` 與 `smoke/remote-download/`；發布後公開 tag 端點已確認為非草稿且有六個附件。
+- 收尾：驗證容器均已移除，保留既有工具映像，未執行 prune 或 rmi。工作樹 root-owned 檔案與誤建 `.md` 目錄檢查為零；版本輸出 UID/GID 均為 `1000:1000`。本筆發行結果與 CONTEXT 的已公開狀態另行提交推送，版本 tag 保持指向原建置提交。根目錄 `2VKVU.jpg` 與 `AGENTS.md` 維持使用者原有的未追蹤狀態。
+
 ## 2026-11-11：v.0.53.10-20261111 發行準備
 
 - 使用者授權 commit、push 與發布 Release。沿用 Rust 預覽版狀態，採合規版號 `v.0.53.10-20261111`；三個公開桌面 ZIP 將放在 `dist-all/<版本>/patch/`，驗證收據放在 `smoke/`，不再使用舊的 `rust/` 交付子目錄。

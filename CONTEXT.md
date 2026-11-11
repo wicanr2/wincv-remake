@@ -6,7 +6,7 @@
 |---|---|
 | 下拉選單 | 分類照原版八類，`Alt-1`～`Alt-8`、單按 `Alt`、`F9` 打開；滑鼠移入項目時移動藍色選取列，點擊才執行；靜止滑鼠不覆蓋鍵盤選取 |
 | 應用程式圖示 | 重製版自繪的像素圖示，唯一來源是 `internal/appicon`；Windows 資源由 `tools/win-rsrc.sh` 在建置時產生，Android 的 mipmap 由 `tools/mkicon -android` 產生 |
-| 本輪版號 | `v.0.53.10-20261111`，Rust 預覽版準備發布；建置與驗證見 [WORKLOG.md](WORKLOG.md) |
+| 本輪版號 | [`v.0.53.10-20261111`](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.10-20261111)，Rust 預覽版已公開；三平台封包與驗證見 [WORKLOG.md](WORKLOG.md) |
 | ETEN 2000 | 使用者提供的 ISO 實檔驗證與兩版 GUI 通過，Issue #11 已關閉；README 已加入詩詞及洛神圖文的不同字體截圖 |
 | 命令列入口 | `~/.bashrc` 的 `wincv` alias 指向 `/home/anr2/cht/wincv/dist-all/wincv-linux-amd64-full` |
 | 發行邊界 | 公開桌面封包在 `dist-all/<版本>/patch/`；含第三方字庫的 Linux 完整版只留在 `full-local/` |
