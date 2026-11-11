@@ -32,7 +32,7 @@ This project reverse-engineers **WinCV 0.52 (CView for Windows)**, a piece of Ta
 WinCV is a Chinese-language utility that does a lot within a single screen: browsing directories, viewing text files, viewing images and thumbnails, walking into archives as if they were directories, editing text, viewing hex, converting between Big5 / GB / SJIS / KOR / Unicode, looking up an English-Chinese dictionary and KK phonetic transcriptions, and computing MD5 and SFV checksums. Its last update stopped on November 24, 2011 (the final entry in `whatsnew.txt`), and there was never a Linux version or a macOS version after that.
 
 Download: [v.0.53.9-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.9-20261110) (the last Go release),
-[v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110) (Rust preview)
+[v.0.53.10-20261111](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.10-20261111) (Rust preview)
 (Linux / Windows / macOS; public packages contain no third-party fonts — supply your own legally obtained copies)
 
 > **The Go version ends at v.0.53.9. All further development and releases use the Rust version** ([`rust/`](rust/)).
@@ -160,7 +160,7 @@ Fonts that turn up are then filtered by filename: a desktop's font directory can
 
 ```bash
 tools/cargo.sh test                              # tests (all run inside docker)
-tools/rust-release.sh v.X.Y.Z-preview-YYYYMMDD   # desktop builds and packages into dist-all/<version>/rust/
+tools/rust-release.sh v.X.Y.Z-YYYYMMDD   # desktop builds and packages into dist-all/<version>/patch/
 ENGINE=rust VERSION=<version> tools/build-full.sh linux   # local full build (fonts embedded, not for distribution)
 ```
 

@@ -1,7 +1,10 @@
 package eten
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/wicanr2/wincv-remake/internal/fnt"
@@ -225,7 +228,7 @@ func TestSuppHolePositions(t *testing.T) {
 }
 
 // 補充區的字要真的取得到,而且**不能取到別的字**。
-// 平假名「ゃ」在 C6E7;先前線性索引取到的是另一個看起來正常的字。
+// 本程式的 WHATWG Big5 對照中，「ゃ」在 C76A，C6E7 是「ぁ」。
 func TestSuppGlyphNotShifted(t *testing.T) {
 	f := load(t)
 	if f.supp == nil {
@@ -253,7 +256,57 @@ func sameGlyph(a, b *fnt.Glyph) bool {
 	return true
 }
 
-// 倚天 2000 的 SPCFSUPP 是一碼位一格(408 格,洞也佔位)。洞全空時
+// 外部字庫不入版控。以 tools/verify-eten2000.py 還原的 ISO 實檔驗 Issue #11。
+func TestETEN2000ISOReceipt(t *testing.T) {
+	dir := os.Getenv("WINCV_ETEN2000")
+	if dir == "" {
+		t.Skip("未指定 WINCV_ETEN2000")
+	}
+	supp, err := os.ReadFile(filepath.Join(dir, "SPCFSUPP.24"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(supp) != 365*72 || fmt.Sprintf("%x", sha256.Sum256(supp)) != "5febef61214ff45e4d630de6ee0b8a078d410378dbf6cc90590dfc4f3c8a0318" {
+		t.Fatal("與驗證過的 ISO 補充字庫不同")
+	}
+	for _, suffix := range []string{"", "B", "K", "L", "R", "S"} {
+		t.Run("STDFONT.24"+suffix, func(t *testing.T) {
+			f, err := Load24(filepath.Join(dir, "STDFONT.24"+suffix), filepath.Join(dir, "SPCFONT.24"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if f.SuppNote != "" {
+				t.Fatal(f.SuppNote)
+			}
+			for _, r := range "一中龍，。！？「」" {
+				g := f.Glyph(r)
+				if g == nil || !hasInk(g) {
+					t.Fatalf("%c 缺字或空白", r)
+				}
+			}
+			// ISO 原始字模的固定位置；不能把傳統 CP950 對照誤當成 WHATWG。
+			for r, slot := range map[rune]int{'①': 0, 'ぁ': 70, 'あ': 71, 'ゃ': 136, 'や': 137} {
+				want := decode(supp[slot*72:(slot+1)*72], 24, 24)
+				got := f.Glyph(r)
+				if got == nil || !sameGlyph(got, want) {
+					t.Fatalf("%c 未取得 ISO 第 %d 格的字模", r, slot)
+				}
+			}
+		})
+	}
+}
+
+func hasInk(g *fnt.Glyph) bool {
+	for _, b := range g.Bits {
+		if b {
+			return true
+		}
+	}
+	return false
+}
+
+// 回報者提供過 408 格的 SPCFSUPP；本次 ETEN2000_DOS.iso 實檔仍是 365 格。
+// 一碼位一格的 408 格檔，洞全空時
 // 要換成擠掉洞的排法,取到的字與 3.53 那種 365 格的完全相同。
 func TestSuppLinear408(t *testing.T) {
 	const stride = 72

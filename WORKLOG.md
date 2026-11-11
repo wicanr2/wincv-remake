@@ -1,5 +1,61 @@
 # 工作紀錄
 
+## 2026-11-11：v.0.53.10-20261111 發行準備
+
+- 使用者授權 commit、push 與發布 Release。沿用 Rust 預覽版狀態，採合規版號 `v.0.53.10-20261111`；三個公開桌面 ZIP 將放在 `dist-all/<版本>/patch/`，驗證收據放在 `smoke/`，不再使用舊的 `rust/` 交付子目錄。
+- 內容為 ETEN 2000 的實檔與 GUI 驗證、README 詩詞及洛神圖文展示、舊字型排列與碼位說明勘誤。公開程式不內嵌使用者的字庫或插畫。
+- [tools/rust-release.sh](tools/rust-release.sh) 改成只在主機做 git 與 Docker 編排；三平台建置、授權核對、打包及校驗都在既有容器內執行，採完整版本格式檢查且拒絕覆寫已存在的版本輸出。三份 README 的下載連結與建置入口同步更新。
+- 新增 [tools/package-rust-release.py](tools/package-rust-release.py)，公開 ZIP 固定只含執行檔、README、LICENSE、NOTICE 及第三方授權。Windows 讀我使用 UTF-8 BOM 與 CRLF。新增 [tools/verify-rust-release.py](tools/verify-rust-release.py)，驗證 ELF／PE／Mach-O 架構、版本、封包白名單、授權、雜湊與外部字庫指紋；macOS 另核對系統動態庫與 arm64 CodeDirectory 的每頁雜湊。格式依據 [Apple xnu 的 cs_blobs.h](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/cs_blobs.h)，不把靜態檢查稱為 Gatekeeper 或實機啟動驗收。
+- 發布前 `cargo test --offline --locked --workspace`：**512 passed、0 failed、0 ignored**，包含 `eten2000_iso_receipt`。第一輪容器未掛系統字型，四個 SVG 文字測試失敗；依既有 `tools/cargo.sh` 補掛唯讀 `/usr/share/fonts`，同一命令乾淨重跑通過。未改產品程式迎合環境。
+- 發行腳本語法與不合規版號拒絕檢查通過。簽章檢查器以已發布 Rust 預覽版的 macOS universal 執行檔驗證成功，arm64 的 3,599 頁 SHA-256 均吻合。接著從本次來源提交建立新封包；實際建置、發布與遠端校驗結果另追加記錄。
+- 本次提交包含已授權的示範圖文與可重現工具；使用者的根目錄 `2VKVU.jpg` 與 `AGENTS.md` 保持未追蹤，字庫、ISO、SDK、快取及交付產物不加入 Git。
+
+## 2026-11-11：洛神插畫與《洛神賦》的大字圖文展示
+
+- 使用者要求把 `2VKVU.jpg` 搭配《洛神賦》，以 WinCV 的不同字體顯示並放大截圖加入 README。圖片雖在對話中顯示讀取錯誤，實際已放在專案根目錄。原檔保持原狀，逐位元組複製為 [docs/demo/luoshen.jpg](docs/demo/luoshen.jpg)；兩者 SHA-256 均為 `734fdf441e0be3defe36dd4433b907d9eec5131d466b5e35660b4f214f403c2f`。
+- 圖文入口：[docs/demo/luoshen.md](docs/demo/luoshen.md)。使用曹植《洛神賦》姿容段落的節選，核對自[維基文庫原文](https://zh.wikisource.org/zh-hant/洛神賦)；省略處標成 `[中略]`。圖片由 WinCV 的 Markdown 檢視實際載入，沒有另行拼圖。README 提供同一文件、三種字體大圖與原尺寸連結，NOTICE 記錄使用者提供插畫及字型的來源與權利邊界。
+- 實際擷取：延用公開 Rust `v.0.53.8-preview-20261110`，在設定選單依次套用 ETEN 2000 楷體 `STDFONT.24K`、明體 `STDFONT.24`、隸書 `STDFONT.24L`。使用 `-no-resume -no-fallback -zoom 2 -scale 1.5 -cols 56 -rows 56`，三張均為 **1008×2166**，比前輪詩詞展示的 768×475 更大。已目視正文與節選標記，圖像及文字完整可見；三張圖片區像素雜湊相同，文字區雜湊各異，確認圖片保留且字體確實切換。
+- 大圖：[楷體](docs/ui/eten2000-luoshen-kai.png)，SHA-256 `0cf4fabe57e45d0ea645b1a376a06a0eebf36f0d42ae08e5289a92334a91ad6b`；[明體](docs/ui/eten2000-luoshen-ming.png)，`b4dfac52d483a329a61f23466d13ed9dbb993021a985cf9d801b2f20f53f6f34`；[隸書](docs/ui/eten2000-luoshen-li.png)，`1ee4f15643954af9c68d8b1fe3b72a2c5dc5d0a629ae9c32e943dfa86f5e37be`。本機收據為 `workplace/issue11/luoshen-shots.json`。
+- 重拍入口：[tools/eten2000-readme-shots.py](tools/eten2000-readme-shots.py) 的 `--luoshen` 模式。沿用上一筆記錄的容器掛載與資源限制，將 Xvfb 畫面設成 `1920x2400x24`，容器內執行 `python3 tools/eten2000-readme-shots.py --luoshen /work/workplace/issue11/rust/wincv /work`。初稿 80 欄的右側空白較多，改為 56 欄，讓 README 內的圖與字更清楚；未修改產品程式。
+- 新增兩個示範素材後，`tools/readme-shots.sh` 的 `showcase.md` 選取位置同步改為 Down 8 次。已確認既有詩詞連結作為索引正對照，再檢查新文件、相對圖片與 README 三張大圖的入口。腳本語法、字碼、來源圖一致性及 `git diff --check` 通過。
+- 收尾：本輪容器均已移除，新增素材及輸出擁有權為 `1000:1000`，工作樹的 root-owned 檔案與誤建 `.md` 目錄檢查為零。未變更原始圖片，未打包字庫或發布產物，尚未 commit／push。
+
+## 2026-11-11：README 的倚天 2000 詩詞截圖
+
+- 依使用者要求，在 README 的 24 點 CJK 字形說明後加入兩張 Rust 正式視窗截圖：明體顯示楊慎《臨江仙》，楷體顯示蘇軾《念奴嬌・赤壁懷古》。兩首示範文字保存於 [linjiangxian.txt](docs/demo/linjiangxian.txt) 與 [niannujiao-chibihuaigu.txt](docs/demo/niannujiao-chibihuaigu.txt)，README 同時提供文字與來源入口。
+- 原文分別核對自[維基文庫的楊慎《臨江仙》](https://zh.wikisource.org/zh-hant/臨江仙_(楊慎))與[香港教育局《念奴嬌》參考版本](https://www.edb.gov.hk/attachment/tc/curriculum-development/kla/chi-edu/recommended-passages/ks4_17a_text.pdf)。只收錄公有領域詞作，不收錄現代註解；本次《念奴嬌》採「談笑間、檣櫓」「人間如夢，一尊還酹江月」。
+- 重拍入口：[tools/eten2000-readme-shots.py](tools/eten2000-readme-shots.py)。沿用前一筆記錄的公開 Rust `v.0.53.8-preview-20261110` 與 ISO 字庫，以 `-no-resume -no-fallback -zoom 2 -scale 1 -cols 64 -rows 18` 啟動，經設定選單實際套用明體與楷體。擷取正式 X11 視窗，未拼圖、未修改畫面。兩張均為 768×475；合計 211 個漢字、標點與全形空白逐點符合 ISO 的 24×24 字模，並已目視確認詞文完整、沒有缺字或裁切。
+- 圖片：[臨江仙](docs/ui/eten2000-linjiangxian.png)，SHA-256 `61a73e22c6f564e4e4d14eda24d6fd2fa0a75b94bcae5194aa37a59c82080a91`；[念奴嬌](docs/ui/eten2000-niannujiao-chibihuaigu.png)，SHA-256 `55997bf97d75a8681a9e19c5bcecebf12a5c79413b183eaa44610813a0120f86`。本次使用者明確要求將這兩張展示圖放入 README；ISO 與字庫仍只留本機。NOTICE 補充截圖字型來源。
+- 新增兩個示範檔會改變 `docs/demo/` 清單順序，已同步修正 `tools/readme-shots.sh` 的 Markdown 展示選取位置，從 Down 4 次改為 6 次。語法、位置、README 的圖片與文字連結均已檢查，`git diff --check` 通過。
+- 重跑命令在 `wincv-rust-run:1` 內：`xvfb-run -a -s '-screen 0 1280x1024x24' python3 tools/eten2000-readme-shots.py /work/workplace/issue11/rust/wincv /work`。容器使用 `--rm --init --network none --memory 2g --cpus 2 --pids-limit 256 --user 1000:1000` 與既有日誌限制；repo 唯讀掛載到 `/work`，只有 `docs/ui/` 與 `workplace/` 可寫。收據為 `workplace/issue11/readme-shots.json`。
+- 收尾：本輪容器均已移除，工作樹 root-owned 檔案與誤建 `.md` 目錄檢查為零，新圖片與文字 UID/GID 均為 `1000:1000`。未變更產品程式、未重建映像或發布封包。保留前輪工作區變更，本輪尚未 commit／push。
+
+## 2026-11-11：以倚天 2000 ISO 驗證 Issue #11
+
+- 目標：[Issue #11](https://github.com/wicanr2/wincv-remake/issues/11) 的程式旁字庫搜尋、原檔名辨識、補充字區與選單套用。
+- 輸入：使用者提供 `/home/anr2/cht/etan_font/ETEN2000_DOS.iso`，8,263,680 bytes，SHA-256 `624c89a8d1241f11e490f892dac190878e4c0352e1b22dd82dbaa56a4df60d41`。ISO 以唯讀方式掛載。原始碼基準 `37c925d`，本輪未改產品執行邏輯。
+- 抽取入口：[tools/verify-eten2000.py](tools/verify-eten2000.py)。ISO 根目錄的 `STDFONT._4*`、`SPCFONT._4`、`SPCFSUPP._4` 使用 PKWARE DCL 安裝壓縮格式。以 [zlib v1.3.1 的 blast](https://github.com/madler/zlib/tree/v1.3.1/contrib/blast) 還原。`blast.c` SHA-256 `1ab3e479d342bfc144167b808fb00142264bc50f24a110ca88cc774e351c218e`；`blast.h` SHA-256 `9c1c422b76311d4cb06863ffc056668b6240f3dd998bc02e89ee590d482bfdc2`。工具為 Python 3.11.2、GCC 12.2.0，容器 `wincv-build:1`。
+- 已驗證：六種 `STDFONT.24`／`.24B/K/L/R/S` 都是 942,768 bytes，即 13,094 個 24×24 字模。`SPCFONT.24` 是 408 字。`SPCFSUPP.24` 是 26,280 bytes，即 **365 字的緊密排列**，與既有倚天 3.53 的補充字庫逐位元組相同，SHA-256 `5febef61214ff45e4d630de6ee0b8a078d410378dbf6cc90590dfc4f3c8a0318`。
+- 勘誤：先前依回報截圖推測「倚天 2000 是 408 格」不能泛化到本次 ISO。程式使用的 WHATWG Big5 對照將 `C6E7` 解成「ぁ」，「ゃ」在 `C76A`；回報者截圖中的「ぁあぃいぅう……」正確。README、Go／Rust 註解與 CONTEXT 已更正。回報者那份 408 格實檔尚未取得，本次不宣稱已驗證該版本。
+- 實檔驗證：新增 Go `TestETEN2000ISOReceipt` 與 Rust `eten2000_iso_receipt`，以 `WINCV_ETEN2000` 明確指定抽出的字庫。六種字體、漢字、標點與固定位置的「①、ぁ、あ、ゃ、や」皆通過；兩側字庫、資料搜尋與字型組合的相關套件測試通過。外部字庫不加入版控。
+- 正式視窗入口：[tools/eten2000-smoke.py](tools/eten2000-smoke.py)。測試公開 Go `v.0.53.9-20261110` 與公開 Rust `v.0.53.8-preview-20261110`，各自把未改名的 ISO 字庫放在執行檔旁；從專案外的空目錄啟動，移除 `WINCV_HOME`，關閉後備字型，以 `-no-resume` 避開舊狀態。六種字體都經由 `Alt-7` → `CJK 字形` 切換；每種的「一、中、ぁ、ゃ」畫面像素逐點符合 ISO 字模。另用全新設定目錄、開啟保存功能，確認 `session.json` 寫入 `eten-k`。已目視 Go 楷體與 Rust 明體、黑體截圖。
+- 執行檔 SHA-256：Go `bcddc23babca49e0fbba0d0fa17d2fd46d4bcee223e3baa734bb6d61d6039090`；Rust `146f4eeb12c91bb0e87884ecc2b2d0828b8a2dfc63b4626a90aa7089e7722b5a`。本機證據保存在 `workplace/issue11/`：`extraction.json`、`go-tests.log`、`rust-tests.log`、`go-gui/`、`rust-gui/`。含第三方字庫與字形截圖，不加入公開產物。
+- 驗證腳本修正：`bash -lc` 清掉映像的 Go／Cargo 搜尋路徑，改成 `bash -c`。`xvfb-run` 直接當容器 PID 1 時停在啟動等待，改用 `docker run --init` 後成功。`-no-resume` 同時停用保存，因此保存測試另用乾淨設定目錄。圓圈數字在 cell 層屬半形，原先補充字取樣座標多算格寬；改用獨立假名列後重跑。這些均為驗證環境或腳本問題。
+- 遠端結果：已寫入[驗證留言](https://github.com/wicanr2/wincv-remake/issues/11#issuecomment-6786350258)，並於 2026-11-11 11:42（Asia/Taipei）以 completed 關閉 #11；重新讀取 GitHub 確認為 `CLOSED`。
+- 收尾：本輪容器均已移除。整個工作樹的 root-owned 檔案與誤建 `.md` 目錄檢查為零，抽查輸出與修改檔案 UID/GID 均為 `1000:1000`。未重建或清理映像、未變更發行物。本輪工具、實檔測試與文字更正保留在工作區，尚未 commit／push；使用者的未追蹤 `AGENTS.md` 維持原狀。
+
+重跑時使用既有映像，容器加上 `--rm --init --network none --memory 2g --cpus 2 --pids-limit 256 --user 1000:1000` 與專案規定的日誌限制。掛載 repo 到 `/work`、ISO 目錄唯讀到 `/input`，GUI 額外將 `workplace/` 掛到 `/out`。容器內命令：
+
+```bash
+gcc -shared -fPIC -O2 -o /work/workplace/issue11/blast/libblast.so /work/workplace/issue11/blast/blast.c
+python3 tools/verify-eten2000.py /input/ETEN2000_DOS.iso /work/workplace/issue11/blast/libblast.so /work/workplace/issue11
+WINCV_ETEN2000=/work/workplace/issue11/fonts go test ./internal/eten ./internal/cjk24 ./internal/datadir ./internal/fontset -count=1 -v
+# Rust 使用 wincv-rust:1，並沿用 repo 的 .cache/cargo-home 與 .cache/cargo-target。
+WINCV_ETEN2000=/work/workplace/issue11/fonts cargo test --offline --manifest-path rust/Cargo.toml -p wincv-eten -p wincv-datadir -p wincv-fontset -- --nocapture
+# GUI 使用 wincv-rust-run:1，分別將 ENGINE 換成 go 與 rust。
+xvfb-run -a -s '-screen 0 1280x1024x24' python3 tools/eten2000-smoke.py /out/issue11/ENGINE/wincv /out/issue11/ENGINE-gui
+```
+
 ## 2026-10-28：選單滑鼠反白與 v.0.53.2-20261028
 
 - 目標：發布已確認的下拉選單滑鼠反白功能，替換 `wincv` alias 使用的本機完整版。

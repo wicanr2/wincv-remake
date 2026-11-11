@@ -59,7 +59,7 @@ WinCV 是一支在同一個畫面裡做完很多事的中文工具：瀏覽目�
 （`whatsnew.txt` 的最後一筆），之後沒有 Linux 版，也沒有 macOS 版。
 
 下載：[v.0.53.9-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.9-20261110)（Go 版的最後一版）、
-[v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110)（Rust 版預覽）
+[v.0.53.10-20261111](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.10-20261111)（Rust 版預覽）
 （Linux / Windows / macOS；公開包不含第三方字型，可自行提供合法取得的字型）
 
 > **Go 版到 v.0.53.9 為止，之後的開發與發布都改用 Rust 版**（[`rust/`](rust/)）。
@@ -214,15 +214,51 @@ Android 是外部儲存的 `wincv/`,與桌面的「執行檔旁邊的 `wincv/`�
 不說找過哪裡的話,使用者只能猜,而這裡正是每個平台都不一樣的地方。
 
 **24 點 CJK 字形**在選單 `7設定` → `CJK 字形` 選擇。倚天的明、楷、隸、
-宋、粗、仿宋分別使用 `STD.24M`、`STD.24K`、`STD.24L`、`STD.24R`、`STD.24B`、
+圓、黑、宋分別使用 `STD.24M`、`STD.24K`、`STD.24L`、`STD.24R`、`STD.24B`、
 `STD.24S`（倚天 3.53，ETUNPACK V1.00 壓縮）；倚天 2000 的同一組字叫
 `STDFONT.24`（明體）與 `STDFONT.24K` 等，直接放進去也認得，不必改名。
-國喬使用 `stdfont.24f` 與 `spcfont.24`。符號補充區 `SPCFSUPP.24` 兩種排法都收：
-3.53 的 365 字與 2000 的 408 字；認不出的排法只讓 C6A1–C8FE 那一區改用後備字型，
+國喬使用 `stdfont.24f` 與 `spcfont.24`。符號補充區 `SPCFSUPP.24` 支援
+365 字的緊密排列，以及未定義碼位全空的 408 格排列。已驗證的倚天 3.53 與
+倚天 2000 ISO 都是 365 字；認不出的排法只讓 C6A1–C8FE 那一區改用後備字型，
 其餘照常套用。
 選擇會立刻套用，並在 `session.json` 只保存可攜的 `cjk24` 來源代號；搬移資料
 目錄或改設 `$WINCV_HOME` 時不會留下失效的絕對路徑。啟動旗標
 `-eten24-std`／`-eten24-spc` 可用於臨時指定其他合法取得的字型。
+
+下面兩張是 Rust 重製版的實際視窗，使用倚天中文 2000 的原生 24×24 點陣字，
+關閉後備字型。字庫由使用者自備，未放入儲存庫或公開封包。
+
+![倚天中文 2000 明體顯示楊慎《臨江仙》](docs/ui/eten2000-linjiangxian.png)
+
+*明體 `STDFONT.24`：[楊慎《臨江仙》示範文字](docs/demo/linjiangxian.txt)，
+原文核對自[維基文庫](https://zh.wikisource.org/zh-hant/臨江仙_(楊慎))。*
+
+![倚天中文 2000 楷體顯示蘇軾《念奴嬌・赤壁懷古》](docs/ui/eten2000-niannujiao-chibihuaigu.png)
+
+*楷體 `STDFONT.24K`：[蘇軾《念奴嬌・赤壁懷古》示範文字](docs/demo/niannujiao-chibihuaigu.txt)，
+原文核對自[香港教育局參考版本](https://www.edb.gov.hk/attachment/tc/curriculum-development/kla/chi-edu/recommended-passages/ks4_17a_text.pdf)。*
+
+使用者提供的插畫與曹植《洛神賦》的姿容段落，一起排成圖文文件。
+同一份 [Markdown 示範文件](docs/demo/luoshen.md)，在 WinCV 裡切換倚天 2000 的楷體、
+明體與隸書。三張都是 **1008×2166** 的實際視窗截圖，點圖片可看原尺寸。
+
+[![WinCV 以倚天 2000 楷體顯示洛神插畫與《洛神賦》節選](docs/ui/eten2000-luoshen-kai.png)](docs/ui/eten2000-luoshen-kai.png)
+
+*楷體 `STDFONT.24K`，原生 24×24 字模放大 1.5 倍。圖片與文字由 WinCV 的 Markdown 檢視排版。*
+
+<details>
+<summary>明體與隸書的大圖</summary>
+
+[![WinCV 以倚天 2000 明體顯示洛神插畫與《洛神賦》節選](docs/ui/eten2000-luoshen-ming.png)](docs/ui/eten2000-luoshen-ming.png)
+
+*明體 `STDFONT.24`。*
+
+[![WinCV 以倚天 2000 隸書顯示洛神插畫與《洛神賦》節選](docs/ui/eten2000-luoshen-li.png)](docs/ui/eten2000-luoshen-li.png)
+
+*隸書 `STDFONT.24L`。原文核對自[維基文庫《洛神賦》](https://zh.wikisource.org/zh-hant/洛神賦)，
+插畫來源與字型權利見 [NOTICE](NOTICE)。*
+
+</details>
 
 **Big5 以外的字**靠系統字型補(簡體、日文、韓文、西里爾、希臘、阿拉伯、
 泰文與各種符號)。完整版另外內嵌 Noto 的幾份子集,不必依賴系統。
@@ -245,7 +281,7 @@ Android 是外部儲存的 `wincv/`,與桌面的「執行檔旁邊的 `wincv/`�
 
 ```bash
 tools/cargo.sh test                              # 測試(全部在 docker 裡跑)
-tools/rust-release.sh v.X.Y.Z-preview-YYYYMMDD   # 桌面三平台建置與打包到 dist-all/<版本>/rust/
+tools/rust-release.sh v.X.Y.Z-YYYYMMDD   # 桌面三平台建置與打包到 dist-all/<版本>/patch/
 ENGINE=rust VERSION=<版本> tools/build-full.sh linux   # 本機用的完整版(含字型,不可散布)
 ```
 

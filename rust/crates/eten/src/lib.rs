@@ -200,8 +200,9 @@ impl Font {
 
 /// 認出 SPCFSUPP 是哪一種排法,一律換成「擠掉洞」的排法。
 ///
-/// 倚天 3.53 存 365 個字模(只存有定義的碼位);倚天 2000 存 408 個
-/// (一碼位一格)。408 格那種,洞的 43 格必須全空才接受,否則整區不用。
+/// 倚天 3.53 與本次倚天 2000 ISO 都存 365 個字模(只存有定義的碼位)。
+/// Issue #11 回報過 408 格檔，尚未取得該實檔；相容一碼位一格的排法，
+/// 洞的 43 格必須全空才接受，否則整區不用。
 /// 認不出來不是錯誤,原因放在第二個回傳值。
 fn supp_layout(supp: &[u8], stride: usize) -> (Option<Vec<u8>>, String) {
     if supp.is_empty() {
@@ -267,6 +268,30 @@ mod tests {
         assert_eq!(SUPP.count, 365);
         assert_eq!(SUPP.index.len(), 408);
         assert_eq!(SUPP.index.iter().filter(|&&v| v < 0).count(), 43);
+    }
+
+    // ISO 字庫不入版控；tools/verify-eten2000.py 還原後明確指定才執行。
+    #[test]
+    fn eten2000_iso_receipt() {
+        use sha2::{Digest, Sha256};
+        let Ok(dir) = std::env::var("WINCV_ETEN2000") else {
+            eprintln!("略過:未指定 WINCV_ETEN2000");
+            return;
+        };
+        let dir = Path::new(&dir);
+        let supp = std::fs::read(dir.join("SPCFSUPP.24")).unwrap();
+        assert_eq!(supp.len(), 365 * 72);
+        assert_eq!(format!("{:x}", Sha256::digest(&supp)), "5febef61214ff45e4d630de6ee0b8a078d410378dbf6cc90590dfc4f3c8a0318");
+        for suffix in ["", "B", "K", "L", "R", "S"] {
+            let f = Font::load24(&dir.join(format!("STDFONT.24{suffix}")), Some(&dir.join("SPCFONT.24"))).unwrap();
+            assert!(f.supp_note.is_empty(), "{}", f.supp_note);
+            for r in "一中龍，。！？「」".chars() {
+                assert!(f.glyph(r).unwrap().bits.iter().any(|&b| b), "{suffix}: {r} 空白");
+            }
+            for (r, slot) in [('①', 0), ('ぁ', 70), ('あ', 71), ('ゃ', 136), ('や', 137)] {
+                assert_eq!(f.glyph(r).unwrap(), decode(&supp[slot * 72..(slot + 1) * 72], 24, 24), "{suffix}: {r}");
+            }
+        }
     }
 
     #[test]

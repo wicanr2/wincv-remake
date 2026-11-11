@@ -58,8 +58,8 @@ if want gopher; then
             -gopher gopher://127.0.0.1:7070/ -o $UI/gopher-menu.png"
 fi
 
-# markdown 檢視:docs/demo 的清單是 .. / cvga-atlas.png / office / palette.svg / showcase.md。
-if want markdown; then dump -app /src/docs/demo -cols 104 -rows 56 -keys "$(downs 4)Enter" -o $UI/showcase-markdown.png; fi
+# markdown 檢視:新增詩詞及洛神圖文示範後，showcase.md 是 .. 之後的第八項。
+if want markdown; then dump -app /src/docs/demo -cols 104 -rows 56 -keys "$(downs 8)Enter" -o $UI/showcase-markdown.png; fi
 
 # Office 與 PDF:docs/demo/office 的清單見該目錄的 README。
 D=/src/docs/demo/office

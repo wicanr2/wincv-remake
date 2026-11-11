@@ -1,12 +1,13 @@
 # CONTEXT
 
-## 目前狀態（2026-11-09）
+## 目前狀態（2026-11-11）
 
 | 項目 | 狀態與入口 |
 |---|---|
 | 下拉選單 | 分類照原版八類，`Alt-1`～`Alt-8`、單按 `Alt`、`F9` 打開；滑鼠移入項目時移動藍色選取列，點擊才執行；靜止滑鼠不覆蓋鍵盤選取 |
 | 應用程式圖示 | 重製版自繪的像素圖示，唯一來源是 `internal/appicon`；Windows 資源由 `tools/win-rsrc.sh` 在建置時產生，Android 的 mipmap 由 `tools/mkicon -android` 產生 |
-| 本輪版號 | `v.0.53.7-20261109`，發行結果與驗證見 [WORKLOG.md](WORKLOG.md) |
+| 本輪版號 | `v.0.53.10-20261111`，Rust 預覽版準備發布；建置與驗證見 [WORKLOG.md](WORKLOG.md) |
+| ETEN 2000 | 使用者提供的 ISO 實檔驗證與兩版 GUI 通過，Issue #11 已關閉；README 已加入詩詞及洛神圖文的不同字體截圖 |
 | 命令列入口 | `~/.bashrc` 的 `wincv` alias 指向 `/home/anr2/cht/wincv/dist-all/wincv-linux-amd64-full` |
 | 發行邊界 | 公開桌面封包在 `dist-all/<版本>/patch/`；含第三方字庫的 Linux 完整版只留在 `full-local/` |
 | 實際視窗驗證 | [tools/menu-hover-smoke.py](tools/menu-hover-smoke.py)，由 `Dockerfile.build` 提供 Xvfb 與輸入工具 |
@@ -61,6 +62,7 @@
 
 | 日期 | 曾經寫過 | 實際 | 怎麼發現的 |
 |---|---|---|---|
+| 2026-11-11 | 倚天 2000 的 `SPCFSUPP.24` 是 408 格；`C6E7` 應顯示「ゃ」 | 本次 ISO 解出 365 字，與倚天 3.53 的檔案完全相同。程式的 WHATWG Big5 對照中 `C6E7` 是「ぁ」，「ゃ」在 `C76A`。回報者的 408 格實檔仍未取得 | ISO 雜湊、實檔測試與 GUI 驗證入口見 [WORKLOG.md](WORKLOG.md) 的 2026-11-11 記錄 |
 | 2026-08-20 | `wincv052a.exe` 是程式本體,可直接反組譯 | 是 Inno Setup 5.3.8 安裝檔;本體是裡面的 `wincv.exe` + `WINCV.IMG` | PE section 資料總和僅 54 KB,而檔案 5.8 MB;strings 找到 `Inno Setup Setup Data (5.3.8)` |
 | 2026-08-20 | 逆向對象是 `wincv.exe` 這個 PE | `wincv.exe` 只是 Win32Forth kernel;應用邏輯全在 `WINCV.IMG` | `WinCV.txt` 註明開發環境 Win32Forth 4.2;image 內有 `#Win32forth v4stc 0.1d by Lcc Wizard` |
 | 2026-08-20 | 符號被 strip,只剩零星名稱殘留 | 完整 header space 存在,9497 筆 | image header 0x0c 的 `0x122794` 指向 header space;走訪後 3509 筆 xt 命中 code body |

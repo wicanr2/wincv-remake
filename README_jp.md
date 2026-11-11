@@ -80,7 +80,7 @@ MD5 と SFV の計算まで行えます。最終更新は 2011 年 11 月 24 日
 macOS 版も出ていません。
 
 ダウンロード:[v.0.53.9-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.9-20261110)(Go 版の最終版)、
-[v.0.53.8-preview-20261110](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.8-preview-20261110)(Rust 版プレビュー)
+[v.0.53.10-20261111](https://github.com/wicanr2/wincv-remake/releases/tag/v.0.53.10-20261111)(Rust 版プレビュー)
 (Linux / Windows / macOS。公開パッケージにサードパーティのフォントは含まれません。
 合法に入手したフォントを各自で用意してください)
 
@@ -295,7 +295,7 @@ Noto しか認識しなければ、Windows と macOS ではスキャンしても
 
 ```bash
 tools/cargo.sh test                              # テスト(すべて docker 内で実行)
-tools/rust-release.sh v.X.Y.Z-preview-YYYYMMDD   # デスクトップ 3 プラットフォームのビルドとパッケージを dist-all/<版>/rust/ に出力
+tools/rust-release.sh v.X.Y.Z-YYYYMMDD   # デスクトップ 3 プラットフォームのビルドとパッケージを dist-all/<版>/patch/ に出力
 ENGINE=rust VERSION=<版> tools/build-full.sh linux   # ローカル用の完全版(フォント内蔵、配布不可)
 ```
 
